@@ -97,11 +97,27 @@ Push emits MIDI **with no host handshake**, on `Ableton Push 3 Live Port` only
   traffic. Test for system realtime (`0xF8`-`0xFF`) *before* masking with
   `0xF0`, or `0xFE` decodes as SysEx.
 
-Still unmeasured: the full button map, remaining encoders, whether MPE can be
-disabled via SysEx, and what `User Port` / `External Port` are for.
+### LED output (§8.9)
 
-`tools/midimon.swift` is the capture tool — macOS-only, not part of the app
-build, kept so these measurements stay reproducible.
+- **Pads:** Note On ch1, note 36-99, **velocity = palette index** from
+  `core/push3/colors.go`, `0` = off. All 64 confirmed lit.
+- **Buttons:** CC ch1, **value = brightness** 0-127 (white LEDs ignore colour).
+- No handshake needed. Works in co-existence mode over CoreMIDI — do not claim
+  interface 5 just to drive LEDs.
+- A row-walk from note 36 ran bottom-to-top, confirming `push3.PadNote` /
+  `PadCoord` from the output side as well as the input side.
+- **Always clear LEDs on every exit path, including SIGINT.** A probe that
+  leaves the device lit makes the next run ambiguous.
+
+Still unmeasured: 77 of 85 button CCs, remaining encoders, button-LED
+brightness fidelity, whether MPE can be disabled via SysEx, and what
+`User Port` / `External Port` are for. `cmd/mapcheck`'s UNSEEN list tracks the
+button-CC gap.
+
+Probe tools are macOS-only Swift, not part of the app build, kept so the
+measurements stay reproducible: `tools/midimon.swift` (MIDI in),
+`tools/ledtest.swift` (LED out). `cmd/mapcheck` (Go) cross-references captures
+against the map.
 
 ## USB safety
 

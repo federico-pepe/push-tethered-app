@@ -659,3 +659,39 @@ duplication into a self-clearing reminder rather than a silent fork.
 
 If the standalone device is ever re-measured and agrees, fold `pushmap` into
 `core/push3` and delete it.
+
+### 8.9 LED output — measured 2026-08-09
+
+Driven with `tools/ledtest.swift` over **CoreMIDI**, i.e. the co-existence
+output path (§6.1a). 581 messages, ~8ms spacing, no drops or coalescing.
+
+**Confirmed:**
+
+- **Pad LEDs work as `core/push3/colors.go` documents.** Note On ch1,
+  note 36-99, velocity = palette index, `0` = off. All 64 pads lit with
+  distinct colours in a single sweep.
+- **Pad geometry confirmed from the output side.** A row-by-row walk starting
+  at note 36 travelled **bottom to top**, so note 36 is bottom-left. This had
+  only ever been measured from the input side (§8.7); output and input now agree
+  independently, and `push3.PadNote`/`PadCoord` are correct as written.
+- **No handshake needed for output either.** Push accepts LED commands with Live
+  closed, same as it emits input without one (§8.7).
+- **LED output works in co-existence mode.** Nothing beyond interface 0 is
+  claimed; the LED traffic rides CoreMIDI to the `Live Port` while the MIDI
+  interface stays bound to the OS class driver.
+
+**Not separately verified in this run:** button-LED brightness (step 4) and
+exact palette-index-to-colour fidelity (step 5) were sent and drew no errors,
+but only the pad sweep and row order were visually confirmed. Treat the
+brightness ramp as plausible, not measured.
+
+**Practical note:** `ledtest` clears every LED on all exit paths including
+SIGINT. A probe that leaves the device lit makes the next run ambiguous — you
+cannot tell a fresh result from a stale one.
+
+#### What this completes
+
+Display out (§8.3), MIDI in (§8.7) and LED out (§8.9) are now all confirmed
+working **simultaneously in co-existence mode on macOS, with zero additional
+software installed**. That is the whole v1 product surface, minus remapping,
+demonstrated end to end on real hardware.
