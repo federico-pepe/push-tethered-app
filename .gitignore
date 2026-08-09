@@ -2,6 +2,7 @@
 /frametest
 /midimon
 /mapcheck
+/ledtest
 
 # Go
 *.test

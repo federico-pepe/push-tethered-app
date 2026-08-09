@@ -94,6 +94,22 @@ all on `Live Port`:
 - Buttons: CC, 127 press / 0 release. CC 104–107 above the screen, CC 20–22 below.
 - **Filter Active Sensing** — `0xFE` at ~37/sec, over half of all traffic.
 
+### LED output
+
+Driven over CoreMIDI (co-existence output path), 581 messages at ~8ms spacing,
+no drops:
+
+- **Pad LEDs:** Note On ch1, note 36–99, velocity = palette index from
+  `core/push3/colors.go`, `0` = off. All 64 pads lit in one sweep.
+- **Button LEDs:** CC ch1, value = brightness 0–127 (white LEDs ignore colour).
+- A row-walk from note 36 travelled **bottom to top**, confirming note 36 =
+  bottom-left from the output side — independently of the input-side measurement.
+- No handshake required for output either.
+
+**Display out, MIDI in and LED out all work simultaneously in co-existence mode
+on macOS with zero additional software.** That is the v1 product surface, minus
+remapping, demonstrated on hardware.
+
 ## Two operating modes
 
 **Co-existence mode** — claim only interface 0. App draws the screen and
