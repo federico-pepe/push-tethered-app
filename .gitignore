@@ -1,6 +1,7 @@
 /probe
 /frametest
 /midimon
+/mapcheck
 
 # Go
 *.test

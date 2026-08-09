@@ -85,8 +85,12 @@ all on `Live Port`:
   CC 71/74 are also MPE timbre controllers — the numbers collide, the channel
   disambiguates.
 - Pads: 8×8, notes **36 bottom-left → 99 top-right**.
-- Encoders: relative, `1` = +1 click / `127` = −1; encoder 1 = CC 71. Touch =
-  Note On ch1 note 0–10. Touch strip touch = ch1 note 12.
+- Encoders: relative, `1` = +1 click / `127` = −1; encoder 1 = CC 71. They
+  **accelerate** — deltas up to ±11 on fast turns, so decode the signed value.
+- Touch sensors: encoders 1–8 = notes **0–7**, volume wheel **8**, note 9 unused,
+  tempo **10**, jog **11**, touch strip **12**, D-Pad center **13**. These
+  correct `core/push3`, which is off by one for the encoders and volume wheel and
+  omits the touch strip — see `internal/pushmap` and feasibility §8.8.
 - Buttons: CC, 127 press / 0 release. CC 104–107 above the screen, CC 20–22 below.
 - **Filter Active Sensing** — `0xFE` at ~37/sec, over half of all traffic.
 
