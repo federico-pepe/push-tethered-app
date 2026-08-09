@@ -80,8 +80,17 @@ Push emits MIDI **with no host handshake**, on `Ableton Push 3 Live Port` only
   verified.
 - **Encoders:** relative two's-complement — `1` = +1 click, `127` = -1.
   Encoder 1 = CC 71. `core/push3.DecodeRel` handles this unchanged.
-- **Encoder touch:** Note On ch1 note 0..10 (encoder 1 = note 0), vel 127
-  contact / Note Off release. **Touch strip touch:** ch1 note 12.
+- **Touch sensors — use `internal/pushmap`, NOT `core/push3`.** The shared map's
+  touch notes are wrong (§8.8). Measured: encoders 1-8 = notes **0-7**, volume
+  wheel = **8**, note 9 **unused**, tempo = 10, jog = 11, touch strip = **12**
+  (absent upstream), D-Pad center = 13. Note On vel 127 = contact.
+  `internal/pushmap` overrides only these; `core/push3` stays authoritative for
+  pads, button CCs, encoder CCs, the LED palette and `DecodeRel`.
+- **Encoders accelerate.** Deltas up to ±11 on fast turns — always use
+  `push3.DecodeRel`'s signed value, never assume one message = one click.
+- `core/push3/buttons.go:7` and that repo's map doc claim encoder "CW=127,
+  CCW=1". **That prose is inverted** — CW sends `1`. `DecodeRel`'s code is
+  correct. Deliberately not fixed upstream; see §8.8.
 - **Buttons:** CC, 127 press / 0 release. CC 104-107 above the screen,
   CC 20-22 below.
 - **Filter Active Sensing.** Push sends `0xFE` ~37×/second — over half of all

@@ -605,3 +605,57 @@ exactly that bug on the first run.
 Full button CC map (only 7 buttons were pressed), the remaining encoders,
 whether MPE can be switched off via SysEx, and the `External Port` / `User Port`
 roles.
+
+### 8.8 Touch-sensor map correction — measured 2026-08-09
+
+`core/push3`'s touch-sensor note numbers are wrong. Found by replaying captures
+through `cmd/mapcheck`, which cross-references live MIDI against the shared
+constants and flags anything unaccounted for. Confirmed with a 60s capture
+touching each sensor in a known order, no turning, so sequence alone identifies
+each note.
+
+| Sensor | Measured | `core/push3` | |
+|---|---|---|---|
+| Encoders 1-8 | **0-7** | 1-8 | off by one |
+| Volume wheel | **8** | 9 | off by one |
+| *(note 9)* | *unused* | — | gap |
+| Tempo wheel | **10** | 10 | correct |
+| Jog wheel | **11** | 11 | correct |
+| Touch strip | **12** | *absent* | undocumented |
+| D-Pad center | **13** | 13 | correct |
+
+Not a uniform shift: notes 0-8 cover the eight encoders plus the volume wheel,
+note 9 is unused, and everything from 10 up was already right. The old
+numbering looks like it assumed a contiguous 1..10 run for the encoders and both
+wheels — and the unused note 9 is exactly what that assumption would paper over.
+The upstream doc claims empirical verification, which suggests the range was
+extrapolated from one or two measured endpoints rather than swept.
+
+**Also wrong: the encoder direction prose.** `core/push3/buttons.go:7` and
+`docs/push3-button-map.md` both state *"CW=127, CCW=1"*. Measurement says the
+opposite — turning clockwise sends `1`, counter-clockwise sends `127` — which
+agrees with `DecodeRel`'s implementation (`1..63` positive, `127` = -1) and with
+Push 2's published spec. The **code is correct; only the prose is inverted** in
+both places.
+
+**Undocumented behaviour: the encoders accelerate.** Deltas of `+8` and `-11`
+appear on fast turns, so a consumer must use the decoded signed value rather
+than treating each message as a single click.
+
+#### Where the fix lives
+
+Deliberately **not** fixed in `core/push3`. That module is shared with
+`ableton-push-hack`, whose standalone hacks were built against the current
+values, and whose map doc claims its own empirical verification. Changing shared
+constants on the strength of a tethered-only measurement risks breaking working
+hacks to fix a map that may never have been exercised.
+
+The correction lives in `internal/pushmap` instead, which documents the
+divergence and overrides only the touch notes — `core/push3` remains
+authoritative for pads, button CCs, encoder CCs, the LED palette and
+`DecodeRel`. `internal/pushmap`'s test suite includes `TestDivergesFromCore`,
+which **fails if `core/push3` is ever corrected upstream** — turning the
+duplication into a self-clearing reminder rather than a silent fork.
+
+If the standalone device is ever re-measured and agrees, fold `pushmap` into
+`core/push3` and delete it.
