@@ -882,3 +882,57 @@ was built device-agnostic from the start. Push 2 support is now a button-map
 exercise rather than a port, which strengthens options B and C in
 `plans/2026-08-16-product-shape-decision.md`: whatever gets built reaches two
 devices, and Push 2 units are cheap and plentiful compared with Push 3.
+
+### 10.6 Push 2 button map — swept 2026-08-16
+
+Two ordered sweeps through `tools/midimon.swift` → `cmd/mapcheck`, pressing in a
+known sequence with pauses so identity comes from order rather than guesswork.
+**Coverage: 75/80 CC, 12/14 touch notes, zero unknowns.**
+
+**Most of Push 2 matches `core/push3`'s CC table exactly** — both screen rows
+(102-109, 20-27), the scene column (36-43, CC 36 at the *bottom*), transport,
+modes, views, Shift/Select, octave and page, and encoders 1-8 at CC 71-78.
+
+Five controls differ, now in `internal/pushmap/push2.go` as deltas:
+
+| CC | Push 2 | Push 3 |
+|---|---|---|
+| 15 | **Swing encoder** | no such control |
+| 52 | **Master** | uses CC 28 "Select (main)" |
+| 53 | **Stop Clip** | uses CC 29 "Stop Clips" |
+| 87 | **New** | uses CC 92 |
+| 111 | **Browse** | no such control |
+
+Push 3-only, absent on Push 2: the jog wheel (CC 70, 93-95), D-Pad centre (91),
+and Set/Help/Save/Lock (80-83).
+
+#### Note 9 — the two devices explain each other
+
+Push 2's touch notes run **contiguously 0-10**: encoders 1-8 = 0-7, master
+volume = 8, **Swing = 9**, Tempo = 10, touch strip = 12.
+
+Push 3 dropped the Swing encoder and left **note 9 unassigned** — which is
+exactly the hole found in §8.8, and exactly what makes the upstream "encoders
+are notes 1-8" numbering look plausible. The likeliest story is that the Push 3
+map was extrapolated from Push 2's contiguous run, shifted by one, and never
+swept per-control.
+
+This also independently re-confirms §8.8's correction: Push 2 puts encoder
+touches on **notes 0-7**, matching `internal/pushmap` and contradicting
+`core/push3` on a second, different device.
+
+#### Unresolved: arrow-key CCs
+
+Pressed as up, down, left, right, the arrows produced CC `46, 45, 44, 47`.
+Push 3's map says Up=46, **Right=45**, **Down=47**, Left=44 — so either Push 2
+differs on down/right, or the press order deviated from the instruction. A later
+group in the same capture did arrive out of the requested order, so the sequence
+is not trustworthy here. **Treat Push 2's down/right as unverified**; one
+targeted capture pressing only Down settles it.
+
+#### Tooling
+
+`cmd/mapcheck` now **auto-detects the device** from the port name that appears in
+every `midimon` line, and annotates with that device's table — no flag needed.
+`internal/midi` decodes per-device too, since which CCs count as encoders differs
+(Push 2 adds CC 15, and has no jog wheel at CC 70).

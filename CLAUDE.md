@@ -248,9 +248,15 @@ Recorded so they are not relitigated — rationale in `docs/feasibility.md` §6.
   verify the build floor, don't trust recalled version numbers), teVirtualMIDI
   (commercial driver), or shipping co-existence mode only.
 - **Push 2 works from the same binary** (§10, measured 2026-08-16). Display,
-  pads and LEDs are identical to Push 3; only the button CC table and MPE
-  behaviour differ. Its button map is still largely unswept — `CC 111` is known
-  to exist and be absent from the Push 3 map.
+  pads and LEDs are identical to Push 3. Its map is swept to 75/80 CC with zero
+  unknowns; the five differences live in `internal/pushmap/push2.go` — CC 15
+  Swing, 52 Master, 53 Stop Clip, 87 New (Push 3 uses 92), 111 Browse. **Use
+  `pushmap.ButtonNameFor`/`TouchNameFor`/`IsRelativeEncoderCCFor`**, not the
+  device-agnostic versions, wherever the device is known.
+- **Push 2's note 9 is the Swing encoder touch** — the note left unused on
+  Push 3, and the reason the upstream touch numbering was off by one (§10.6).
+- **Push 2 arrow CCs down/right are unverified** (§10.6): observed 45/47 in an
+  order that may not have matched the instruction.
 - **`xPort` (interface 6)** — vendor-specific, 2 bulk endpoints, undocumented,
   absent from Push 2's spec. Purpose unknown; enumerate freely, never send it
   invented payloads.
