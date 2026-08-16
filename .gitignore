@@ -3,6 +3,7 @@
 /midimon
 /mapcheck
 /ledtest
+/pushapp
 
 # Go
 *.test
