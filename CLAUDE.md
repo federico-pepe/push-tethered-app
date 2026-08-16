@@ -5,6 +5,13 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 > **Doc sync rule:** keep this file, `README.md`, and `docs/` in sync with every
 > code change. If a change affects behaviour, protocol facts, APIs or known
 > issues — update the relevant docs in the same commit.
+>
+> **Plans live in `plans/`**, one file per plan, named
+> `YYYY-MM-DD-name-of-the-plan.md` (date first so they sort chronologically).
+> Write plans there rather than leaving them in chat or scattered across
+> `docs/`. `docs/` holds durable reference — protocol facts, measurements,
+> rationale; `plans/` holds intent — what we are about to do and why, including
+> decisions that are still open.
 
 ## Project
 
@@ -133,14 +140,29 @@ The device is expensive, and some of this is undocumented. Rules:
 - If a display write wedges the screen, replug/power-cycle the device. That is
   the expected worst case and it is recoverable — keep it that way.
 
+## Layout
+
+```
+cmd/pushapp/      the app: display + input + LEDs in one process
+cmd/probe/        USB descriptor dump (read-only, never opens the device)
+cmd/frametest/    display-only probe, one frame or a timed hold
+cmd/mapcheck/     cross-references captures against the button map
+internal/display/ USB transport: claim interface 0, frame header, XOR, refresh
+internal/midi/    OS MIDI in/out, event decoding, LED helpers
+internal/pushmap/ map corrections + shared CC/touch name tables
+tools/            macOS-only Swift probes (midimon, ledtest)
+```
+
 ## Commands
 
 ```bash
+go run ./cmd/pushapp      # the vertical slice: screen + input + LEDs
 go run ./cmd/probe        # dump USB descriptors: interfaces, altsettings, endpoints
 go run ./cmd/frametest    # claim interface 0, push one frame to the display
-go build ./...
-go vet ./...
+go build ./... && go vet ./... && go test ./...
 ```
+
+`pushapp` flags: `-fps`, `-no-display` (MIDI only), `-no-leds`.
 
 macOS needs libusb: `brew install libusb` (1.0.30 confirmed working) and
 `export PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH`.
@@ -166,6 +188,10 @@ Recorded so they are not relitigated — rationale in `docs/feasibility.md` §6.
 - **Go**, single static binary. Chosen for `core/` reuse.
 - **`gousb`** (cgo → libusb) for USB. Accepted costs: no cross-compilation
   (needs a per-OS CI matrix; mingw-w64 on Windows) and libusb's LGPL-2.1.
+- **OS MIDI = `gitlab.com/gomidi/midi/v2` + `drivers/rtmididrv`** (chosen
+  2026-08-16). The driver **vendors the RtMidi C++ sources**, so there is no
+  brew/apt dependency — cgo compiles it in. One dependency covers macOS, Linux
+  and Windows. Do not add rtmidi/portmidi as system packages.
 - **Device MIDI path depends on the mode** (§6.1a — corrected 2026-08-09):
   full-ownership claims interface 5 over libusb (ep `0x03`/`0x83`);
   **co-existence must use an OS MIDI API**, because claiming interface 5 takes

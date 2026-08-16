@@ -1,7 +1,10 @@
 # Tethered Push 2 / Push 3 controller app — feasibility
 
-**Status:** research writeup, no code. Written 2026-08-08, stack recommendation
-(§6) added 2026-08-09.
+**Status:** written 2026-08-08 as a research writeup; stack recommendation (§6)
+added 2026-08-09; hardware measurements (§8) 2026-08-09; **working vertical
+slice (§9) 2026-08-16**. Sections 1-7 are the original argument and are left as
+written — §8 and §9 record what measurement and implementation actually found,
+including where §6 was wrong (see §6.1a).
 **Question:** could a cross-platform desktop app own a *tethered* Push 2 or Push 3
 outright — display, pads, buttons, encoders, LEDs — turning it into a fully
 configurable MIDI controller independent of any DAW?
@@ -695,3 +698,49 @@ Display out (§8.3), MIDI in (§8.7) and LED out (§8.9) are now all confirmed
 working **simultaneously in co-existence mode on macOS, with zero additional
 software installed**. That is the whole v1 product surface, minus remapping,
 demonstrated end to end on real hardware.
+
+---
+
+## 9. Vertical slice — working app, 2026-08-16
+
+`cmd/pushapp`: one Go binary that claims the display, reads the control surface
+and drives the LEDs. Built to prove the **stack**, not the protocol — §8 had
+already confirmed every path, but across three languages (display in Go, MIDI in
+and LED out in Swift probes), with no Go route to OS MIDI at all.
+
+**Measured:** 726 frames in 24.3s = **29.9fps**, 272 MIDI events, 137 pad
+presses, in a single process. Screen showed a live 8×8 mirror of held pads,
+encoder accumulators and an event log; physical pads lit white on press and
+cleared on release. Input decode, render and LED output round-trip confirmed.
+
+### 9.1 The Go MIDI question is settled
+
+`gitlab.com/gomidi/midi/v2` with `drivers/rtmididrv` **vendors the RtMidi C++
+sources** (`RtMidi.cpp`/`RtMidi.h` ship inside the module), so cgo compiles them
+in and there is **no system package to install** — no brew rtmidi, no portmidi.
+One dependency covers all three platforms, and the cgo tax was already paid for
+libusb. This removes the last unknown from §6.1's stack recommendation.
+
+### 9.2 Structure
+
+The probes' logic was promoted into packages rather than left in `cmd/`:
+
+- `internal/display` — claims interface 0, owns the frame header, XOR shaping
+  and a reused 320KB buffer so the refresh loop does not allocate per frame.
+  Exports `ErrBusy` for the Live-owns-the-screen case.
+- `internal/midi` — OS MIDI in/out with a decoder that **branches on channel
+  before CC**, per §8.7. Pads, buttons, encoders, touch sensors and MPE
+  expression become typed events.
+- `internal/pushmap` — now also holds the shared CC/touch name tables, so
+  `cmd/mapcheck` and `cmd/pushapp` cannot drift apart.
+
+### 9.3 Not yet verified
+
+- **The `ErrBusy` degrade path is implemented but untested.** Live was closed
+  for this run, so the "Live owns the display, continue MIDI-only" branch has
+  never actually executed. Worth running once with Live open.
+- **Sustained-load behaviour.** 24s at 30fps is not an endurance test; nothing
+  is known about drift, leaks or thermal behaviour over hours.
+- `ToBGR565` uses `img.At()` per pixel (153,600 interface calls per frame). It
+  holds 30fps comfortably today, but it is the obvious first bottleneck if
+  60fps or a busier UI is wanted.

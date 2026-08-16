@@ -5,9 +5,10 @@
 //   - UNKNOWN:   traffic on channel 1 that no constant accounts for
 //   - UNSEEN:    constants not exercised by this capture (coverage gap)
 //
-// The names below are written here, but every *value* comes from core/push3 —
-// so this verifies the shared map rather than duplicating it. If a constant
-// changes upstream, this tool follows automatically.
+// The name tables live in internal/pushmap and are shared with cmd/pushapp, so
+// the two cannot drift. Every CC *value* in them comes from core/push3, so this
+// verifies the shared map rather than duplicating it; touch notes come from
+// pushmap's corrected table (§8.8).
 //
 // Input is tools/midimon.swift output (file argument, or stdin).
 //
@@ -28,64 +29,9 @@ import (
 	"github.com/federico-pepe/push-tethered-app/internal/pushmap"
 )
 
-// ccNames maps CC number -> human name, valued from core/push3 constants.
-var ccNames = map[byte]string{
-	push3.CCScreenTop1: "Screen top 1", push3.CCScreenTop2: "Screen top 2",
-	push3.CCScreenTop3: "Screen top 3", push3.CCScreenTop4: "Screen top 4",
-	push3.CCScreenTop5: "Screen top 5", push3.CCScreenTop6: "Screen top 6",
-	push3.CCScreenTop7: "Screen top 7", push3.CCScreenTop8: "Screen top 8",
-
-	push3.CCScreenBot1: "Screen bottom 1", push3.CCScreenBot2: "Screen bottom 2",
-	push3.CCScreenBot3: "Screen bottom 3", push3.CCScreenBot4: "Screen bottom 4",
-	push3.CCScreenBot5: "Screen bottom 5", push3.CCScreenBot6: "Screen bottom 6",
-	push3.CCScreenBot7: "Screen bottom 7", push3.CCScreenBot8: "Screen bottom 8",
-
-	push3.CCEncoder1: "Encoder 1 turn", push3.CCEncoder2: "Encoder 2 turn",
-	push3.CCEncoder3: "Encoder 3 turn", push3.CCEncoder4: "Encoder 4 turn",
-	push3.CCEncoder5: "Encoder 5 turn", push3.CCEncoder6: "Encoder 6 turn",
-	push3.CCEncoder7: "Encoder 7 turn", push3.CCEncoder8: "Encoder 8 turn",
-	push3.CCVolume: "Volume wheel turn", push3.CCTempo: "Tempo wheel turn",
-
-	push3.CCJogWheel: "Jog wheel turn", push3.CCJogPress: "Jog press",
-	push3.CCJogClickLeft: "Jog click left", push3.CCJogClickRight: "Jog click right",
-
-	push3.CCDPadUp: "D-Pad up", push3.CCDPadRight: "D-Pad right",
-	push3.CCDPadDown: "D-Pad down", push3.CCDPadLeft: "D-Pad left",
-	push3.CCDPadCenter: "D-Pad center",
-
-	push3.CCSet: "Set", push3.CCSettings: "Settings",
-	push3.CCHelp: "Help", push3.CCUserMode: "User Mode",
-
-	push3.CCDeviceView: "Device View", push3.CCMixerView: "Mixer View",
-	push3.CCClipView: "Clip View", push3.CCSessionView: "Session View",
-
-	push3.CCShift: "Shift", push3.CCSelect: "Select",
-
-	push3.CCUndo: "Undo", push3.CCSave: "Save",
-	push3.CCAdd: "Add", push3.CCSwap: "Swap",
-
-	push3.CCLock: "Lock", push3.CCStopClips: "Stop Clips",
-	push3.CCMute: "Mute", push3.CCSolo: "Solo", push3.CCSelectMain: "Select (main)",
-
-	push3.CCTapTempo: "Tap Tempo", push3.CCMetronome: "Metronome",
-	push3.CCQuantize: "Quantize", push3.CCFixedLength: "Fixed Length",
-	push3.CCAutomate: "Automate", push3.CCNew: "New",
-	push3.CCCapture: "Capture", push3.CCRecord: "Record", push3.CCPlay: "Play",
-
-	push3.CCScene14: "Scene 1/4", push3.CCScene14t: "Scene 1/4t",
-	push3.CCScene18: "Scene 1/8", push3.CCScene18t: "Scene 1/8t",
-	push3.CCScene116: "Scene 1/16", push3.CCScene116t: "Scene 1/16t",
-	push3.CCScene132: "Scene 1/32", push3.CCScene132t: "Scene 1/32t",
-
-	push3.CCRepeat: "Repeat", push3.CCAccent: "Accent", push3.CCScale: "Scale",
-	push3.CCLayout: "Layout", push3.CCNote: "Note", push3.CCSession: "Session",
-
-	push3.CCDoubleLoop: "Double Loop", push3.CCDuplicate: "Duplicate",
-	push3.CCConvert: "Convert", push3.CCDelete: "Delete",
-
-	push3.CCOctaveUp: "Octave Up", push3.CCOctaveDown: "Octave Down",
-	push3.CCPageLeft: "Page Left", push3.CCPageRight: "Page Right",
-}
+// ccNames annotates CC numbers with human names. Lives in internal/pushmap so
+// cmd/pushapp and this tool share one table instead of drifting apart.
+var ccNames = pushmap.ButtonNames()
 
 // noteNames covers the non-pad notes on channel 1 (touch sensors). These come
 // from internal/pushmap, not core/push3: the shared map's touch notes are off

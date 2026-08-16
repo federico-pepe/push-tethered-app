@@ -4,11 +4,15 @@ Cross-platform desktop app to own an **Ableton Push 2 / Push 3 in tethered
 (controller) mode** — display, pads, buttons, encoders, LEDs — as a fully
 configurable MIDI controller, independent of any DAW.
 
-> **Status: pre-alpha.** No app yet — but **the display protocol is confirmed
-> working on real hardware.** `cmd/frametest` renders to a tethered Push 3's
-> screen at 30fps using the existing `core/` widget toolkit. See
-> [docs/feasibility.md](docs/feasibility.md) for the full writeup (§8 = measured
-> results).
+> **Status: pre-alpha, but running.** `cmd/pushapp` is a working vertical slice:
+> one Go binary that holds Push 3's screen at 30fps, reads the control surface,
+> and lights the pads you press — all confirmed on hardware. No configuration or
+> remapping yet. See [docs/feasibility.md](docs/feasibility.md) (§8 = protocol
+> measurements, §9 = the slice).
+
+```bash
+go run ./cmd/pushapp      # screen + input + LEDs, co-existence mode
+```
 
 ## Why this can work
 
@@ -135,11 +139,25 @@ Co-existence mode ships first.
 ## Layout
 
 ```
-cmd/probe/       USB descriptor dump — interfaces, endpoints, altsettings
-cmd/frametest/   Minimal "light the screen" test: one frame to bulk OUT
-internal/        Shared device/transport code (grows from the above)
-docs/            feasibility.md — full writeup, blockers, stack rationale
+cmd/pushapp/      the app: display + input + LEDs in one process
+cmd/probe/        USB descriptor dump — read-only, never opens the device
+cmd/frametest/    display-only probe: one frame, or a timed hold
+cmd/mapcheck/     cross-references captures against the button map
+internal/display/ USB transport: claim interface 0, header, XOR, refresh
+internal/midi/    OS MIDI in/out, event decoding, LED helpers
+internal/pushmap/ map corrections + shared CC/touch name tables
+tools/            macOS-only Swift probes (midimon, ledtest)
+docs/             feasibility.md — writeup, measurements, blockers
 ```
+
+## Stack
+
+- **Go**, single binary. Chosen so the `core/` screen toolkit is reused, not ported.
+- **`gousb`** (cgo → libusb) for the display interface.
+- **`gomidi` + `rtmididrv`** for OS MIDI. The driver vendors the RtMidi C++
+  sources, so there is **no system package to install** — one dependency covers
+  macOS, Linux and Windows.
+- cgo means **no cross-compilation**: build on each target OS.
 
 ## Related
 
