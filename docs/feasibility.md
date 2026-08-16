@@ -936,3 +936,158 @@ targeted capture pressing only Down settles it.
 every `midimon` line, and annotates with that device's table — no flag needed.
 `internal/midi` decodes per-device too, since which CCs count as encoders differs
 (Push 2 adds CC 15, and has no jog wheel at CC 70).
+
+---
+
+## 11. Push 3 targeted measurements — 2026-08-16
+
+Four questions that had been open were settled with one ordered capture,
+pressing controls in isolation.
+
+- **D-Pad matches `core/push3` exactly.** Pressed up/down/left/right in
+  isolation gave CC `46, 47, 44, 45`: Up=46, **Down=47**, Left=44, **Right=45**.
+  This resolves §10.6's ambiguity in favour of the documented map, and implies
+  Push 2's `46,45,44,47` reading came from mis-ordered pressing rather than a
+  device difference. **Push 2's arrows remain unverified**, but are now expected
+  to match.
+- **Note 9 is absent on Push 3 — zero events**, despite touching the D-Pad
+  centre, tempo encoder, volume encoder, jog wheel and touch strip. The Swing
+  encoder theory from §10.6 holds: note 9 exists on Push 2, is unassigned here.
+- **Jog wheel confirmed against hardware.** CC 70 sends `{1, 127}` — relative,
+  same encoding as the encoders. This validates `pushmap.IsRelativeEncoderCCFor`
+  by measurement rather than by reading the map. CC 91 (centre press), 93, 94,
+  95 all send 0/127; note 11 = jog touch, note 13 = D-Pad centre touch.
+- **Pads arrived on channel 1 again** — MPE off, second consecutive session.
+
+### 11.1 User Port sometimes mirrors Live Port — §8.7 partially wrong
+
+§8.7 records that `User Port` and `External Port` "carry nothing but keepalive".
+**That is not always true.** In the targeted capture, User Port carried a
+byte-exact duplicate of Live Port: 374 data events each, identical status
+distribution.
+
+A later capture in the same session showed User Port nearly silent (Live 54 /
+User 1), so the behaviour changes between sessions — in lockstep with the MPE
+question (§9.5), suggesting one underlying cause rather than two.
+
+**Not diagnosed.** User mode was ruled out by the operator. The app is
+unaffected because it opens Live Port only, but **anything opening several
+Push ports must expect duplicates.**
+
+### 11.2 Live's handshake — partially observed, and a methodological limit
+
+`midimon` was left running while Live launched and took Push as its control
+surface. CoreMIDI is multi-client, so this works — but **a MIDI source only
+carries device→host**, so what was captured is Push's *replies*, not Live's
+commands. Worth stating plainly because it is easy to misread the capture as
+"Live's handshake".
+
+Push replied to an Identity Request:
+
+```
+F0 7E 01 06 02  00 21 1D  69 32 03 00 01 00 5B 00 1D 26 76 11 00 03 01 14 04  F7
+                └ Ableton manufacturer ID
+```
+
+Push→host SysEx uses the prefix `F0 00 21 1D 01 01 <cmd>`. Commands observed:
+
+| cmd | Observation |
+|---|---|
+| `42`, `3E` | one-shot at connect |
+| `43` | long ascending table (`0A 12 18 1C 20 … 7F`) — plausibly a velocity curve |
+| `0A` | one-shot; the **only** message also seen on User Port |
+| `38` | repeating, two alternating variants — telemetry/status |
+| `3A 22 64` | periodic |
+
+**The limit:** the messages that *configure* Push travel host→device and cannot
+be observed through CoreMIDI at all. Seeing them needs USB-level capture —
+`usbmon` on Linux, or the host-side equivalent of `push_hook.c`'s libusb
+interposition.
+
+**Why it matters for the product:** if full-ownership mode needs Push configured
+the way Live configures it (MPE enabled, velocity curve, whatever `42`/`43`
+set), we would have to replicate messages we currently cannot see on macOS. That
+is an argument for doing a Linux session with `usbmon` before committing to
+option B in `plans/2026-08-16-product-shape-decision.md`.
+
+---
+
+## 12. Push 3 map complete — 2026-08-16
+
+**Coverage: 87/87 CC, 13/13 touch notes, zero unknowns.** Every constant in
+`core/push3` is now confirmed on tethered hardware, plus two controls it omits.
+
+### 12.1 Holding the display neutralises the soft buttons
+
+The sweep was nearly abandoned: **the leftmost button above the screen switches
+Push 3 into standalone mode**, which would end the session. The operator caught
+it before pressing.
+
+The fix was the operator's suggestion and it worked: **run `cmd/pushapp` so we
+own the screen, and the device-level functions go away.** Those top-row buttons
+are soft buttons belonging to Push's *own* idle UI; once a host drives the
+display, they become plain MIDI. The whole top row then swept normally as
+CC 102-109.
+
+This is a genuinely useful technique, not just a workaround: any control whose
+behaviour depends on Push's own UI can be measured safely by taking the screen
+first.
+
+### 12.2 CC 15 and CC 111 — identified by their touch sensors
+
+Two CCs appeared that `core/push3` does not describe. Rather than infer from
+press order — unreliable, as §10.6 showed — they were identified by the touch
+sensor **bracketing** the press:
+
+```
+27.56s  Note 10 v127   finger ON the tempo wheel
+27.79s  CC 15 = 127    press
+27.89s  CC 15 = 0      release
+28.08s  Note 10 v0     finger off
+
+29.91s  Note 8  v127   finger ON the volume wheel
+30.90s  CC 111 = 127
+31.01s  CC 111 = 0
+31.28s  Note 8  v0
+```
+
+So **CC 15 = tempo encoder press** and **CC 111 = volume encoder press**. The
+touch sensor proves which physical control a button belongs to, independently of
+what order anything was pressed in. Worth reusing whenever a control is
+ambiguous.
+
+### 12.3 The same CC means different things on the two devices
+
+| CC | Push 2 | Push 3 |
+|---|---|---|
+| 15 | Swing encoder **turn** (relative, 1-4, never 0) | Tempo encoder **press** (0/127) |
+| 111 | **Browse** button | Volume encoder **press** |
+
+Push 3 has no Browse button — confirmed by the operator — so `internal/pushmap`
+was wrong to claim Push 3 lacked CC 111 entirely; it has the CC, for a different
+control.
+
+**This is the strongest argument yet for resolving CC numbers per device rather
+than globally.** Treating CC 15 as an encoder everywhere would decode a Push 3
+tempo-encoder press as a `+127` encoder jump. `IsRelativeEncoderCCFor` handles
+it, and now says why.
+
+### 12.4 Endurance
+
+`pushapp` held the display for the whole sweep: **12570 frames in 6m59s = 30.0
+fps exactly, zero write errors**, while decoding 715 MIDI events. §9.3 flagged
+that 24 seconds was not an endurance test; seven minutes of continuous 30fps USB
+writes with concurrent MIDI is meaningfully better evidence. Still nothing known
+about multi-hour behaviour.
+
+### 12.5 Coverage summary, both devices
+
+| | Push 2 | Push 3 |
+|---|---|---|
+| CC | 75/80 | **87/87** |
+| Touch notes | 12/14 | **13/13** |
+| Unknowns | 0 | 0 |
+
+Remaining Push 2 gaps are the controls it shares with Push 3 that were simply
+not pressed, plus the arrow-key down/right ambiguity (§10.6) — now expected to
+match Push 3's 46/47/44/45 since §11 confirmed those in isolation.

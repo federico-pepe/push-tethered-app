@@ -6,9 +6,10 @@ import "github.com/federico-pepe/ableton-push-hack/core/push3"
 // every *value* is imported from core/push3, so this annotates the shared map
 // rather than duplicating it: if a constant changes upstream, this follows.
 //
-// Unlike the touch notes (see touch.go), these CC values are NOT known to be
-// wrong — only 8 of them have been exercised on tethered hardware so far.
-// cmd/mapcheck's UNSEEN list tracks the remaining coverage gap.
+// Every entry has been exercised on tethered hardware: 87/87 CCs confirmed on
+// Push 3, 75/80 on Push 2, zero unknowns on either (§10.6, §12). CC 15 and
+// CC 111 are Push 3 additions living in push2.go's push3Extra, because they
+// mean different things on the two devices.
 var buttonNames = map[byte]string{
 	push3.CCScreenTop1: "Screen top 1", push3.CCScreenTop2: "Screen top 2",
 	push3.CCScreenTop3: "Screen top 3", push3.CCScreenTop4: "Screen top 4",
@@ -67,19 +68,13 @@ var buttonNames = map[byte]string{
 	push3.CCPageLeft: "Page Left", push3.CCPageRight: "Page Right",
 }
 
-// IsRelativeEncoderCC reports whether a CC carries a relative encoder delta.
+// IsRelativeEncoderCC reports whether a CC carries a relative encoder delta on
+// Push 3. Delegates to core/push3, which now includes the jog wheel at CC 70.
 //
-// Supersedes push3.IsEncoderCC, which covers CC 71-79 and 14 but **omits the
-// jog wheel at CC 70** — even though core/push3's own map documents the jog
-// wheel as relative ("Rotate CW: CC 70 value 127, CCW: value 1"). Without this,
-// jog turns fall through to the button branch and, because both 1 and 127 are
-// non-zero, decode as an endless stream of button presses.
-//
-// Found 2026-08-16 by watching a screen capture: the event log filled with
-// "btn Jog wheel turn" while every encoder counter stayed at 0.
-func IsRelativeEncoderCC(cc byte) bool {
-	return push3.IsEncoderCC(cc) || cc == push3.CCJogWheel
-}
+// The jog wheel omission was found 2026-08-16 by watching a screen capture: the
+// event log filled with "btn Jog wheel turn" while every encoder counter stayed
+// at 0. It was worked around here and has since been fixed upstream.
+func IsRelativeEncoderCC(cc byte) bool { return push3.IsEncoderCC(cc) }
 
 // ButtonName returns the name for a CC, and whether it is mapped.
 func ButtonName(cc byte) (string, bool) {

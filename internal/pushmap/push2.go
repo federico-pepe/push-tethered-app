@@ -6,20 +6,36 @@ package pushmap
 // column, transport, modes, views, encoders. Only the entries below differ, so
 // this file holds *deltas*, not a second full table. Use ButtonNameFor.
 //
-// Coverage from two ordered sweeps: 70/85 CC, 11/13 touch notes.
+// Coverage: Push 2 75/80 CC and 12/14 touch notes; Push 3 87/87 and 13/13,
+// both with zero unknowns (§10.6, §12).
 
 // Push 2 controls that core/push3's table does not describe correctly.
+//
+// Note CC 15 and CC 111 exist on BOTH devices but mean different things — see
+// push3Extra. A mapping engine must resolve CC numbers per device, not globally.
 var push2Extra = map[byte]string{
-	15:  "Swing encoder turn", // Push 3 has no Swing encoder
+	15:  "Swing encoder turn", // relative encoder; on Push 3 this CC is a button
 	52:  "Master",             // Push 3 uses CC 28 for "Select (main)"
 	53:  "Stop Clip",          // Push 3 uses CC 29 for "Stop Clips"
 	87:  "New",                // Push 3 uses CC 92 for New
-	111: "Browse",             // Push 3 has no Browse button
+	111: "Browse",             // Push 3 uses this CC for the volume encoder press
 }
 
-// push2Absent lists Push 3 CCs that Push 2 has no control for. Not exhaustive —
-// it covers the controls Push 3 gained (jog wheel, D-Pad centre, Set/Help/Save/
-// Lock) rather than everything unswept.
+// push3Extra holds Push 3 controls that core/push3's own table omits.
+//
+// Both were identified 2026-08-16 by their touch sensors bracketing the press:
+// note 10 (tempo wheel touch) went on, CC 15 pressed and released, note 10 went
+// off — and likewise note 8 (volume wheel touch) around CC 111. The touch
+// sensor proves which physical control a button belongs to without relying on
+// press order (§12).
+var push3Extra = map[byte]string{
+	15:  "Tempo encoder press",
+	111: "Volume encoder press",
+}
+
+// push2Absent lists Push 3 CCs that Push 2 has no control for. Derived from
+// Push 3 having these controls physically and Push 2 not; it is not a claim
+// that each was individually probed on Push 2 and found silent.
 var push2Absent = map[byte]bool{
 	70: true, // jog wheel turn
 	80: true, // Set
@@ -91,6 +107,10 @@ func ButtonNameFor(d Device, cc byte) (string, bool) {
 		if push2Absent[cc] {
 			return "", false
 		}
+		return ButtonName(cc)
+	}
+	if n, ok := push3Extra[cc]; ok {
+		return n, true
 	}
 	return ButtonName(cc)
 }
@@ -116,8 +136,13 @@ func TouchNameFor(d Device, note byte) (string, bool) {
 	return TouchName(note)
 }
 
-// IsRelativeEncoderCCFor reports whether a CC is a relative encoder on the
-// given device. Push 2 adds the Swing encoder at CC 15 and has no jog wheel.
+// IsRelativeEncoderCCFor reports whether a CC carries a relative encoder delta
+// on the given device.
+//
+// CC 15 is the reason this is device-scoped rather than a single predicate: on
+// Push 2 it is the Swing encoder (values 1-4, never 0), on Push 3 it is the
+// tempo encoder's push-button (0/127). Treating it globally as an encoder would
+// decode Push 3 button presses as a +127 jump.
 func IsRelativeEncoderCCFor(d Device, cc byte) bool {
 	if d == Push2 {
 		if cc == 15 {
