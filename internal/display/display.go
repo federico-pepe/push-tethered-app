@@ -15,6 +15,8 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"sort"
+	"strings"
 	"time"
 
 	coredisplay "github.com/federico-pepe/ableton-push-hack/core/display"
@@ -29,9 +31,10 @@ const (
 	ProductPush2 = 0x1967
 	ProductPush3 = 0x1969
 
-	ifaceDisplay = 0 // vendor-specific 255/255/255, "Ableton Push 3 Display"
 	epDisplayOut = 1 // bulk OUT 0x01
 	configNum    = 1 // the device has exactly one configuration
+
+	classVendorSpecific = 0xFF
 )
 
 // ErrBusy reports that another process (in practice Ableton Live with Push as
@@ -92,8 +95,8 @@ func Open() (*Device, error) {
 	// NOTE: deliberately no dev.SetAutoDetach(true). It is config-wide, so it
 	// would detach audio and MIDI from the OS class drivers too, destroying
 	// co-existence mode — and on macOS it fails outright with
-	// LIBUSB_ERROR_ACCESS. Interface 0 is vendor-specific with no class driver
-	// bound, so there is nothing to detach anyway.
+	// LIBUSB_ERROR_ACCESS. The display interface is vendor-specific with no
+	// class driver bound, so there is nothing to detach anyway.
 
 	cfg, err := dev.Config(configNum)
 	if err != nil {
@@ -102,7 +105,15 @@ func Open() (*Device, error) {
 		return nil, fmt.Errorf("selecting configuration %d: %w", configNum, err)
 	}
 
-	intf, err := cfg.Interface(ifaceDisplay, 0)
+	ifaceNum, err := findDisplayInterface(dev, cfg)
+	if err != nil {
+		cfg.Close()
+		dev.Close()
+		ctx.Close()
+		return nil, err
+	}
+
+	intf, err := cfg.Interface(ifaceNum, 0)
 	if err != nil {
 		cfg.Close()
 		dev.Close()
@@ -110,7 +121,7 @@ func Open() (*Device, error) {
 		if isAccessError(err) {
 			return nil, ErrBusy
 		}
-		return nil, fmt.Errorf("claiming interface %d: %w", ifaceDisplay, err)
+		return nil, fmt.Errorf("claiming interface %d: %w", ifaceNum, err)
 	}
 
 	out, err := intf.OutEndpoint(epDisplayOut)
@@ -129,6 +140,54 @@ func Open() (*Device, error) {
 	}, nil
 }
 
+// findDisplayInterface picks the vendor-specific interface that drives the
+// screen, rather than assuming interface 0.
+//
+// This matters for two reasons. Push 2 and Push 3 are different devices with
+// different interface layouts — Push 3 is a composite device with audio and
+// MIDI, Push 2 is not — so a hardcoded number is a Push-3 assumption.
+//
+// More importantly, Push 3 has *two* vendor-specific interfaces: 0 ("Display")
+// and 6 ("xPort"), and their descriptors are identical — both 255/255/255 with
+// two bulk endpoints. Nothing but the interface string tells them apart.
+// xPort is undocumented and CLAUDE.md forbids writing to it, so this selects
+// by name and refuses to fall back onto it.
+func findDisplayInterface(dev *gousb.Device, cfg *gousb.Config) (int, error) {
+	var vendorIfaces []int
+	for _, iface := range cfg.Desc.Interfaces {
+		for _, alt := range iface.AltSettings {
+			if alt.Class != classVendorSpecific {
+				continue
+			}
+			name, err := dev.InterfaceDescription(cfg.Desc.Number, iface.Number, alt.Alternate)
+			if err == nil {
+				if strings.Contains(strings.ToLower(name), "display") {
+					return iface.Number, nil
+				}
+				if strings.Contains(strings.ToLower(name), "xport") {
+					continue // never claim the undocumented interface
+				}
+			}
+			vendorIfaces = append(vendorIfaces, iface.Number)
+			break
+		}
+	}
+
+	// No interface advertised itself as the display. Fall back to the lowest
+	// vendor-specific interface, which is the display on both known devices —
+	// but only if there is exactly one candidate, so we can never guess xPort.
+	switch len(vendorIfaces) {
+	case 0:
+		return 0, errors.New("no vendor-specific display interface found")
+	case 1:
+		return vendorIfaces[0], nil
+	default:
+		sort.Ints(vendorIfaces)
+		return 0, fmt.Errorf("cannot identify the display interface: %d vendor-specific "+
+			"candidates %v and none is named \"Display\" — refusing to guess", len(vendorIfaces), vendorIfaces)
+	}
+}
+
 // isAccessError reports whether err is libusb's LIBUSB_ERROR_ACCESS, which is
 // how "someone else owns this interface" surfaces.
 func isAccessError(err error) bool {
@@ -136,22 +195,12 @@ func isAccessError(err error) bool {
 	if errors.As(err, &se) {
 		return false
 	}
+	// gousb wraps the libusb error in a plain error for claim failures, so the
+	// string check is a necessary fallback alongside the typed comparison.
+	msg := err.Error()
 	return errors.Is(err, gousb.ErrorAccess) ||
-		// gousb wraps the libusb error in a plain error for claim failures.
-		containsAny(err.Error(), "bad access", "LIBUSB_ERROR_ACCESS")
-}
-
-func containsAny(s string, subs ...string) bool {
-	for _, sub := range subs {
-		if len(sub) <= len(s) {
-			for i := 0; i+len(sub) <= len(s); i++ {
-				if s[i:i+len(sub)] == sub {
-					return true
-				}
-			}
-		}
-	}
-	return false
+		strings.Contains(msg, "bad access") ||
+		strings.Contains(msg, "LIBUSB_ERROR_ACCESS")
 }
 
 // WriteFrame encodes img and pushes one frame. A single frame is sufficient —

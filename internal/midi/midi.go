@@ -14,6 +14,7 @@ package midi
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/federico-pepe/ableton-push-hack/core/push3"
 	"github.com/federico-pepe/push-tethered-app/internal/pushmap"
@@ -22,9 +23,24 @@ import (
 	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv" // RtMidi C++ is vendored; no system package needed
 )
 
-// PortName is the only port that carries Push's control surface. User Port and
-// External Port emit nothing but keepalive (§8.7).
-const PortName = "Ableton Push 3 Live Port"
+// livePortSuffix identifies the port that carries the control surface. Push
+// exposes several ports — Push 3 has Live/User/External, Push 2 has Live/User —
+// but only the Live port carries pads, buttons and encoders (§8.7).
+//
+// Matched by substring rather than hardcoded, so the same code finds
+// "Ableton Push 2 Live Port" and "Ableton Push 3 Live Port".
+const livePortSuffix = "Live Port"
+
+// findPort returns the first port whose name mentions Push and the Live port.
+func findPortName(names []string) (string, error) {
+	for _, n := range names {
+		if strings.Contains(n, "Push") && strings.Contains(n, livePortSuffix) {
+			return n, nil
+		}
+	}
+	return "", fmt.Errorf("no Push Live Port found among %v "+
+		"(connected, and in controller mode?)", names)
+}
 
 // Event is any decoded control-surface or pad event.
 type Event interface{ eventName() string }
@@ -41,10 +57,25 @@ func (Button) eventName() string { return "button" }
 // Encoder is a relative encoder turn on channel 1. Delta is already decoded
 // via push3.DecodeRel and can exceed ±1: the encoders accelerate, with deltas
 // up to ±11 observed on fast turns (§8.8).
+//
+// "Encoder" includes the volume, tempo and jog wheels, which use the same
+// relative encoding. Index identifies the eight numbered encoders; the wheels
+// are distinguished by CC (see Name).
 type Encoder struct {
 	CC    byte
-	Index int // 0-7 for encoders 1-8, -1 for the volume/tempo wheels
+	Index int // 0-7 for encoders 1-8, -1 for the volume/tempo/jog wheels
 	Delta int
+}
+
+// Name returns a human label for the encoder or wheel.
+func (e Encoder) Name() string {
+	if e.Index >= 0 {
+		return fmt.Sprintf("encoder %d", e.Index+1)
+	}
+	if n, ok := pushmap.ButtonName(e.CC); ok {
+		return n
+	}
+	return fmt.Sprintf("CC %d", e.CC)
 }
 
 func (Encoder) eventName() string { return "encoder" }
@@ -102,7 +133,7 @@ func Decode(b []byte) Event {
 		if len(b) < 3 {
 			return nil
 		}
-		if push3.IsEncoderCC(b[1]) {
+		if pushmap.IsRelativeEncoderCC(b[1]) {
 			idx := -1
 			if b[1] >= push3.CCEncoder1 && b[1] <= push3.CCEncoder8 {
 				idx = int(b[1] - push3.CCEncoder1)
@@ -164,23 +195,36 @@ type Port struct {
 	out  drivers.Out
 	send func(gm.Message) error
 	stop func()
+	name string
 }
+
+// Name returns the MIDI port this connection uses.
+func (p *Port) Name() string { return p.name }
 
 // Open connects to Push's Live Port for both input and LED output.
 func Open() (*Port, error) {
-	in, err := gm.FindInPort(PortName)
-	if err != nil {
-		return nil, fmt.Errorf("finding MIDI in %q: %w", PortName, err)
+	var inNames []string
+	for _, p := range gm.GetInPorts() {
+		inNames = append(inNames, p.String())
 	}
-	out, err := gm.FindOutPort(PortName)
+	name, err := findPortName(inNames)
 	if err != nil {
-		return nil, fmt.Errorf("finding MIDI out %q: %w", PortName, err)
+		return nil, err
+	}
+
+	in, err := gm.FindInPort(name)
+	if err != nil {
+		return nil, fmt.Errorf("opening MIDI in %q: %w", name, err)
+	}
+	out, err := gm.FindOutPort(name)
+	if err != nil {
+		return nil, fmt.Errorf("opening MIDI out %q: %w", name, err)
 	}
 	send, err := gm.SendTo(out)
 	if err != nil {
 		return nil, fmt.Errorf("opening MIDI out: %w", err)
 	}
-	return &Port{in: in, out: out, send: send}, nil
+	return &Port{in: in, out: out, send: send, name: name}, nil
 }
 
 // Listen starts delivering decoded events to fn until Close.
@@ -191,7 +235,7 @@ func (p *Port) Listen(fn func(Event)) error {
 		}
 	})
 	if err != nil {
-		return fmt.Errorf("listening on %q: %w", PortName, err)
+		return fmt.Errorf("listening on %q: %w", p.name, err)
 	}
 	p.stop = stop
 	return nil

@@ -67,6 +67,20 @@ var buttonNames = map[byte]string{
 	push3.CCPageLeft: "Page Left", push3.CCPageRight: "Page Right",
 }
 
+// IsRelativeEncoderCC reports whether a CC carries a relative encoder delta.
+//
+// Supersedes push3.IsEncoderCC, which covers CC 71-79 and 14 but **omits the
+// jog wheel at CC 70** — even though core/push3's own map documents the jog
+// wheel as relative ("Rotate CW: CC 70 value 127, CCW: value 1"). Without this,
+// jog turns fall through to the button branch and, because both 1 and 127 are
+// non-zero, decode as an endless stream of button presses.
+//
+// Found 2026-08-16 by watching a screen capture: the event log filled with
+// "btn Jog wheel turn" while every encoder counter stayed at 0.
+func IsRelativeEncoderCC(cc byte) bool {
+	return push3.IsEncoderCC(cc) || cc == push3.CCJogWheel
+}
+
 // ButtonName returns the name for a CC, and whether it is mapped.
 func ButtonName(cc byte) (string, bool) {
 	n, ok := buttonNames[cc]

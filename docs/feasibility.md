@@ -744,3 +744,141 @@ The probes' logic was promoted into packages rather than left in `cmd/`:
 - `ToBGR565` uses `img.At()` per pixel (153,600 interface calls per frame). It
   holds 30fps comfortably today, but it is the obvious first bottleneck if
   60fps or a busier UI is wanted.
+
+### 9.4 Screen capture, and two bugs it caught
+
+`cmd/pushapp -capture out.mp4` records what the app draws. Frames are tapped
+from the render path before the USB encode, so recording adds no USB traffic and
+cannot disturb the panel. `.mp4`/`.mov` pipe raw RGBA to ffmpeg; `.gif` is
+encoded in-process with no external tool.
+
+**Panel-accurate by default.** Push's panel is BGR565, so the RGBA we render is
+not what the hardware shows. Each frame is round-tripped through
+`ToBGR565`/`FromBGR565` before recording, giving the recording the same colour
+banding the panel has. `-capture-raw` records the source image instead — it
+looks better, but it is not what you saw.
+
+Verified: 391 frames, 960×160 h264, 13.07s, 97KB.
+
+**Looking at a captured frame immediately found two bugs that the logs did not:**
+
+1. **The jog wheel decoded as a button.** `push3.IsEncoderCC` covers CC 71-79
+   and 14 but **omits the jog wheel at CC 70**, even though `core/push3`'s own
+   map documents it as relative. Jog turns fell through to the button branch and,
+   since both `1` and `127` are non-zero, produced an endless stream of "button
+   presses" while every encoder counter stayed at 0. Fixed with
+   `pushmap.IsRelativeEncoderCC`, which extends the upstream predicate rather
+   than editing it (same containment strategy as §8.8).
+
+2. **Non-ASCII text renders as tofu.** `core/gfx/text` uses
+   `basicfont.Face7x13`, which is ASCII-only — an em-dash in the title bar drew
+   as a missing-glyph box. **Anything drawn to Push's screen must be ASCII.**
+
+Both were invisible in the terminal output, which reported healthy frame rates
+and event counts throughout. Worth remembering: for a device whose entire output
+is a screen, looking at the screen is a distinct verification step.
+
+### 9.5 Contradiction to resolve: MPE may not always be on
+
+§8.7 records "MPE is on by default — pad note-ons rotate across channels 2-16",
+measured 2026-08-09. On 2026-08-16 a capture showed pad events arriving on
+**channel 1** instead, in the same co-existence setup with Live closed.
+
+Both observations are real; nothing in between was deliberately changed. The
+device was disconnected and reconnected between sessions. Possible explanations:
+a Push-side mode that persists across sessions, a power-cycle default, or
+something about the order in which ports are opened.
+
+**Unresolved.** The decoder handles pads on channel 1 and 2-16 alike, so nothing
+is broken — but "MPE is on by default" should be treated as *sometimes true*
+until the trigger is identified. Do not build a mapping model that assumes
+either layout.
+
+---
+
+## 10. Push 2 on hardware — 2026-08-16
+
+First Push 2 measurement in the project. It had been a stated day-one goal since
+2026-08-08 with nothing behind it; the button map was explicitly "unwritten".
+
+**Result: `cmd/pushapp` ran on Push 2 unmodified** — claimed the display,
+rendered the same UI at 29.9fps, decoded pads and buttons, and lit pad LEDs.
+Confirmed visually. Two small changes were needed first, both device-agnostic
+rather than Push-2-specific (§10.3).
+
+### 10.1 Descriptors
+
+`VID 0x2982 / PID 0x1967`, USB 2.00, `bDeviceClass 0` (not a composite IAD
+device like Push 3), bus-powered at 500mA, **3 interfaces**:
+
+| # | Class/Sub | Endpoints |
+|---|---|---|
+| 0 | **255/255 vendor — display** | **`0x01` OUT bulk 512**, `0x81` IN bulk 512 |
+| 1 | 1/1 audio control | — |
+| 2 | 1/3 MIDIStreaming | `0x02` OUT bulk 512, `0x82` IN bulk 512 |
+
+### 10.2 Identical vs different
+
+**Identical to Push 3 — no abstraction needed:**
+
+- **The display interface, exactly.** Interface 0, vendor-specific 255/255/255,
+  bulk OUT `0x01`, 512-byte packets. Same frame header, same XOR, same
+  960×160/stride-1024 BGR565. §1's protocol-equivalence claim now has hardware
+  on both sides rather than one device plus a spec.
+- **Pad grid.** Notes 36-99, note 99 = top-right, decoded as (8,8) by
+  `push3.PadCoord` with no change.
+- **LED protocol and palette.** Note On + palette index; index 124 is white on
+  both devices.
+
+**Different:**
+
+| | Push 2 | Push 3 |
+|---|---|---|
+| Interfaces | 3 | 7 |
+| MIDI endpoints | `0x02`/`0x82` | `0x03`/`0x83` |
+| MIDI ports | 2 (Live, User) | 3 (+External) |
+| Audio | none | class-compliant 16×16 |
+| `xPort` | absent | present |
+| Power | bus, 500mA | self, 0mA |
+| MPE | **no** — pads on ch1 | yes (usually — §9.5) |
+| Vendor interfaces | **1** | 2 (display + xPort) |
+
+The MIDI endpoint difference matters only for full-ownership mode; co-existence
+goes through the OS, which is why the app did not care.
+
+Push 2 having exactly **one** vendor-specific interface also means
+`findDisplayInterface`'s single-candidate path applies, so it cannot pick wrong
+even if the interface string is unreadable.
+
+### 10.3 What had to change (and what did not)
+
+- **MIDI port discovery.** `internal/midi` hardcoded
+  `"Ableton Push 3 Live Port"`. Now matches any port containing "Push" and
+  "Live Port", so one build finds either device.
+- **Display interface discovery** (already done earlier that day for other
+  reasons) — the hardcoded interface 0 was a Push 3 assumption that happened to
+  be right here.
+- **Nothing else.** No display variant, no palette variant, no geometry change.
+
+### 10.4 Button map: partially divergent
+
+Two buttons appeared in a short session:
+
+- `CC 110` decoded as "Device View" — matching Push 3's map.
+- `CC 111` came through as **unmapped** — a Push 2 control with no Push 3
+  equivalent.
+
+So the maps overlap but are not the same, confirming a `core/push2`-style table
+is genuinely needed. The device abstraction, though, is **much smaller than §2
+assumed**: display, pads, LEDs and encoders are shared, and only the button CC
+table and MPE behaviour differ. `cmd/mapcheck` can sweep Push 2's map the same
+way it swept Push 3's.
+
+### 10.5 Consequence for the product decision
+
+The 2026-08-08 scope decision "both devices first-class from day one" is, for
+the core I/O paths, **already true** — accidentally, because the display stack
+was built device-agnostic from the start. Push 2 support is now a button-map
+exercise rather than a port, which strengthens options B and C in
+`plans/2026-08-16-product-shape-decision.md`: whatever gets built reaches two
+devices, and Push 2 units are cheap and plentiful compared with Push 3.
