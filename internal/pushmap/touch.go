@@ -1,78 +1,42 @@
-// Package pushmap holds Push 3 control-surface map corrections measured in
-// tethered (controller) mode that differ from the shared core/push3 map.
+// Package pushmap holds Push control-surface knowledge that core/push3 does not
+// cover: the Push 2 deltas, and device-scoped lookups.
 //
-// core/push3 is authoritative for everything else — pads, button CCs, encoder
-// CCs, the LED palette and DecodeRel — and this package deliberately does NOT
-// re-export those. Import core/push3 directly for them.
+// # History
 //
-// # Why this exists
+// This package used to override core/push3's touch-sensor notes, which were off
+// by one for encoders 1-8 and the volume wheel and omitted the touch strip.
+// Those corrections were measured on a tethered Push 3, confirmed independently
+// on a Push 2, and **have now been applied upstream** (2026-08-16), so the
+// overrides are gone and core/push3 is authoritative for Push 3 again.
 //
-// The touch-sensor note numbers in core/push3 (and in that project's
-// docs/push3-button-map.md) are off by one for encoders 1-8 and the volume
-// wheel, and they omit the touch strip entirely. Measured 2026-08-09 on a
-// tethered Push 3 by touching each sensor in a known order, 60s capture, no
-// turning — see docs/feasibility.md §8.8.
+// The `TestDivergesFromCore` tripwire that used to live here did its job: it
+// failed the moment upstream was corrected, which is what prompted this
+// cleanup rather than leaving a silent permanent fork.
 //
-//	sensor           measured   core/push3 says
-//	encoder 1-8      0-7        1-8              off by one
-//	volume wheel     8          9                off by one
-//	(note 9)         unused     -                gap the old map missed
-//	tempo wheel      10         10               correct
-//	jog wheel        11         11               correct
-//	touch strip      12         (absent)         undocumented
-//	D-Pad center     13         13               correct
-//
-// The old numbering looks like it assumed a contiguous 1..10 run for the eight
-// encoders plus both wheels. The unused note 9 is exactly what that assumption
-// would paper over.
-//
-// # Why it is not fixed upstream
-//
-// A deliberate call: core/push3 is shared with ableton-push-hack, whose
-// standalone hacks were built against the current values, and that project's
-// map doc claims its own empirical verification. Rather than change shared
-// constants on the strength of a tethered-only measurement, the correction
-// lives here. If the standalone device is ever re-measured and agrees, fold
-// this into core/push3 and delete this package.
+// What remains here is genuinely device-specific: Push 2's map deltas (push2.go)
+// and the per-device lookups that resolve them.
 package pushmap
 
 import "github.com/federico-pepe/ableton-push-hack/core/push3"
 
-// Touch-sensor notes, channel 1. Note On velocity 127 = contact, Note Off (or
-// velocity 0) = release. These supersede the core/push3 Note*Touch constants.
-const (
-	NoteEncoder1Touch = 0
-	NoteEncoder2Touch = 1
-	NoteEncoder3Touch = 2
-	NoteEncoder4Touch = 3
-	NoteEncoder5Touch = 4
-	NoteEncoder6Touch = 5
-	NoteEncoder7Touch = 6
-	NoteEncoder8Touch = 7
-
-	NoteVolumeTouch = 8
-	// note 9 is not emitted by any sensor we have exercised.
-	NoteTempoTouch      = 10
-	NoteJogTouch        = 11
-	NoteTouchStripTouch = 12 // absent from core/push3
-	NoteDPadCenterTouch = 13
-)
-
 // EncoderTouchNote returns the touch note for encoder n (0-indexed, 0-7).
-// Supersedes push3.NoteEncoderTouchN, which is off by one.
-func EncoderTouchNote(n int) byte { return byte(NoteEncoder1Touch + n) }
+// Thin wrapper over core/push3, kept so callers read symmetrically with the
+// device-scoped helpers below.
+func EncoderTouchNote(n int) byte { return push3.NoteEncoderTouchN(n) }
 
-// touchNames is the corrected lookup for non-pad channel-1 notes.
+// touchNames is the Push 3 touch-sensor table, valued entirely from core/push3.
+// Note 9 is deliberately absent: it is unused on Push 3 (it is the Swing
+// encoder on Push 2 — see push2.go).
 var touchNames = map[byte]string{
-	NoteEncoder1Touch: "Encoder 1 touch", NoteEncoder2Touch: "Encoder 2 touch",
-	NoteEncoder3Touch: "Encoder 3 touch", NoteEncoder4Touch: "Encoder 4 touch",
-	NoteEncoder5Touch: "Encoder 5 touch", NoteEncoder6Touch: "Encoder 6 touch",
-	NoteEncoder7Touch: "Encoder 7 touch", NoteEncoder8Touch: "Encoder 8 touch",
-	NoteVolumeTouch:     "Volume wheel touch",
-	NoteTempoTouch:      "Tempo wheel touch",
-	NoteJogTouch:        "Jog wheel touch",
-	NoteTouchStripTouch: "Touch strip touch",
-	NoteDPadCenterTouch: "D-Pad center touch",
+	push3.NoteEncoder1Touch: "Encoder 1 touch", push3.NoteEncoder2Touch: "Encoder 2 touch",
+	push3.NoteEncoder3Touch: "Encoder 3 touch", push3.NoteEncoder4Touch: "Encoder 4 touch",
+	push3.NoteEncoder5Touch: "Encoder 5 touch", push3.NoteEncoder6Touch: "Encoder 6 touch",
+	push3.NoteEncoder7Touch: "Encoder 7 touch", push3.NoteEncoder8Touch: "Encoder 8 touch",
+	push3.NoteVolumeTouch:     "Volume wheel touch",
+	push3.NoteTempoTouch:      "Tempo wheel touch",
+	push3.NoteJogTouch:        "Jog wheel touch",
+	push3.NoteTouchStrip:      "Touch strip touch",
+	push3.NoteDPadCenterTouch: "D-Pad center touch",
 }
 
 // TouchName returns the sensor name for a channel-1 non-pad note, and whether
@@ -85,7 +49,7 @@ func TouchName(note byte) (string, bool) {
 	return n, ok
 }
 
-// TouchNames exposes the corrected table for tools that need to enumerate it.
+// TouchNames exposes the table for tools that need to enumerate it.
 func TouchNames() map[byte]string {
 	out := make(map[byte]string, len(touchNames))
 	for k, v := range touchNames {

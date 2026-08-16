@@ -127,10 +127,14 @@ Push emits MIDI **with no host handshake**, on `Ableton Push 3 Live Port` only
 - **Always clear LEDs on every exit path, including SIGINT.** A probe that
   leaves the device lit makes the next run ambiguous.
 
-Still unmeasured: 77 of 85 button CCs, remaining encoders, button-LED
-brightness fidelity, whether MPE can be disabled via SysEx, and what
-`User Port` / `External Port` are for. `cmd/mapcheck`'s UNSEEN list tracks the
-button-CC gap.
+**The button map is now complete: Push 3 87/87 CC and 13/13 touch notes, Push 2
+75/80 and 12/14, zero unknowns on either (§10.6, §12).** Two CCs mean different
+things per device — CC 15 (Push 2 Swing turn / Push 3 tempo press) and CC 111
+(Push 2 Browse / Push 3 volume press) — so **always resolve CCs per device**.
+
+Still unmeasured: button-LED brightness fidelity, whether MPE can be disabled
+via SysEx, what `User Port` / `External Port` are for, and Push 2's arrow
+down/right (expected to match Push 3's 46/47/44/45).
 
 Probe tools are macOS-only Swift, not part of the app build, kept so the
 measurements stay reproducible: `tools/midimon.swift` (MIDI in),
@@ -145,6 +149,24 @@ against the map.
 - **Look at the screen, not just the logs.** Both bugs in §9.4 were invisible in
   terminal output that reported healthy frame rates throughout. Use
   `pushapp -capture out.mp4` and inspect a frame.
+
+## Hardware-interaction safety (button sweeps)
+
+- **Not every Push 3 button is an inert MIDI sender in controller mode.** The
+  **leftmost button above the screen switches the device into standalone mode**,
+  dropping it out of controller mode mid-session (found 2026-08-16 when the
+  operator stopped a sweep before pressing it).
+- **Never instruct a blind "press every button" sweep.** Ask which controls have
+  device-level functions first. A sweep that reboots the device into another
+  mode loses the session and can leave the USB state ambiguous.
+- **Fix: hold the display first.** Run `cmd/pushapp` before sweeping — the
+  top-row buttons are soft buttons owned by Push's own idle UI, so once a host
+  drives the screen they become plain MIDI and are safe to press (§12.1).
+- **Identify ambiguous controls by their touch sensor, not by press order.** A
+  press bracketed by a touch note on/off proves which physical control it
+  belongs to (§12.2). Press order has already misled once (§10.6).
+- Recovery is simply switching back to controller mode from the device, but the
+  capture in progress is void.
 
 ## USB safety
 
