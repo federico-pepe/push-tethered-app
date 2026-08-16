@@ -62,17 +62,19 @@ func (Button) eventName() string { return "button" }
 // relative encoding. Index identifies the eight numbered encoders; the wheels
 // are distinguished by CC (see Name).
 type Encoder struct {
-	CC    byte
-	Index int // 0-7 for encoders 1-8, -1 for the volume/tempo/jog wheels
-	Delta int
+	CC     byte
+	Index  int // 0-7 for encoders 1-8, -1 for the volume/tempo/swing/jog wheels
+	Delta  int
+	Device pushmap.Device
 }
 
-// Name returns a human label for the encoder or wheel.
+// Name returns a human label for the encoder or wheel. Device-aware, since
+// Push 2's CC 15 is the Swing encoder and Push 3 has none (§11).
 func (e Encoder) Name() string {
 	if e.Index >= 0 {
 		return fmt.Sprintf("encoder %d", e.Index+1)
 	}
-	if n, ok := pushmap.ButtonName(e.CC); ok {
+	if n, ok := pushmap.ButtonNameFor(e.Device, e.CC); ok {
 		return n
 	}
 	return fmt.Sprintf("CC %d", e.CC)
@@ -118,7 +120,12 @@ func (Expression) eventName() string { return "expression" }
 // System realtime is tested BEFORE masking with 0xF0: Push emits Active
 // Sensing (0xFE) about 37 times a second, and 0xFE & 0xF0 == 0xF0, so masking
 // first makes keepalive look like SysEx (§8.7).
-func Decode(b []byte) Event {
+func Decode(b []byte) Event { return DecodeFor(pushmap.Push3, b) }
+
+// DecodeFor decodes for a specific device. Push 2 and Push 3 share most of the
+// map but differ on a handful of controls (§11), so the device matters for
+// naming and for which CCs count as encoders.
+func DecodeFor(d pushmap.Device, b []byte) Event {
 	if len(b) < 2 || b[0] >= 0xF8 {
 		return nil
 	}
@@ -133,14 +140,14 @@ func Decode(b []byte) Event {
 		if len(b) < 3 {
 			return nil
 		}
-		if pushmap.IsRelativeEncoderCC(b[1]) {
+		if pushmap.IsRelativeEncoderCCFor(d, b[1]) {
 			idx := -1
 			if b[1] >= push3.CCEncoder1 && b[1] <= push3.CCEncoder8 {
 				idx = int(b[1] - push3.CCEncoder1)
 			}
-			return Encoder{CC: b[1], Index: idx, Delta: push3.DecodeRel(b[2])}
+			return Encoder{CC: b[1], Index: idx, Delta: push3.DecodeRel(b[2]), Device: d}
 		}
-		name, _ := pushmap.ButtonName(b[1])
+		name, _ := pushmap.ButtonNameFor(d, b[1])
 		return Button{CC: b[1], Name: name, Pressed: b[2] > 0}
 
 	case 0x90, 0x80:
@@ -152,7 +159,7 @@ func Decode(b []byte) Event {
 			col, row := push3.PadCoord(b[1])
 			return Pad{Note: b[1], Col: col, Row: row, Channel: ch, Velocity: b[2], Pressed: on}
 		}
-		name, ok := pushmap.TouchName(b[1])
+		name, ok := pushmap.TouchNameFor(d, b[1])
 		if !ok {
 			name = fmt.Sprintf("unknown note %d", b[1])
 		}
@@ -196,7 +203,11 @@ type Port struct {
 	send func(gm.Message) error
 	stop func()
 	name string
+	dev  pushmap.Device
 }
+
+// Device reports which Push this port belongs to, inferred from its name.
+func (p *Port) Device() pushmap.Device { return p.dev }
 
 // Name returns the MIDI port this connection uses.
 func (p *Port) Name() string { return p.name }
@@ -224,13 +235,14 @@ func Open() (*Port, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening MIDI out: %w", err)
 	}
-	return &Port{in: in, out: out, send: send, name: name}, nil
+	return &Port{in: in, out: out, send: send, name: name,
+		dev: pushmap.DeviceFromPortName(name)}, nil
 }
 
 // Listen starts delivering decoded events to fn until Close.
 func (p *Port) Listen(fn func(Event)) error {
 	stop, err := gm.ListenTo(p.in, func(msg gm.Message, _ int32) {
-		if ev := Decode(msg); ev != nil {
+		if ev := DecodeFor(p.dev, msg); ev != nil {
 			fn(ev)
 		}
 	})

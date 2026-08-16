@@ -29,15 +29,42 @@ import (
 	"github.com/federico-pepe/push-tethered-app/internal/pushmap"
 )
 
-// ccNames annotates CC numbers with human names. Lives in internal/pushmap so
-// cmd/pushapp and this tool share one table instead of drifting apart.
-var ccNames = pushmap.ButtonNames()
+// ccNames / noteNames annotate numbers with human names. They live in
+// internal/pushmap so cmd/pushapp and this tool share one table instead of
+// drifting apart, and are rebuilt per device once the capture reveals which
+// Push produced it (Push 2 and Push 3 differ on a handful of controls, §11).
+var (
+	device    = pushmap.Push3
+	ccNames   = map[byte]string{}
+	noteNames = map[byte]string{}
+)
 
-// noteNames covers the non-pad notes on channel 1 (touch sensors). These come
-// from internal/pushmap, not core/push3: the shared map's touch notes are off
-// by one for encoders 1-8 and the volume wheel, and omit the touch strip.
-// See internal/pushmap/touch.go and docs/feasibility.md §8.8.
-var noteNames = pushmap.TouchNames()
+// detectDevice scans a capture for the port name midimon prints on each line,
+// so a Push 2 capture is annotated with Push 2's map without a flag.
+func detectDevice(lines []string) pushmap.Device {
+	for _, l := range lines {
+		if strings.Contains(l, "Push") {
+			if d := pushmap.DeviceFromPortName(l); d == pushmap.Push2 {
+				return d
+			}
+		}
+	}
+	return pushmap.Push3
+}
+
+// buildTables fills ccNames/noteNames for the detected device.
+func buildTables(d pushmap.Device) {
+	for cc := 0; cc < 128; cc++ {
+		if n, ok := pushmap.ButtonNameFor(d, byte(cc)); ok {
+			ccNames[byte(cc)] = n
+		}
+	}
+	for n := 0; n < 36; n++ {
+		if name, ok := pushmap.TouchNameFor(d, byte(n)); ok {
+			noteNames[byte(n)] = name
+		}
+	}
+}
 
 var lineRe = regexp.MustCompile(`([0-9A-F]{2}(?: [0-9A-F]{2})*)\s*$`)
 
@@ -66,8 +93,16 @@ func main() {
 
 	sc := bufio.NewScanner(in)
 	sc.Buffer(make([]byte, 1024*1024), 1024*1024)
+	var lines []string
 	for sc.Scan() {
-		m := lineRe.FindStringSubmatch(sc.Text())
+		lines = append(lines, sc.Text())
+	}
+	device = detectDevice(lines)
+	buildTables(device)
+	fmt.Printf("device: %s\n\n", device)
+
+	for _, line := range lines {
+		m := lineRe.FindStringSubmatch(line)
 		if m == nil {
 			continue
 		}
@@ -194,7 +229,7 @@ func report(ccSeen, noteSeen map[byte]*seen, padSeen map[byte]int, mpe map[int]i
 // CW/CCW question is answered from data rather than from the doc prose.
 func valueSummary(s *seen, cc byte) string {
 	vals := sortedKeys(s.values)
-	if !push3.IsEncoderCC(cc) {
+	if !pushmap.IsRelativeEncoderCCFor(device, cc) {
 		return fmt.Sprintf("values=%v", vals)
 	}
 	var parts []string
