@@ -5,13 +5,15 @@ Cross-platform desktop app to own an **Ableton Push 2 / Push 3 in tethered
 configurable MIDI controller, independent of any DAW.
 
 > **Status: pre-alpha, but running.** `cmd/pushapp` is a working vertical slice:
-> one Go binary that holds Push 3's screen at 30fps, reads the control surface,
-> and lights the pads you press — all confirmed on hardware. No configuration or
-> remapping yet. See [docs/feasibility.md](docs/feasibility.md) (§8 = protocol
-> measurements, §9 = the slice).
+> one Go binary that holds the screen at 30fps, reads the control surface, and
+> lights the pads you press. **Confirmed on both Push 2 and Push 3 hardware from
+> the same unmodified binary.** No configuration or remapping yet. See
+> [docs/feasibility.md](docs/feasibility.md) (§8 = protocol measurements,
+> §9 = the slice, §10 = Push 2).
 
 ```bash
-go run ./cmd/pushapp      # screen + input + LEDs, co-existence mode
+go run ./cmd/pushapp                          # screen + input + LEDs
+go run ./cmd/pushapp -capture demo.mp4        # ...and record the screen
 ```
 
 ## Why this can work
@@ -82,8 +84,10 @@ Measured on macOS (Apple Silicon), Push 3 in controller mode, Live not running �
 Captured via CoreMIDI with Live closed — Push emits **with no host handshake**,
 all on `Live Port`:
 
-- **MPE is on by default** — pad note-ons rotate across channels 2–16, channel 1
-  is the control surface. Per-note pressure, CC 74 slide and pitch bend arrive on
+- **MPE is on by default — but not always.** On 2026-08-09 pad note-ons rotated
+  across channels 2–16; on 2026-08-16 the same setup put them on channel 1. The
+  trigger is unidentified, so handle both (feasibility §9.5). Channel 1 is always
+  the control surface; per-note pressure, CC 74 slide and pitch bend arrive on
   each note's member channel.
 - **Decode channel first, then CC.** CC 71–79 are the encoders (Push 2's map) but
   CC 71/74 are also MPE timbre controllers — the numbers collide, the channel
@@ -113,6 +117,23 @@ no drops:
 **Display out, MIDI in and LED out all work simultaneously in co-existence mode
 on macOS with zero additional software.** That is the v1 product surface, minus
 remapping, demonstrated on hardware.
+
+## Push 2 vs Push 3
+
+Both confirmed working from one binary (§10). The display is **identical** —
+interface 0, vendor-specific, bulk OUT `0x01`, same header, XOR and geometry —
+as are the pad grid (notes 36–99) and the LED palette.
+
+| | Push 2 | Push 3 |
+|---|---|---|
+| USB interfaces | 3 | 7 |
+| MIDI endpoints | `0x02`/`0x82` | `0x03`/`0x83` |
+| MIDI ports | 2 (Live, User) | 3 (+External) |
+| Audio | none | class-compliant 16×16 |
+| `xPort` | absent | present |
+| MPE | no — pads on ch1 | usually |
+
+Only the button CC table genuinely differs, so the device abstraction is small.
 
 ## Two operating modes
 

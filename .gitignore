@@ -5,6 +5,11 @@
 /ledtest
 /pushapp
 
+# Capture output
+*.mp4
+*.mov
+*.gif
+
 # Go
 *.test
 *.out

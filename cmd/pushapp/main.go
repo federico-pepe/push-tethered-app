@@ -32,6 +32,7 @@ import (
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/text"
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
 	"github.com/federico-pepe/ableton-push-hack/core/push3"
+	"github.com/federico-pepe/push-tethered-app/internal/capture"
 	"github.com/federico-pepe/push-tethered-app/internal/display"
 	pmidi "github.com/federico-pepe/push-tethered-app/internal/midi"
 )
@@ -100,7 +101,7 @@ func (s *state) handle(ev pmidi.Event, port *pmidi.Port, ledsOn bool) {
 		if e.Index >= 0 && e.Index < 8 {
 			s.encoders[e.Index] += e.Delta
 		}
-		s.push(fmt.Sprintf("enc  %s %+d", nameOrCC(e), e.Delta))
+		s.push(fmt.Sprintf("enc  %s %+d", e.Name(), e.Delta))
 
 	case pmidi.Touch:
 		if e.Touched {
@@ -112,23 +113,12 @@ func (s *state) handle(ev pmidi.Event, port *pmidi.Port, ledsOn bool) {
 	}
 }
 
-func nameOrCC(e pmidi.Encoder) string {
-	if e.Index >= 0 {
-		return fmt.Sprintf("encoder %d", e.Index+1)
-	}
-	switch e.CC {
-	case push3.CCVolume:
-		return "volume wheel"
-	case push3.CCTempo:
-		return "tempo wheel"
-	}
-	return fmt.Sprintf("CC %d", e.CC)
-}
-
 func main() {
 	fps := flag.Int("fps", 30, "display refresh rate")
 	noDisplay := flag.Bool("no-display", false, "skip the display, run MIDI only")
 	noLEDs := flag.Bool("no-leds", false, "do not drive pad LEDs")
+	capturePath := flag.String("capture", "", "record the screen to a file (.mp4, .mov or .gif)")
+	captureRaw := flag.Bool("capture-raw", false, "record the source image instead of panel-accurate BGR565 colour")
 	flag.Parse()
 
 	log.SetFlags(0)
@@ -140,7 +130,7 @@ func main() {
 	}
 	defer port.Close()
 	port.Clear()
-	log.Printf("MIDI: connected to %q", pmidi.PortName)
+	log.Printf("MIDI: connected to %q", port.Name())
 
 	st := newState()
 	if err := port.Listen(func(ev pmidi.Event) { st.handle(ev, port, !*noLEDs) }); err != nil {
@@ -162,8 +152,24 @@ func main() {
 			log.Fatalf("display: %v", err)
 		default:
 			defer dev.Close()
-			log.Printf("display: claimed interface 0 on %s", dev.Model())
+			log.Printf("display: claimed %s", dev.Model())
 		}
+	}
+
+	// ── Capture ─────────────────────────────────────────────────────────────
+	// Recording taps the render output, so it costs no extra USB traffic and
+	// cannot disturb what the panel shows.
+	var rec capture.Recorder
+	if *capturePath != "" {
+		rec, err = capture.New(capture.Options{Path: *capturePath, FPS: *fps, Raw: *captureRaw})
+		if err != nil {
+			log.Fatalf("capture: %v", err)
+		}
+		mode := "panel-accurate"
+		if *captureRaw {
+			mode = "raw source"
+		}
+		log.Printf("capture: recording %s (%s)", rec.Path(), mode)
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -179,15 +185,27 @@ func main() {
 	for {
 		select {
 		case <-ctx.Done():
-			shutdown(dev, port, start, frames, st)
+			shutdown(dev, port, rec, start, frames, st)
 			return
 		case <-ticker.C:
+			// Render even with no display claimed, so -no-display and the
+			// Live-owns-the-screen path can still be recorded.
+			img := render(st, start, frames)
+
+			if rec != nil {
+				if err := rec.Frame(img); err != nil {
+					log.Printf("capture: %v — recording stopped", err)
+					rec = nil
+				}
+			}
+
 			if dev == nil {
+				frames++
 				continue
 			}
-			if err := dev.WriteFrame(ctx, render(st, start, frames)); err != nil {
+			if err := dev.WriteFrame(ctx, img); err != nil {
 				if ctx.Err() != nil {
-					shutdown(dev, port, start, frames, st)
+					shutdown(dev, port, rec, start, frames, st)
 					return
 				}
 				log.Printf("frame %d: %v", frames, err)
@@ -198,12 +216,19 @@ func main() {
 	}
 }
 
-func shutdown(dev *display.Device, port *pmidi.Port, start time.Time, frames int, st *state) {
+func shutdown(dev *display.Device, port *pmidi.Port, rec capture.Recorder, start time.Time, frames int, st *state) {
 	fmt.Println()
 	log.Printf("stopping…")
 	port.Clear()
 	if dev != nil {
 		_ = dev.Blank(context.Background())
+	}
+	if rec != nil {
+		if err := rec.Close(); err != nil {
+			log.Printf("capture: %v", err)
+		} else {
+			log.Printf("capture: wrote %s", rec.Path())
+		}
 	}
 	el := time.Since(start)
 	st.mu.Lock()
@@ -214,7 +239,7 @@ func shutdown(dev *display.Device, port *pmidi.Port, start time.Time, frames int
 
 // render draws the UI with the shared core/ widget toolkit — the same code
 // that draws on a standalone Push 3.
-func render(st *state, start time.Time, frames int) image.Image {
+func render(st *state, start time.Time, frames int) *image.NRGBA {
 	img := image.NewNRGBA(image.Rect(0, 0, push3.VisW, push3.VisH))
 	t := widgets.Default
 
@@ -225,7 +250,7 @@ func render(st *state, start time.Time, frames int) image.Image {
 
 	// Title bar.
 	gfx.FillRect(img, 0, 0, push3.VisW, 20, t.CrumbBg)
-	text.Draw(img, 8, 14, "pushapp — co-existence mode", t.CrumbCol)
+	text.Draw(img, 8, 14, "pushapp - co-existence mode", t.CrumbCol)
 	el := time.Since(start).Seconds()
 	stats := fmt.Sprintf("%d events   %.0f fps", st.evCount, float64(frames)/max(el, 0.001))
 	text.Draw(img, push3.VisW-8-text.Width(stats), 14, stats, t.Gray)

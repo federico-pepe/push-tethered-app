@@ -19,9 +19,15 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 Push 3 in tethered (controller) mode**: display, pads, buttons, encoders, LEDs.
 Goal is a fully configurable MIDI controller independent of any DAW.
 
-**Status: pre-alpha.** No application exists yet. Current work is protocol
-verification — confirming that the display protocol observed *inside* a
-standalone Push 3 also applies over USB when the device is in controller mode.
+**Status: pre-alpha, but running.** Protocol verification is done (§8).
+`cmd/pushapp` is a working vertical slice: one binary holding the screen at
+30fps, reading the control surface and driving the LEDs, confirmed on hardware
+(§9). No configuration, mapping or UI yet.
+
+**The open question is what v1 actually is** — co-existence mode cannot remap
+MIDI, so the stated goal needs full ownership. See
+[plans/2026-08-16-product-shape-decision.md](plans/2026-08-16-product-shape-decision.md).
+Do not build mapping/config features until that is decided.
 
 Read [docs/feasibility.md](docs/feasibility.md) before doing anything
 substantial. It carries the protocol evidence, the ranked blockers, and the
@@ -76,8 +82,10 @@ interface table.
 Push emits MIDI **with no host handshake**, on `Ableton Push 3 Live Port` only
 (`User Port` / `External Port` carry nothing but keepalive).
 
-- **MPE is on by default.** Pad note-ons rotate across **channels 2-16**;
-  channel 1 is the control surface. Per-note pressure, CC 74 slide and pitch
+- **MPE is on by default — but NOT always (§9.5).** Measured 2026-08-09 pad
+  note-ons rotated across **channels 2-16**; on 2026-08-16 the same setup put
+  pads on **channel 1**. The trigger is unidentified. Handle both; never assume
+  one layout. Channel 1 is always the control surface. Per-note pressure, CC 74 slide and pitch
   bend all arrive on the note's own member channel.
 - **Decode channel FIRST, then CC.** Push 2 assigns CC 71-79 to the nine
   encoders, and CC 71/74 are *also* MPE timbre controllers. The numbers collide;
@@ -93,6 +101,9 @@ Push emits MIDI **with no host handshake**, on `Ableton Push 3 Live Port` only
   (absent upstream), D-Pad center = 13. Note On vel 127 = contact.
   `internal/pushmap` overrides only these; `core/push3` stays authoritative for
   pads, button CCs, encoder CCs, the LED palette and `DecodeRel`.
+- **Jog wheel is CC 70 and IS a relative encoder** — but `push3.IsEncoderCC`
+  omits it, so use **`pushmap.IsRelativeEncoderCC`** instead. Decoding CC 70 as
+  a button turns every jog turn into a stream of phantom button presses (§9.4).
 - **Encoders accelerate.** Deltas up to ±11 on fast turns — always use
   `push3.DecodeRel`'s signed value, never assume one message = one click.
 - `core/push3/buttons.go:7` and that repo's map doc claim encoder "CW=127,
@@ -125,6 +136,15 @@ Probe tools are macOS-only Swift, not part of the app build, kept so the
 measurements stay reproducible: `tools/midimon.swift` (MIDI in),
 `tools/ledtest.swift` (LED out). `cmd/mapcheck` (Go) cross-references captures
 against the map.
+
+## Drawing on the screen
+
+- **ASCII only.** `core/gfx/text` uses `basicfont.Face7x13`; any non-ASCII
+  character (em-dash, ellipsis, accents) renders as a missing-glyph box on the
+  panel (§9.4).
+- **Look at the screen, not just the logs.** Both bugs in §9.4 were invisible in
+  terminal output that reported healthy frame rates throughout. Use
+  `pushapp -capture out.mp4` and inspect a frame.
 
 ## USB safety
 
@@ -227,8 +247,10 @@ Recorded so they are not relitigated — rationale in `docs/feasibility.md` §6.
   cross-platform answer. Options are Windows MIDI Services (recent Win11 only —
   verify the build floor, don't trust recalled version numbers), teVirtualMIDI
   (commercial driver), or shipping co-existence mode only.
-- **Push 2 support** is a stated day-one goal but nothing has been measured on
-  real Push 2 hardware yet. Treat its button map as unwritten.
+- **Push 2 works from the same binary** (§10, measured 2026-08-16). Display,
+  pads and LEDs are identical to Push 3; only the button CC table and MPE
+  behaviour differ. Its button map is still largely unswept — `CC 111` is known
+  to exist and be absent from the Push 3 map.
 - **`xPort` (interface 6)** — vendor-specific, 2 bulk endpoints, undocumented,
   absent from Push 2's spec. Purpose unknown; enumerate freely, never send it
   invented payloads.
