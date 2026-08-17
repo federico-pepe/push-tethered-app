@@ -215,6 +215,54 @@ designed. Three things were discovered or added during implementation:
   manifest field), and that check itself is already tested. No process-loaded
   example declares `needs_midi_out: true` yet to exercise it end-to-end.
 
+### Bug found by the user on real hardware, 2026-08-18: wrong pad LED colour
+
+`hello-js` lit pressed pads pink instead of green. This turned into a much
+bigger finding than the module bug it started as: **`core/push3/colors.go`
+itself was wrong for every one of its ~88 entries**, and had been since
+before this session — the module's `PAD_LIT_COLOUR` was just the first
+consumer to make it visible.
+
+**First pass (wrong).** `PAD_LIT_COLOUR = 21` was copied from
+`modules/thru/thru.go`'s `padColour`, copied again into `modules/seq/seq.go`.
+I assumed `colors.go`'s own claim — that only *even* velocities 2-52 carry a
+real colour and odd ones are undocumented interpolations — and "fixed" all
+four sites to 22 (`colors.go`'s then-current `"green"`), plus fixed a second
+bug found in passing (`seq.go`'s `playingColour = 122`, "white" — but 122 is
+white *only for CC buttons*; for a pad it's `#21051B`, near-black) to 124
+(`colors.go`'s then-current `"white"`).
+
+**Second pass (the real fix).** The user pushed back: trust
+`docs/push3-led-colors.md`, not `colors.go`'s own claims about itself. That
+doc's "Full Hardware Palette" table is a live SysEx query (`0x04 "Get LED
+Color Palette Entry"`) of real Push 3 firmware — every one of the 128 raw
+velocities returns a distinct, real colour, no gaps, no even/odd split.
+`colors.go`'s header comment claiming otherwise was inherited from Push 2's
+`colors.pyc` and never actually true for Push 3. Cross-checking every one of
+`colors.go`'s ~88 entries against the doc's table (matching by hex, since hex
+values were correct all along) found **zero matches under the old numbering,
+exact matches once every value was corrected** — e.g. `"green"` is 11, not
+22; `"white"` is 120, not 124. `colors.go` was rewritten from the doc; two new
+entries (`pure_blue`=125, `pure_red`=127) replace what used to be described as
+ambiguous "shared slots" that the SysEx table shows are simply separate,
+unambiguous entries. Verified exhaustively by script (0 mismatches across 86
+entries, excluding the 4 CC-brightness aliases which were never part of this
+system) and confirmed all three Go hacks in `ableton-push-hack` still build
+(push-manager looks colours up by name, so it needed no code change).
+
+Then every downstream consumer needed a *second* correction, since the first
+pass's "fix" (22/124) was itself invalidated by the real fix: `monitor.go`
+(`padColour`, previously correct-by-luck at the old wrong value, now needs
+120), `thru.go`, `seq.go`, `hello-py/run.py`, `hello-js/run.js` all updated to
+11 (green) / 120 (white).
+
+This class of bug is invisible from here even with hardware connected and a
+capture running: `-capture` records the **screen** (960×160 over USB), never
+the physical pad LEDs, so there is no way to verify an LED colour without a
+human looking at the device — which is exactly how the original bug was
+found, and why the corrected value still needs the user's own eyes to
+actually confirm on the physical pad.
+
 ## Docs to update in the same commit
 
 - `CLAUDE.md` — the "Writing a module" section gains a pointer to this

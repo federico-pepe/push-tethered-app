@@ -36,7 +36,15 @@ const (
 	// padColour is the palette index a held pad lights up with. Lighting the
 	// pad locally as well as sending the note means a silent output path is
 	// obvious: the pad lights but nothing arrives.
-	padColour = 21 // green
+	//
+	// 11, matching core/push3/colors.go's NamedColors["green"] (#34C216).
+	// That file itself was wrong until 2026-08-18 — it claimed "green" = 22
+	// under an assumption (inherited from Push 2's colors.pyc) that only
+	// even velocities carry a real colour. A live SysEx query of Push 3's own
+	// palette (docs/push3-led-colors.md) shows every one of the 128 raw
+	// velocities is a distinct, real colour with no gaps — colors.go has
+	// since been corrected to match. This constant follows that correction.
+	padColour = 11 // green
 
 	// encoderCCBase maps encoders 1-8 onto CC 1-8.
 	//

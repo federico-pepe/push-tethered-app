@@ -48,8 +48,20 @@ const (
 
 	minBPM, maxBPM, defaultBPM = 40, 240, 120
 
-	activeColour  = 21  // green: a step that will play
-	playingColour = 122 // white: the current playhead column
+	// Both match core/push3/colors.go's NamedColors ("green" and "white").
+	// That file itself was corrected 2026-08-18: it used to claim "green" = 22
+	// and "white" = 124 (a Push-2-derived assumption that only even velocities
+	// carry a real colour), found wrong when a pad rendered pink instead of
+	// green on real hardware. A live SysEx query of Push 3's own palette
+	// (docs/push3-led-colors.md) shows every one of the 128 raw velocities is
+	// a distinct, real colour with no gaps; colors.go now reflects that.
+	// These are pad LEDs (SetPad below) — note that 122, which these constants
+	// used to sit near, is white *only for CC buttons*; for a pad Note On,
+	// velocity 122 is a near-black grey. The button-brightness alias and the
+	// pad-palette index share the same byte value by hardware coincidence, not
+	// by rule — always resolve a colour by name, not by picking a nearby int.
+	activeColour  = 11  // green ("green" in NamedColors, #34C216)
+	playingColour = 120 // white for a PAD ("white" in NamedColors, #FFFFFF)
 
 	logLines = 5
 )
