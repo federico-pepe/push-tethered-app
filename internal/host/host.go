@@ -190,6 +190,13 @@ func (r *Runtime) Activate(id string) error {
 	r.active = next
 	r.activeMu.Unlock()
 	log.Printf("module: %s (%s) active", next.Meta().Name, next.Meta().ID)
+
+	// A module only ever sees Store.Get/Set, never a path — but until a config
+	// UI exists, a user editing settings by hand needs to know where the file
+	// is. Purely informational: printed whether or not the file exists yet.
+	if p, err := configFilePath(id); err == nil {
+		log.Printf("module %s: config at %s", id, p)
+	}
 	return nil
 }
 
@@ -444,15 +451,9 @@ func (h *moduleHost) NoteOff(ch, note byte) error {
 	return o.NoteOff(ch, note)
 }
 
-// Store is a placeholder until per-module persistence lands with the config
-// work. It keeps the interface stable so modules written now do not need
-// changing then, but nothing survives a restart yet.
-func (h *moduleHost) Store() module.Store { return memStore{} }
-
-type memStore struct{}
-
-func (memStore) Get(any) error { return nil }
-func (memStore) Set(any) error { return nil }
+// Store gives the module its own JSON document, one file per module ID under
+// the OS config directory. See store.go.
+func (h *moduleHost) Store() module.Store { return newStore(h.id) }
 
 // ── Event translation ──────────────────────────────────────────────────────
 

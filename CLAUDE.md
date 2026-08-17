@@ -33,10 +33,13 @@ module*, not the product. Decided 2026-08-17, see
 and the phasing.
 
 **Status: pre-alpha, but running.** Protocol verification is done (§8). The
-module contract, host and renderer exist and are confirmed on Push 3 hardware,
-with two modules: `monitor` (the control-surface mirror the original vertical
-slice drew) and `thru` (forwards controls out as MIDI). Still missing:
-per-module persistence, the app UI, and the out-of-process loader.
+module contract, host, renderer and per-module persistence exist and are
+confirmed on Push 3 hardware, with four modules: `monitor` (the control-surface
+mirror the original vertical slice drew), `thru` (forwards controls out as
+MIDI), `seq` (an 8-step pad-grid sequencer, proving wall-clock-driven MIDI) and
+`remap` (the original stated goal, reduced to a module — user-editable
+overrides on top of `thru`'s passthrough default). Still missing: the app UI and
+the out-of-process loader.
 
 The older [plans/2026-08-16-product-shape-decision.md](plans/2026-08-16-product-shape-decision.md)
 is **closed** — it framed three candidate products and the answer was a fourth.
@@ -210,12 +213,15 @@ internal/module/  the ABI: Module, Host, Frame/Op, Event, Meta, Store
 internal/module/moduletest/  fake Host so modules test with no hardware
 internal/host/    runtime: registry, control API, event fan-out, frame loop
 internal/host/render.go      op registry: display list -> image via core/gfx
+internal/host/store.go       per-module JSON persistence, atomic writes
 internal/display/ USB transport: claim interface 0, frame header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
 internal/midiout/ owns a named MIDI out port for modules (create or attach)
 internal/pushmap/ Push 2 map deltas + shared CC/touch name tables
 modules/monitor/  control-surface monitor; the reference module
 modules/thru/     forwards pads/encoders/buttons out as MIDI
+modules/seq/      8-step pad-grid sequencer; wall-clock-driven MIDI + Store
+modules/remap/    user-editable overrides on top of thru's passthrough default
 tools/            macOS-only Swift probes (midimon, ledtest)
 ```
 
@@ -249,10 +255,22 @@ to get wrong:
   - **Release your own notes in `Close`.** The host clears LEDs but knows nothing
     about notes in flight; leaving one sounding is the worst bug a MIDI tool can
     have. See `thru`'s `held` set.
+- **`Store()` gives the module its own persisted JSON**, one file per module ID
+  under the OS config directory (`internal/host/store.go`). Set defaults on
+  your struct before calling `Get` — nothing stored yet is not an error, it
+  just leaves your defaults alone. A module never sees its own file path (only
+  `Get`/`Set`); the host logs the path on activation so a user can hand-edit it
+  before a config UI exists — see `modules/remap`'s package doc for the
+  documented-editing pattern.
 - **Test with `moduletest.Host`**, which records every LED and MIDI write. No
   Push required.
 - **ASCII only in text.** The host substitutes non-ASCII (and turns
-  `text.Truncate`'s `…` into `.`), but write ASCII rather than relying on it.
+  `text.Truncate`'s `…` into `.`), but write ASCII rather than relying on it —
+  `remap`'s empty-overrides message shipped with an em-dash that silently
+  rendered as `?` on real hardware, because every module's "Draw emits only
+  known op kinds" test checked op *kind*, never *content*. Call
+  `moduletest.NonASCIIStrings(f)` in your Draw test to catch this; every
+  built-in module now does.
 
 ## Commands
 

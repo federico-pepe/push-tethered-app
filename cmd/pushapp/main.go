@@ -33,6 +33,8 @@ import (
 	"github.com/federico-pepe/push-tethered-app/internal/midiout"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/modules/monitor"
+	"github.com/federico-pepe/push-tethered-app/modules/remap"
+	"github.com/federico-pepe/push-tethered-app/modules/seq"
 	"github.com/federico-pepe/push-tethered-app/modules/thru"
 )
 
@@ -46,6 +48,8 @@ func available() []module.Module {
 	return []module.Module{
 		monitor.New(),
 		thru.New(),
+		seq.New(),
+		remap.New(),
 	}
 }
 
