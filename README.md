@@ -179,6 +179,10 @@ docs/             feasibility.md — writeup, measurements, blockers
   sources, so there is **no system package to install** — one dependency covers
   macOS, Linux and Windows.
 - cgo means **no cross-compilation**: build on each target OS.
+  `.github/workflows/build.yml` builds on real macOS/Linux/Windows runners —
+  see CLAUDE.md's "Cross-platform builds" section for local per-OS setup
+  (Linux needs `libusb-1.0-0-dev` + `libasound2-dev` + a udev rule; Windows
+  needs mingw-w64 and is untested on real hardware so far).
 
 ## Related
 

@@ -206,9 +206,46 @@ go build ./... && go vet ./... && go test ./...
 
 `pushapp` flags: `-fps`, `-no-display` (MIDI only), `-no-leds`.
 
-macOS needs libusb: `brew install libusb` (1.0.30 confirmed working) and
-`export PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH`.
-`gousb` is cgo — **cross-compilation does not work**. Build on each target OS.
+## Cross-platform builds
+
+**There is no cross-compiling this app from one machine.** `gousb` (libusb) and
+`rtmididrv` (vendored RtMidi C++) are both cgo — cgo cross-compilation needs a
+full C cross-toolchain and the target's native libraries, not just a Go
+`GOOS`/`GOARCH` switch. **Build natively on each target OS.**
+`.github/workflows/build.yml` does this on real `macos-latest` /
+`ubuntu-latest` / `windows-latest` runners — that is the actual "build for all
+three platforms" answer; a laptop cannot do it alone.
+
+Per-OS setup for a local build:
+
+- **macOS:** `brew install libusb`, then
+  `export PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH`
+  (1.0.30 confirmed working).
+- **Linux:** `sudo apt install libusb-1.0-0-dev libasound2-dev pkg-config
+  build-essential` (Debian/Ubuntu; package names differ elsewhere). The ALSA
+  package is easy to miss — `rtmididrv`'s Linux backend needs
+  `alsa/asoundlib.h` and fails at the cgo compile step, not link, if it's
+  absent. Also needs a **udev rule** to claim the display without root:
+  `SUBSYSTEM=="usb", ATTR{idVendor}=="2982", MODE="0666"` in
+  `/etc/udev/rules.d/`, then `udevadm control --reload-rules && udevadm
+  trigger` and replug. Confirmed 2026-08-16: `cmd/probe` builds and runs
+  unmodified.
+- **Windows:** needs a mingw-w64 toolchain (MSYS2) for cgo, plus libusb via
+  MSYS2/vcpkg. MIDI uses WinMM, built into Windows. **Not yet tried on real
+  Windows hardware** — CI covers compilation only, not the driver-conflict risk
+  already documented under Known constraints.
+
+`go.mod`'s `replace` directive for `core/` is a relative path
+(`../../Documents/GitHub/ableton-push-hack/core`) — a fresh clone on any OS
+needs that sibling repo checked out at the matching relative location, or the
+path edited to match wherever it actually lives.
+
+**CI checks out `ableton-push-hack@main`, and main has no `core/` yet** — the
+whole `core/` extraction is still on the unmerged `push-core-refactor` branch.
+CI is pinned to `main` on purpose (Federico's call, 2026-08-17: that branch will
+be merged separately) — **so the build workflow will fail until that merge
+happens.** That is expected, not a regression to chase. It goes green the
+moment `push-core-refactor` lands on `main`, no workflow edit required.
 
 ### gousb gotcha — do not enable autodetach
 
