@@ -3,9 +3,12 @@ package main
 import (
 	"fmt"
 
-	"github.com/federico-pepe/push-tethered-app/internal/host"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
+
+// errNotConnected is what every module-list/control method returns while no
+// MIDI port has been picked yet — see hostManager and ListMIDIPorts/Connect.
+var errNotConnected = fmt.Errorf("not connected to Push yet")
 
 // ModuleInfo is the JSON shape sent to the frontend.
 //
@@ -32,19 +35,45 @@ type ModuleInfo struct {
 // InstallModulePrompt, the native folder picker a webview cannot provide
 // itself.
 type PushService struct {
-	rt *host.Runtime
+	mgr *hostManager
 }
 
-// NewPushService wraps an already-running Runtime.
-func NewPushService(rt *host.Runtime) *PushService {
-	return &PushService{rt: rt}
+// NewPushService wraps a hostManager, which may or may not be connected yet.
+func NewPushService(mgr *hostManager) *PushService {
+	return &PushService{mgr: mgr}
+}
+
+// IsConnected reports whether a MIDI port has been claimed and the host is
+// running. The frontend polls this to decide between the port-picker view and
+// the module-list view.
+func (s *PushService) IsConnected() bool {
+	_, ok := s.mgr.connected()
+	return ok
+}
+
+// ListMIDIPorts lists every MIDI input port the OS currently sees, for the
+// port-picker view shown when auto-detect fails (see hostManager.connect).
+func (s *PushService) ListMIDIPorts() []string {
+	return s.mgr.ports()
+}
+
+// ConnectMIDIPort claims the named MIDI port and starts the host. name must be
+// one of ListMIDIPorts' results — Push's Live port on most setups is the one
+// whose name mentions Push and either ends in "Live Port" or, on Windows,
+// carries no "MIDIINn (...)" prefix at all.
+func (s *PushService) ConnectMIDIPort(name string) error {
+	return s.mgr.connect(name)
 }
 
 // ListModules returns every available module — compiled-in and installed —
 // marking which one is active.
-func (s *PushService) ListModules() []ModuleInfo {
-	active := s.rt.Active().ID
-	metas := s.rt.List()
+func (s *PushService) ListModules() ([]ModuleInfo, error) {
+	rt, ok := s.mgr.connected()
+	if !ok {
+		return nil, errNotConnected
+	}
+	active := rt.Active().ID
+	metas := rt.List()
 	out := make([]ModuleInfo, 0, len(metas))
 	for _, m := range metas {
 		out = append(out, ModuleInfo{
@@ -52,17 +81,21 @@ func (s *PushService) ListModules() []ModuleInfo {
 			Name:         m.Name,
 			Active:       m.ID == active,
 			NeedsMIDIOut: m.NeedsMIDIOut,
-			Installed:    s.rt.IsInstalled(m.ID),
+			Installed:    rt.IsInstalled(m.ID),
 		})
 	}
-	return out
+	return out, nil
 }
 
 // ActivateModule switches the host to the named module. The frontend re-reads
 // ListModules afterward rather than relying on a return value here, so one
 // call site handles both success and the "which one is active now" question.
 func (s *PushService) ActivateModule(id string) error {
-	return s.rt.Activate(id)
+	rt, ok := s.mgr.connected()
+	if !ok {
+		return errNotConnected
+	}
+	return rt.Activate(id)
 }
 
 // InstallModulePrompt opens a native "choose a folder" dialog and installs
@@ -72,6 +105,11 @@ func (s *PushService) ActivateModule(id string) error {
 // path to hand to Runtime.Install. Returns the zero value with no error if the
 // user cancels, so the frontend can tell "cancelled" apart from "failed".
 func (s *PushService) InstallModulePrompt() (ModuleInfo, error) {
+	rt, ok := s.mgr.connected()
+	if !ok {
+		return ModuleInfo{}, errNotConnected
+	}
+
 	dir, err := application.Get().Dialog.OpenFile().
 		SetTitle("Select a module folder (containing manifest.json)").
 		CanChooseDirectories(true).
@@ -84,7 +122,7 @@ func (s *PushService) InstallModulePrompt() (ModuleInfo, error) {
 		return ModuleInfo{}, nil // user cancelled
 	}
 
-	meta, err := s.rt.Install(dir)
+	meta, err := rt.Install(dir)
 	if err != nil {
 		return ModuleInfo{}, err
 	}
@@ -98,5 +136,9 @@ func (s *PushService) InstallModulePrompt() (ModuleInfo, error) {
 // just a UI nicety, since nothing stops a second client of this same Runtime
 // from acting concurrently.
 func (s *PushService) UninstallModule(id string) error {
-	return s.rt.Uninstall(id)
+	rt, ok := s.mgr.connected()
+	if !ok {
+		return errNotConnected
+	}
+	return rt.Uninstall(id)
 }

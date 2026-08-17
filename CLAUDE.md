@@ -400,9 +400,14 @@ Per-OS setup for a local build:
   trigger` and replug. Confirmed 2026-08-16: `cmd/probe` builds and runs
   unmodified.
 - **Windows:** needs a mingw-w64 toolchain (MSYS2) for cgo, plus libusb via
-  MSYS2/vcpkg. MIDI uses WinMM, built into Windows. **Not yet tried on real
-  Windows hardware** — CI covers compilation only, not the driver-conflict risk
-  already documented under Known constraints.
+  MSYS2/vcpkg. MIDI uses WinMM, built into Windows. **The display/USB path is
+  still not tried on real Windows hardware** — CI covers compilation only, not
+  the driver-conflict risk already documented under Known constraints. MIDI
+  *has* now touched real Windows hardware (a user ran a CI-built `pushapp.exe`)
+  and it failed: WinMM doesn't expose the `"Live Port"` jack-string naming
+  `internal/midi` matches on, so auto-detect can't find Push's port there at
+  all — see `docs/open-questions.md` for the fix (`cmd/pushapp-ui` now offers
+  a manual port picker when auto-detect fails).
 
 `go.mod`'s `replace` directive for `core/` is a relative path
 (`../../Documents/GitHub/ableton-push-hack/core`) — a fresh clone on any OS

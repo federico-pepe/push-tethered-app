@@ -16,6 +16,15 @@
         <p class="subtitle" id="status">Loading modules&hellip;</p>
     </header>
 
+    <section class="connect-view" id="connect-view" hidden>
+        <p class="connect-hint">
+            Couldn't find Push's Live MIDI port automatically. Pick it from the
+            list below — it's usually the one whose name mentions "Push".
+        </p>
+        <ul class="port-list" id="port-list" aria-label="MIDI input ports"></ul>
+        <button id="retry-btn" class="retry-btn">Retry auto-detect</button>
+    </section>
+
     <ul class="module-list" id="module-list" aria-label="Modules"></ul>
 </main>
 

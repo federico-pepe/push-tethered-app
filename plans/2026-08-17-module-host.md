@@ -401,8 +401,10 @@ widget none of the other three modules exercise).
   modules so this class of bug fails a test next time instead of only showing
   up on the panel.
 
-**Phase 3 — app UI. DONE 2026-08-17 (Go side verified; window not yet
-eyeballed).** Minimal switcher, deliberately scoped down from the original
+**Phase 3 — app UI. DONE, confirmed working in the actual window by the
+user 2026-08-18** (including Install/Uninstall, added after the initial
+switcher — see phase 4 notes). Minimal switcher, deliberately scoped down
+from the original
 phase description: list modules, show which is active, switch. No per-module
 settings editor — `seq`'s BPM and `remap`'s overrides are still edited by
 hand-editing the config file the host logs on activation, same as from the
@@ -474,10 +476,16 @@ CLI, until a later phase adds a settings view. Headless `-module` path in
   command to the app package itself (`go build .`, or let `wails3 build`
   choose the target) rather than `./...` in this directory.
 
-**Phase 4 — process loader.** `internal/host/procmod`: a module is any
-executable, contract marshalled over stdio or a unix socket. This is what makes
-`Install`/`Uninstall` real and delivers "anyone can create a module" — ship one
-Python and one JS example.
+**Phase 4 — process loader. DONE 2026-08-18.** `internal/host/procmod`: a
+module is any executable, contract marshalled over stdio (JSON, one object per
+line). `Install`/`Uninstall` are real now, in both the CLI and the UI (the
+latter added after the initial phase-3 switcher). Python and JS examples ship
+in `examples/modules/`, both confirmed working end-to-end on Push 3 hardware.
+Full details, including two robustness bugs found along the way (an unbounded
+write in the protocol engine; a wrong pad-LED palette index that turned out to
+implicate `ableton-push-hack/core/push3/colors.go` itself, now fixed and
+merged upstream), are in
+[2026-08-17-process-loader.md](2026-08-17-process-loader.md).
 
 **Phase 5 — platform completion.** Windows on real hardware with loopMIDI; Pi
 4/5 per [2026-08-17-raspberry-pi-support.md](2026-08-17-raspberry-pi-support.md)

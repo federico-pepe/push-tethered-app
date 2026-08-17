@@ -13,11 +13,34 @@ Never fold anything back into `docs/archive/feasibility.md` itself.
 
 ## 1. Blocking the next phase of work
 
-- **Windows has never touched real hardware.** CI proves the binary compiles on
-  `windows-latest`; nothing is known about the actual WinUSB/Zadig driver
-  conflict (§4.3), or whether Push advertises WCID/MS OS descriptors (which
-  would sidestep it). This is now the **only** remaining Windows unknown — the
-  virtual-MIDI half is settled (below).
+- **Windows display path still untested on real hardware.** CI proves the
+  binary compiles on `windows-latest`; nothing is known about the actual
+  WinUSB/Zadig driver conflict (§4.3), or whether Push advertises WCID/MS OS
+  descriptors (which would sidestep it). MIDI *has* now touched real Windows
+  hardware (below) — this is the remaining untested half.
+- **Resolved 2026-08-18: Windows MIDI port naming.** A real Windows user ran
+  the CI-built `pushapp.exe` and hit `no Push Live Port found among [...]` —
+  WinMM does not expose the USB MIDI jack strings CoreMIDI/ALSA read `"Live
+  Port"`/`"User Port"`/`"External Port"` from at all; it names the first cable
+  after the bare device name and only prefixes the others (`Ableton Push 3
+  MIDI`, `MIDIIN2 (Ableton Push 3 MIDI)`, `MIDIIN3 (...)`). `internal/midi`'s
+  name-based auto-detect can never match there, for Push 2 or Push 3 alike —
+  not a per-device quirk, so no separate Push-2 case was needed. Fixed with a
+  manual escape hatch rather than a naming heuristic: `pmidi.ListInPorts` /
+  `OpenNamed`, wired into `cmd/pushapp-ui` as a port-picker view
+  (`hostmanager.go`, `pushservice.go`, `frontend/src/main.ts`'s
+  `connect-view`) that only appears when auto-detect fails. Confirmed on
+  macOS: auto-detect still succeeds, the picker never shows. **Not yet
+  confirmed on real Windows hardware** — the reporting user hasn't retested
+  with this fix.
+- **New: no disconnect detection.** Unplugging Push mid-session leaves
+  `cmd/pushapp-ui` reporting the last-active module ("Active: ...") against a
+  dead port — found live while testing the port-picker fix above.
+  `hostManager` has no watchdog on port health, and neither `internal/midi`
+  nor `internal/host` currently notice a failed send or a dead input stream.
+  Needs its own investigation (what actually fails first on unplug, on which
+  OS, and how to detect it without polling every frame) before the UI can be
+  trusted to reflect real connection state.
 - **Whether Wails v3 survives the headless requirement.** A Pi 4/5 running one
   module in kiosk mode should not need `webkit2gtk`. The plan keeps a
   `-module <id>` flag that runs with no window at all, but if the UI and the
