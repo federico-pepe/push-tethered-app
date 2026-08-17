@@ -17,10 +17,30 @@ a platform you can write your own tools for, independent of any DAW.
 > [docs/open-questions.md](docs/open-questions.md) for what's still open.
 
 ```bash
-go run ./cmd/pushapp                          # screen + input + LEDs
+go run ./cmd/pushapp                          # host + first module
+go run ./cmd/pushapp -list                    # what modules are available
 go run ./cmd/pushapp -capture demo.mp4        # ...and record the screen
 go run ./cmd/midiouttest                      # prove MIDI reaches other apps
 ```
+
+### Writing a module
+
+```go
+type Module interface {
+    Meta() Meta            // id, name, whether it sends MIDI
+    Init(h Host) error     // called on activation; h is the hardware
+    Handle(ev Event)       // pads, buttons, encoders, touch, MPE
+    Draw(f *Frame)         // append draw ops for one frame
+    Close() error
+}
+```
+
+A module never touches USB, never opens a MIDI port and never draws pixels — it
+appends ops to a `Frame` and the host renders them with the shared `core/gfx`
+widget toolkit. `Handle` and `Draw` are guaranteed never to run concurrently, so
+module state needs no locks. `modules/monitor` is the reference, and
+`internal/module/moduletest` provides a fake host so modules can be unit-tested
+with no Push attached.
 
 ## Why this can work
 
@@ -190,10 +210,14 @@ cmd/probe/        USB descriptor dump — read-only, never opens the device
 cmd/frametest/    display-only probe: one frame, or a timed hold
 cmd/mapcheck/     cross-references captures against the button map
 cmd/midiouttest/  MIDI-out probe: create/attach a port, send, and receive back
+internal/module/  the module ABI: Module, Host, Frame/Op, Event
+internal/host/    runtime: registry, control API, event fan-out, frame loop
 internal/display/ USB transport: claim interface 0, header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
 internal/midiout/ owns a named MIDI out port for modules (create or attach)
 internal/pushmap/ Push 2 map deltas + shared CC/touch name tables
+modules/monitor/  control-surface monitor; the reference module
+modules/thru/     forwards pads/encoders/buttons out as MIDI
 tools/            macOS-only Swift probes (midimon, ledtest)
 docs/             archive/feasibility.md (frozen writeup) + open-questions.md
 ```
