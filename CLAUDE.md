@@ -39,8 +39,9 @@ mirror the original vertical slice drew), `thru` (forwards controls out as
 MIDI), `seq` (an 8-step pad-grid sequencer, proving wall-clock-driven MIDI) and
 `remap` (the original stated goal, reduced to a module — user-editable
 overrides on top of `thru`'s passthrough default). `cmd/pushapp-ui` is a
-minimal Wails v3 switcher (list modules, see which is active, switch),
-eyeballed and confirmed working. **Modules can now be any executable, not just
+minimal Wails v3 switcher — list modules, see which is active, switch,
+install/uninstall a process-loaded one via a native folder picker — eyeballed
+and confirmed working. **Modules can now be any executable, not just
 Go compiled into the binary** — `internal/host/procmod` runs one as a child
 process over a small JSON protocol on its stdin/stdout; `examples/modules/`
 has a Python and a Node.js module proving it, both confirmed end-to-end on

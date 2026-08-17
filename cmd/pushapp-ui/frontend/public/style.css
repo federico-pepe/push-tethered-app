@@ -35,10 +35,39 @@ html, body {
     gap: 4px;
 }
 
+.brand-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
 .title {
     margin: 0;
     font-size: 20px;
     font-weight: 600;
+}
+
+.install-btn {
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.install-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.install-btn:disabled {
+    color: var(--text-dim);
+    cursor: default;
+    opacity: 0.6;
 }
 
 .subtitle {
@@ -108,4 +137,29 @@ html, body {
     color: var(--text-dim);
     cursor: default;
     opacity: 0.6;
+}
+
+.module-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.module-uninstall {
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.module-uninstall:hover:not(:disabled) {
+    border-color: #e57373;
+    color: #e57373;
+}
+
+.module-uninstall:disabled {
+    cursor: default;
+    opacity: 0.4;
 }

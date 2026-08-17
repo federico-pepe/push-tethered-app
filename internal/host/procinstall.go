@@ -36,6 +36,20 @@ func (r *Runtime) findModule(id string) module.Module {
 	return nil
 }
 
+// IsInstalled reports whether id refers to a process-loaded module rather
+// than a compiled-in one — the UI needs this to know whether an Uninstall
+// button makes sense for a given module at all.
+func (r *Runtime) IsInstalled(id string) bool {
+	r.installedMu.RLock()
+	defer r.installedMu.RUnlock()
+	for _, im := range r.installed {
+		if im.mod.Meta().ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 // Install copies a module directory (manifest.json plus its executable and
 // assets — see internal/host/procmod's package doc for the format) into this
 // app's own config location and registers it so it's usable immediately,
