@@ -134,6 +134,27 @@ func TestUninstallRefusesBuiltIn(t *testing.T) {
 	}
 }
 
+// TestIsInstalled is what the UI uses to decide whether an Uninstall control
+// makes sense for a given module at all.
+func TestIsInstalled(t *testing.T) {
+	defer procmod.SetInstalledRootForTest(t.TempDir())()
+	rt := &Runtime{modules: []module.Module{fakeModule{id: "monitor"}}}
+
+	if rt.IsInstalled("monitor") {
+		t.Error("IsInstalled(monitor) = true, want false (compiled-in)")
+	}
+	if rt.IsInstalled("does-not-exist") {
+		t.Error("IsInstalled on an unknown id = true, want false")
+	}
+
+	if _, err := rt.Install(writeModuleDir(t, "hello")); err != nil {
+		t.Fatal(err)
+	}
+	if !rt.IsInstalled("hello") {
+		t.Error("IsInstalled(hello) = false after Install, want true")
+	}
+}
+
 func TestUninstallUnknownID(t *testing.T) {
 	rt := &Runtime{}
 	if err := rt.Uninstall("does-not-exist"); err == nil {

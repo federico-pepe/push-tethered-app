@@ -1,20 +1,21 @@
 import { PushService } from "../bindings/github.com/federico-pepe/push-tethered-app/cmd/pushapp-ui";
 import type { ModuleInfo } from "../bindings/github.com/federico-pepe/push-tethered-app/cmd/pushapp-ui/models";
 
-// Minimal switcher, per plans/2026-08-17-module-host.md's phase-3 scope:
-// list modules, show which is active, let the user switch. Nothing else —
-// per-module settings (seq's BPM, remap's overrides) are still edited by
-// hand-editing the config file the host logs on activation, same as from the
-// CLI, until a later phase adds a settings view.
+// Switcher + install/uninstall, per plans/2026-08-17-module-host.md's phase-3
+// scope plus the process-loader's own Install/Uninstall (phase 4, see
+// plans/2026-08-17-process-loader.md) — list modules, show which is active,
+// switch, and manage process-loaded ones. Still not in scope: per-module
+// settings (seq's BPM, remap's overrides), still edited by hand-editing the
+// config file the host logs on activation, same as from the CLI.
 
 const listEl = document.getElementById("module-list") as HTMLUListElement;
 const statusEl = document.getElementById("status") as HTMLParagraphElement;
+const installBtn = document.getElementById("install-btn") as HTMLButtonElement;
 
-// switching is true while an ActivateModule call is in flight, so a second
-// click can't race the first one — Activate is not free (it calls Close on
-// the outgoing module and Init on the incoming one) and the list should
-// reflect one switch at a time.
-let switching = false;
+// busy covers any in-flight Activate/Install/Uninstall — all three mutate the
+// Runtime's module list or its active module, so serialising them avoids a
+// user's second click racing the first one's effects.
+let busy = false;
 
 async function refresh(): Promise<void> {
     let modules: ModuleInfo[];
@@ -30,6 +31,7 @@ async function refresh(): Promise<void> {
 function render(modules: ModuleInfo[]): void {
     const active = modules.find((m) => m.active);
     statusEl.textContent = active ? `Active: ${active.name}` : "No module active";
+    installBtn.disabled = busy;
 
     listEl.innerHTML = "";
     for (const m of modules) {
@@ -40,36 +42,96 @@ function render(modules: ModuleInfo[]): void {
         label.className = "module-name";
         label.textContent = m.name;
         if (m.needsMidiOut) {
-            const badge = document.createElement("span");
-            badge.className = "module-badge";
-            badge.textContent = "MIDI out";
-            label.appendChild(badge);
+            label.appendChild(badge("MIDI out"));
+        }
+        if (m.installed) {
+            label.appendChild(badge("installed"));
         }
 
-        const button = document.createElement("button");
-        button.className = "module-activate";
-        button.textContent = m.active ? "Active" : "Activate";
-        button.disabled = m.active || switching;
-        button.addEventListener("click", () => activate(m.id));
+        const buttons = document.createElement("span");
+        buttons.className = "module-buttons";
 
-        li.append(label, button);
+        const activateBtn = document.createElement("button");
+        activateBtn.className = "module-activate";
+        activateBtn.textContent = m.active ? "Active" : "Activate";
+        activateBtn.disabled = m.active || busy;
+        activateBtn.addEventListener("click", () => activate(m.id));
+        buttons.appendChild(activateBtn);
+
+        // Only a process-loaded module can be uninstalled, and not while it's
+        // the active one (Runtime.Uninstall refuses both, but there's no
+        // reason to show a control here that we already know would fail).
+        if (m.installed) {
+            const uninstallBtn = document.createElement("button");
+            uninstallBtn.className = "module-uninstall";
+            uninstallBtn.textContent = "Uninstall";
+            uninstallBtn.disabled = m.active || busy;
+            uninstallBtn.title = m.active ? "Switch to another module first" : "";
+            uninstallBtn.addEventListener("click", () => uninstall(m.id));
+            buttons.appendChild(uninstallBtn);
+        }
+
+        li.append(label, buttons);
         listEl.appendChild(li);
     }
 }
 
+function badge(text: string): HTMLSpanElement {
+    const el = document.createElement("span");
+    el.className = "module-badge";
+    el.textContent = text;
+    return el;
+}
+
 async function activate(id: string): Promise<void> {
-    if (switching) return;
-    switching = true;
+    if (busy) return;
+    busy = true;
     statusEl.textContent = "Switching…";
     try {
         await PushService.ActivateModule(id);
     } catch (err) {
         statusEl.textContent = `Could not switch: ${err}`;
     } finally {
-        switching = false;
+        busy = false;
         await refresh();
     }
 }
+
+async function install(): Promise<void> {
+    if (busy) return;
+    busy = true;
+    installBtn.disabled = true;
+    statusEl.textContent = "Choose a module folder…";
+    try {
+        const info = await PushService.InstallModulePrompt();
+        // A zero-value ModuleInfo (empty id) means the user cancelled the
+        // picker — PushService.InstallModulePrompt's documented way of telling
+        // "cancelled" apart from "failed" without throwing for a non-error.
+        if (info.id) {
+            statusEl.textContent = `Installed ${info.name}`;
+        }
+    } catch (err) {
+        statusEl.textContent = `Could not install: ${err}`;
+    } finally {
+        busy = false;
+        await refresh();
+    }
+}
+
+async function uninstall(id: string): Promise<void> {
+    if (busy) return;
+    busy = true;
+    try {
+        await PushService.UninstallModule(id);
+    } catch (err) {
+        statusEl.textContent = `Could not uninstall: ${err}`;
+    } finally {
+        busy = false;
+        await refresh();
+    }
+}
+
+installBtn.addEventListener("click", install);
 
 // No push events from the host yet (phase 4's process loader is the natural
 // point to add an "active module changed" event) — poll instead. Slow enough

@@ -442,6 +442,16 @@ CLI, until a later phase adds a settings view. Headless `-module` path in
   the frontend via Wails' service mechanism. `ModuleInfo` is a dedicated bound
   type rather than exposing `module.Meta` directly, so the frontend's contract
   doesn't move if `Meta` gains fields later.
+- **Updated 2026-08-17, after phase 4 landed `Install`/`Uninstall` on
+  `Runtime`: the UI grew Install/Uninstall too**, closing a gap where the
+  CLI could manage process-loaded modules and the app window couldn't.
+  `PushService.InstallModulePrompt()` opens a **native** folder picker
+  (`application.Get().Dialog.OpenFile().CanChooseDirectories(true)`) —
+  this has to happen on the Go side, since a webview has no API that hands
+  back a real filesystem directory path. `ModuleInfo` gained an `Installed`
+  bool (backed by a new `Runtime.IsInstalled`) so the frontend only offers
+  an Uninstall control where it could actually succeed, rather than
+  showing it everywhere and surfacing Runtime's refusal after the click.
 - **The frontend polls, it doesn't subscribe.** There is no "module switched"
   event yet — `main.ts` re-fetches `ListModules` every 2s and after every
   `ActivateModule` call. Phase 4's process loader is the natural point to add
