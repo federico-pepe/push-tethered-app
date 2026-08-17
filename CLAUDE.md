@@ -2,212 +2,169 @@
 
 Guidance for Claude Code (claude.ai/code) working in this repository.
 
-> **Doc sync rule:** keep this file, `README.md`, and `docs/` in sync with every
-> code change. If a change affects behaviour, protocol facts, APIs or known
-> issues — update the relevant docs in the same commit.
+> **Doc sync rule:** update this file, `README.md`, and `docs/` when a change
+> is *meaningful* to a future reader — new behaviour, a changed protocol fact,
+> a new API, a resolved or newly-found issue. Not every commit needs a doc
+> update; skip internal refactors and trivial edits. When you do update, keep
+> it in the same commit as the change.
 >
 > **Plans live in `plans/`**, one file per plan, named
-> `YYYY-MM-DD-name-of-the-plan.md` (date first so they sort chronologically).
-> Write plans there rather than leaving them in chat or scattered across
-> `docs/`. `docs/` holds durable reference — protocol facts, measurements,
-> rationale; `plans/` holds intent — what we are about to do and why, including
-> decisions that are still open.
+> `YYYY-MM-DD-name-of-the-plan.md`. `docs/` holds durable reference (protocol
+> facts, measurements, rationale); `plans/` holds intent (what we're about to
+> do and why, including open decisions).
 >
-> **`docs/archive/` is frozen — never edit, move, or delete anything inside
-> it**, and never add anything to it unless explicitly asked to archive a
-> specific file. It holds superseded docs (e.g. `feasibility.md`) kept for
-> history; treat it as read-only. Current open questions live in
-> [docs/open-questions.md](docs/open-questions.md) instead — update that file,
-> not the archive, when something gets resolved or newly discovered.
+> **`docs/archive/` is frozen** — never edit, move, or delete anything inside
+> it, never add to it unless explicitly asked. It holds superseded docs kept
+> for history. Open questions live in
+> [docs/open-questions.md](docs/open-questions.md) instead.
 
 ## Project
 
 `push-tethered-app` — cross-platform desktop app that owns an **Ableton Push 2 /
 Push 3 in tethered (controller) mode**: display, pads, buttons, encoders, LEDs.
 
-**It is a module host.** `pushapp` owns the hardware and runs **modules** — small
-programs anyone can write, with or without the help of AI — that draw the screen
-and handle the controls. No DAW is involved at any layer; a MIDI remapper is *a
-module*, not the product. Decided 2026-08-17, see
-[plans/2026-08-17-module-host.md](plans/2026-08-17-module-host.md) for the design
-and the phasing.
+**It is a module host.** `pushapp` owns the hardware and runs **modules** —
+small programs anyone can write — that draw the screen and handle the
+controls. No DAW is involved at any layer; a MIDI remapper is *a module*, not
+the product. Decided 2026-08-17, see
+[plans/2026-08-17-module-host.md](plans/2026-08-17-module-host.md).
 
-**Status: pre-alpha, but running.** Protocol verification is done (§8). The
-module contract, host, renderer and per-module persistence exist and are
-confirmed on Push 3 hardware, with four modules: `monitor` (the control-surface
-mirror the original vertical slice drew), `thru` (forwards controls out as
-MIDI), `seq` (an 8-step pad-grid sequencer, proving wall-clock-driven MIDI) and
-`remap` (the original stated goal, reduced to a module — user-editable
-overrides on top of `thru`'s passthrough default). `cmd/pushapp-ui` is a
-minimal Wails v3 switcher — list modules, see which is active, switch,
-install/uninstall a process-loaded one via a native folder picker — eyeballed
-and confirmed working. **Modules can now be any executable, not just
-Go compiled into the binary** — `internal/host/procmod` runs one as a child
-process over a small JSON protocol on its stdin/stdout; `examples/modules/`
-has a Python and a Node.js module proving it, both confirmed end-to-end on
-Push 3 hardware including a real pad press lighting a real LED through a real
-spawned child process. See
+**Status: pre-alpha, running, confirmed on Push 2 and Push 3 hardware.** The
+module contract, host, renderer and per-module persistence all work. Four
+built-in modules: `monitor` (control-surface mirror), `thru` (forwards
+controls out as MIDI), `seq` (8-step pad-grid sequencer), `remap`
+(user-editable overrides on `thru`). `cmd/pushapp-ui` is a Wails v3 switcher
+(list/switch/install/uninstall modules). **Modules can be any executable, not
+just compiled-in Go** — `internal/host/procmod` runs one as a child process
+over JSON-over-stdio; `examples/modules/` has working Python and Node.js
+modules, confirmed end-to-end on hardware. See
 [plans/2026-08-17-process-loader.md](plans/2026-08-17-process-loader.md).
 
-The older [plans/2026-08-16-product-shape-decision.md](plans/2026-08-16-product-shape-decision.md)
-is **closed** — it framed three candidate products and the answer was a fourth.
-Read it for the reasoning trail only; do not plan against it.
+[plans/2026-08-16-product-shape-decision.md](plans/2026-08-16-product-shape-decision.md)
+is **closed** — it framed three candidate products and the answer was a
+fourth. Read it for the reasoning trail only; do not plan against it.
 
-Read [docs/archive/feasibility.md](docs/archive/feasibility.md) before doing
-anything substantial. It carries the protocol evidence, the ranked blockers,
-and the stack rationale, with section numbers referenced throughout this file
-(it's archived/frozen — don't edit it, see the doc-sync rule above). Check
-[docs/open-questions.md](docs/open-questions.md) for what's still unresolved
-since that snapshot.
+Read [docs/archive/feasibility.md](docs/archive/feasibility.md) for the
+protocol evidence and stack rationale behind the facts below (frozen, don't
+edit — section numbers below refer to it). Check
+[docs/open-questions.md](docs/open-questions.md) for what's still open.
 
 ## Relationship to `ableton-push-hack`
 
-This project is a **sibling** of `~/Documents/GitHub/ableton-push-hack`, which
-targets Push 3 *standalone* (hacks deployed to the device over SSH). Two things
-matter here:
+Sibling of `~/Documents/GitHub/ableton-push-hack` (Push 3 *standalone*, deployed
+over SSH). Two things matter:
 
-1. **`core/` is reused, not copied.** `go.mod` has a `replace` pointing at that
-   checkout's `core/` module (`github.com/federico-pepe/ableton-push-hack/core`).
-   Reused packages: `core/gfx`, `core/gfx/text`, `core/gfx/widgets`,
-   `core/display` (the `ToBGR565`/`FromBGR565` codec), `core/push3`
-   (geometry, LED palette, encoder helpers), and `core/httpx`/`core/sse`/
-   `core/hackcfg` if a local web UI appears.
-   - **Do not fork or vendor these.** If a change is needed, make it in
-     `ableton-push-hack` so both projects benefit.
-   - `core/alsaseq`, `core/display.Shm` and `core/pmclient` are **not** usable
-     here — they are on-device Linux plumbing. Exception: `core/alsaseq` becomes
-     relevant again if this app ever creates a virtual MIDI port *on Linux*.
-2. **That repo's hard safety rules do not apply here** (no `/boot`, `/opt`, or
-   `/etc` on the Push filesystem is involved) — but see USB safety below.
+1. **`core/` is reused, not copied**, via a `replace` in `go.mod` pointing at
+   that checkout's `core/` module. Reused: `core/gfx`, `core/gfx/text`,
+   `core/gfx/widgets`, `core/display` (`ToBGR565`/`FromBGR565`), `core/push3`
+   (geometry, LED palette, encoder decode). **Never fork or vendor these** —
+   fix upstream so both projects benefit. `core/alsaseq`, `core/display.Shm`,
+   `core/pmclient` are on-device Linux plumbing, not usable here.
+2. **That repo's hard safety rules (no `/boot`, `/opt`, `/etc`) don't apply
+   here** — but see USB safety below.
 
 ## Key protocol facts
 
-Push 3, controller mode, measured on macOS 2026-08-09 — see README for the full
-interface table.
+Push 3, controller mode, measured on macOS. Push 2 PID `0x1967`, Push 3
+`0x2982`/`0x1969`.
 
-- **VID `0x2982`, PID `0x1969`** (Push 2: `0x1967`). Composite device, USB 2.0,
-  1 configuration, 7 interfaces.
-- **Interface 0 = `Ableton Push 3 Display`**, vendor-specific
-  (class/subclass/protocol all `255`), 2 endpoints. This is the one to claim.
-- **Interface 5 = MIDIStreaming** (class 1, subclass 3), 2 endpoints → the three
-  CoreMIDI ports `Live Port` / `User Port` / `External Port`.
-- **Interface 6 = `xPort`**, vendor-specific, 2 endpoints, **undocumented**.
-  Purpose unknown; do not poke it blind (see USB safety).
-- Display format — **confirmed working tethered 2026-08-09**: bulk OUT ep `0x01`,
-  16-byte header `FF CC AA 88` + 12 × `00`, then 960×160 BGR565 LE, stride
-  1024 px, XOR `0xFFE7F3E7`. `core/display.ToBGR565` emits the payload unchanged
-  (no tethered variant needed); the XOR is applied on top.
-- **A single 327680-byte frame is sufficient.** The standalone device's frame
-  duplication is a quirk of Ableton's binary, not a hardware requirement.
-- **The screen must be refreshed continuously.** One frame flashes and is then
-  overwritten — with no host driving it, Push redraws its own "connect to a
-  computer" idle screen. Holding the display means outrunning that renderer.
-  30fps costs 9.4 MB/s and runs clean; 60fps is well within USB 2.0 budget.
+- **Interface 0** = display, vendor-specific, 2 endpoints — the one to claim.
+  **Interface 5** = MIDIStreaming → CoreMIDI's `Live Port`/`User Port`/
+  `External Port`. **Interface 6** = `xPort`, vendor-specific, undocumented —
+  enumerate freely, never write to it speculatively.
+- **Display:** bulk OUT ep `0x01`, 16-byte header `FF CC AA 88` + 12×`00`,
+  960×160 BGR565 LE, stride 1024px, XOR `0xFFE7F3E7`. **One 327680-byte frame
+  is sufficient** — the standalone device's frame duplication is a quirk of
+  Ableton's binary, not a hardware requirement.
+- **The screen must be refreshed continuously** — with no host driving it,
+  Push redraws its own idle screen over whatever was last sent. 30fps
+  (9.4 MB/s) runs clean; 60fps is well within USB 2.0 budget.
 
-## MIDI facts (measured 2026-08-09, Live closed — §8.7)
+## MIDI facts
 
-Push emits MIDI **with no host handshake**, on `Ableton Push 3 Live Port` only
-(`User Port` / `External Port` carry nothing but keepalive).
+Push emits MIDI with **no host handshake**, on `Live Port` only (`User`/
+`External` carry keepalive only).
 
-- **MPE is on by default — but NOT always (§9.5).** Measured 2026-08-09 pad
-  note-ons rotated across **channels 2-16**; on 2026-08-16 the same setup put
-  pads on **channel 1**. The trigger is unidentified. Handle both; never assume
-  one layout. Channel 1 is always the control surface. Per-note pressure, CC 74 slide and pitch
-  bend all arrive on the note's own member channel.
-- **Decode channel FIRST, then CC.** Push 2 assigns CC 71-79 to the nine
-  encoders, and CC 71/74 are *also* MPE timbre controllers. The numbers collide;
-  the channel disambiguates. Treating CC 74 as "encoder 4" without checking the
-  channel turns pad slide into phantom encoder movement.
-- **Pads:** 8×8, notes **36 (bottom-left) to 99 (top-right)**, both corners
-  verified.
-- **Encoders:** relative two's-complement — `1` = +1 click, `127` = -1.
-  Encoder 1 = CC 71. `core/push3.DecodeRel` handles this unchanged.
-- **Touch sensors.** Encoders 1-8 = notes **0-7**, volume wheel = **8**, note 9
-  **unused**, tempo = 10, jog = 11, touch strip = **12**, D-Pad center = 13.
-  Note On vel 127 = contact. These were off by one upstream (§8.8) but the
-  correction has since been applied to `core/push3` itself (confirmed on both
-  Push 3 and Push 2) — `core/push3` is directly authoritative now,
-  `internal/pushmap` no longer overrides touch notes.
-- **Jog wheel is CC 70 and IS a relative encoder.** `push3.IsEncoderCC` now
-  covers it directly — the omission from §9.4 was fixed upstream. Decoding
-  CC 70 as a button turns every jog turn into a stream of phantom button
-  presses, which is what the original bug looked like.
-- **Encoders accelerate.** Deltas up to ±11 on fast turns — always use
-  `push3.DecodeRel`'s signed value, never assume one message = one click.
-- Encoder direction is `1` = CW, `127` = CCW — `core/push3/buttons.go` and its
-  map doc used to state this backwards (§8.8); both were corrected upstream.
-- **Buttons:** CC, 127 press / 0 release. CC 104-107 above the screen,
-  CC 20-22 below.
-- **Filter Active Sensing.** Push sends `0xFE` ~37×/second — over half of all
-  traffic. Test for system realtime (`0xF8`-`0xFF`) *before* masking with
-  `0xF0`, or `0xFE` decodes as SysEx.
-
-### LED output (§8.9)
-
-- **Pads:** Note On ch1, note 36-99, **velocity = palette index** from
-  `core/push3/colors.go`, `0` = off. All 64 confirmed lit.
-- **Buttons:** CC ch1, **value = brightness** 0-127 (white LEDs ignore colour).
-- No handshake needed. Works in co-existence mode over CoreMIDI — do not claim
-  interface 5 just to drive LEDs.
-- A row-walk from note 36 ran bottom-to-top, confirming `push3.PadNote` /
-  `PadCoord` from the output side as well as the input side.
-- **Always clear LEDs on every exit path, including SIGINT.** A probe that
-  leaves the device lit makes the next run ambiguous.
-
-**The button map is now complete: Push 3 87/87 CC and 13/13 touch notes, Push 2
-75/80 and 12/14, zero unknowns on either (§10.6, §12).** Two CCs mean different
-things per device — CC 15 (Push 2 Swing turn / Push 3 tempo press) and CC 111
-(Push 2 Browse / Push 3 volume press) — so **always resolve CCs per device**.
+- **MPE is on by default — but not always.** Pad note-ons have been observed
+  rotating across channels 2-16, and separately all on channel 1, with no
+  identified trigger. Handle both. Channel 1 is always the control surface;
+  per-note pressure, CC 74 slide and pitch bend arrive on the note's own
+  channel.
+- **Decode channel FIRST, then CC.** CC 71-79 are the nine encoders, but CC
+  71/74 are also MPE timbre controllers — the channel disambiguates.
+- **Pads:** 8×8, notes 36 (bottom-left) to 99 (top-right).
+- **Encoders:** relative two's-complement (`1`=+1 click, `127`=-1), encoder 1
+  = CC 71, direction `1`=CW/`127`=CCW. **Accelerate** — deltas up to ±11 on
+  fast turns, always decode the signed value, never assume one message = one
+  click. **Jog wheel is CC 70 and is a relative encoder too** —
+  `push3.IsEncoderCC` covers it.
+- **Touch sensors:** encoders 1-8 = notes 0-7, volume wheel = 8, note 9
+  unused, tempo = 10, jog = 11, touch strip = 12, D-Pad center = 13. Note On
+  vel 127 = contact. `core/push3` is authoritative for these now (an earlier
+  off-by-one was fixed upstream).
+- **Buttons:** CC, 127 press / 0 release. CC 104-107 above the screen, CC
+  20-22 below. **Filter Active Sensing** (`0xFE`, ~37/sec, over half of all
+  traffic) — test for system realtime (`0xF8`-`0xFF`) before masking with
+  `0xF0`, or it decodes as SysEx.
+- **Button map is complete**: Push 3 87/87 CC + 13/13 touch, Push 2 75/80 +
+  12/14, zero unknowns either device. Two CCs differ per device — CC 15
+  (Push 2 Swing / Push 3 tempo) and CC 111 (Push 2 Browse / Push 3 volume) —
+  always resolve CCs per device via `pushmap.ButtonNameFor`/`TouchNameFor`/
+  `IsRelativeEncoderCCFor`, not the device-agnostic versions.
 
 Still unmeasured: button-LED brightness fidelity, whether MPE can be disabled
-via SysEx, what `User Port` / `External Port` are for, and Push 2's arrow
-down/right (expected to match Push 3's 46/47/44/45).
+via SysEx, what `User`/`External` ports are for, Push 2's arrow down/right
+(expected to match Push 3's 46/47/44/45).
 
-Probe tools are macOS-only Swift, not part of the app build, kept so the
-measurements stay reproducible: `tools/midimon.swift` (MIDI in),
-`tools/ledtest.swift` (LED out). `cmd/mapcheck` (Go) cross-references captures
-against the map.
+Probe tools (macOS-only Swift, not part of the app build):
+`tools/midimon.swift` (MIDI in), `tools/ledtest.swift` (LED out).
+`cmd/mapcheck` cross-references captures against the map.
+
+### LED output
+
+- **Pads:** Note On ch1, note 36-99, velocity = palette index from
+  `core/push3/colors.go`, `0` = off.
+- **Buttons:** CC ch1, value = brightness 0-127 (white LEDs ignore colour).
+- No handshake needed. Works over CoreMIDI without claiming interface 5.
+- **Always clear LEDs on every exit path, including SIGINT** — leaving the
+  device lit makes the next run ambiguous.
 
 ## Drawing on the screen
 
 - **ASCII only.** `core/gfx/text` uses `basicfont.Face7x13`; any non-ASCII
-  character (em-dash, ellipsis, accents) renders as a missing-glyph box on the
-  panel (§9.4).
-- **Look at the screen, not just the logs.** Both bugs in §9.4 were invisible in
-  terminal output that reported healthy frame rates throughout. Use
-  `pushapp -capture out.mp4` and inspect a frame.
+  character renders as a missing-glyph box. Write ASCII rather than relying on
+  the host's substitution.
+- **Look at the screen, not just the logs** when debugging — a healthy frame
+  rate in logs doesn't mean the frame rendered correctly.
+  `pushapp -capture out.mp4` records the screen (never the physical pad LEDs)
+  for inspection.
 
 ## Hardware-interaction safety (button sweeps)
 
-- **Not every Push 3 button is an inert MIDI sender in controller mode.** The
-  **leftmost button above the screen switches the device into standalone mode**,
-  dropping it out of controller mode mid-session (found 2026-08-16 when the
-  operator stopped a sweep before pressing it).
-- **Never instruct a blind "press every button" sweep.** Ask which controls have
-  device-level functions first. A sweep that reboots the device into another
-  mode loses the session and can leave the USB state ambiguous.
-- **Fix: hold the display first.** Run `cmd/pushapp` before sweeping — the
-  top-row buttons are soft buttons owned by Push's own idle UI, so once a host
-  drives the screen they become plain MIDI and are safe to press (§12.1).
-- **Identify ambiguous controls by their touch sensor, not by press order.** A
-  press bracketed by a touch note on/off proves which physical control it
-  belongs to (§12.2). Press order has already misled once (§10.6).
-- Recovery is simply switching back to controller mode from the device, but the
-  capture in progress is void.
+- **The leftmost button above the screen switches Push 3 into standalone
+  mode**, dropping out of controller mode mid-session.
+- **Never do a blind "press every button" sweep** — ask which controls have
+  device-level functions first.
+- **Fix: hold the display first.** Run `cmd/pushapp` before sweeping — once a
+  host drives the screen, the top-row buttons become plain MIDI and are safe
+  to press.
+- **Identify ambiguous controls by their touch sensor, not by press order** —
+  a press bracketed by a touch note on/off proves which physical control it
+  belongs to.
+- Recovery: switch back to controller mode from the device. The capture in
+  progress is void, but nothing else is lost.
 
 ## USB safety
 
-The device is expensive, and some of this is undocumented. Rules:
-
-- **Claim only the interface you need.** Default to interface 0 (display).
-  Claiming MIDI/audio interfaces takes them away from the OS and the DAW.
-- **Never write to `xPort` (interface 6) speculatively.** It is vendor-specific
-  and unidentified. Read/enumerate freely; do not send it invented payloads.
-- **No firmware operations. Ever.** No DFU, no control transfers with vendor
-  requests whose meaning is unknown.
-- **Never run against a Push that is mid-OS-update.**
-- If a display write wedges the screen, replug/power-cycle the device. That is
-  the expected worst case and it is recoverable — keep it that way.
+- **Claim only interface 0 (display).** Claiming MIDI/audio interfaces takes
+  them away from the OS and the DAW.
+- **Never write to `xPort` (interface 6) speculatively** — vendor-specific,
+  undocumented.
+- **No firmware operations. Ever.** No DFU, no control transfers with unknown
+  vendor requests.
+- **Never run against a Push mid-OS-update.**
+- A wedged display recovers with a replug/power-cycle — expected worst case,
+  keep it that way.
 
 ## Layout
 
@@ -235,139 +192,107 @@ modules/monitor/  control-surface monitor; the reference module
 modules/thru/     forwards pads/encoders/buttons out as MIDI
 modules/seq/      8-step pad-grid sequencer; wall-clock-driven MIDI + Store
 modules/remap/    user-editable overrides on top of thru's passthrough default
-examples/modules/ process-loaded example modules (Python, Node.js) — see
-                   plans/2026-08-17-process-loader.md
+examples/modules/ process-loaded example modules (Python, Node.js)
 tools/            macOS-only Swift probes (midimon, ledtest)
 ```
 
 ### `cmd/pushapp-ui` is a separate Go module — do not add it to root's `./...`
 
-It has its own `go.mod`, the same pattern `ableton-push-hack/core` already
-uses, so the main `go build ./... && go vet ./... && go test ./...` stays
-untouched by Wails and by webkit2gtk (Linux). Consequences:
+It has its own `go.mod`, so the main `go build ./... && go vet ./... && go
+test ./...` stays untouched by Wails and by webkit2gtk (Linux). Consequences:
 
-- Its `go.mod` carries **two** `replace` directives of its own — one back to
-  this repo's root, one to `ableton-push-hack/core` — because a `replace` in a
+- Its `go.mod` carries **two** `replace` directives of its own — back to this
+  repo's root, and to `ableton-push-hack/core` — since a `replace` in a
   dependency's own `go.mod` is never honoured; only the main module's
-  `replace`s apply. If CI's core-checkout step (see "Cross-platform builds"
-  below) is ever extended to build this module too, it needs a second
-  `go mod edit -replace` line to match.
+  `replace`s apply.
 - **Building it needs `wails3` (the CLI) and Node/npm**, on top of everything
   `cmd/pushapp` needs. Install: `go install
-  github.com/wailsapp/wails/v3/cmd/wails3@latest`, then `wails3 doctor` to
-  check the rest.
-- **`go build ./...` inside `cmd/pushapp-ui` will fail** on `build/ios` and
-  `build/android` — Wails' generated mobile entry-point stubs, which only
-  satisfy their build constraints under their own mobile toolchains. Not a
-  bug; build the app package itself (`go build .`) or use `wails3 build`,
-  never `./...`, from that directory.
+  github.com/wailsapp/wails/v3/cmd/wails3@latest`, then `wails3 doctor`.
+- **`go build ./...` inside `cmd/pushapp-ui` fails** on `build/ios` and
+  `build/android` (Wails' mobile stubs). Build the package itself
+  (`go build .`) or use `wails3 build`, never `./...`, from that directory.
 - It **can** import `internal/*` packages of the root module despite being a
-  different module, because Go's internal-visibility rule is based on import
-  *path* text, not module identity — its module path was deliberately set to
-  `github.com/federico-pepe/push-tethered-app/cmd/pushapp-ui`, which shares
-  the required prefix.
+  different module — Go's internal-visibility rule is based on import *path
+  text*, and its module path shares the required prefix.
+- **CI builds it too** (`.github/workflows/build.yml`, all three OSes) —
+  `wails3 build`, reusing the root job's `core/` checkout and per-OS lib
+  installs, plus `webkit2gtk-4.1-dev` on Linux and a `go mod edit -replace`
+  for `cmd/pushapp-ui`'s own core/ replace.
 
 ## Writing a module
 
 The contract is `internal/module.Module` — `Meta`, `Init`, `Handle`, `Draw`,
-`Close`. `modules/monitor` is the reference implementation. Rules that are easy
-to get wrong:
+`Close`. `modules/monitor` is the reference implementation.
 
-- **A module never draws pixels.** `Draw` appends ops to a `*module.Frame`; the
-  host renders them with `core/gfx` + `core/gfx/widgets`. Use the typed methods
-  (`f.Rect`, `f.Text`, `f.List`, …), never `AppendRaw` — that exists for the
-  future process loader and for tests.
-- **`Handle` and `Draw` never run concurrently.** The host serialises both onto
-  one goroutine, so module state is plain fields with **no mutex**. This is part
-  of the contract, not an accident of the current implementation.
-- **Never block in `Handle`.** The same goroutine draws frames.
-- **The op set is open.** Adding support for a new upstream widget is one
-  `host.RegisterOp` + one `Frame` method — no ABI change, no version bump.
-  An op the host doesn't know is skipped and counted, never fatal.
-- **Declare `NeedsMIDIOut`** if the module sends MIDI. `modules/thru` is the
-  reference for that path. The host then refuses to activate the module when no
-  port can be opened, rather than letting every send fail quietly.
-  - **The port is opened on activation of a module that needs it — never
-    earlier.** On macOS and Linux opening one *publishes it to the whole
-    system*, so `host.Options` takes an `OpenMIDIOut` **function**, not an open
-    port. Deciding from the set of compiled-in modules was tried and was wrong:
-    adding one sending module made every run publish a port. A failed open is
-    cached, so a module sending on every pad press cannot retry a doomed open at
-    input rate.
-  - **Release your own notes in `Close`.** The host clears LEDs but knows nothing
-    about notes in flight; leaving one sounding is the worst bug a MIDI tool can
-    have. See `thru`'s `held` set.
-- **`Store()` gives the module its own persisted JSON**, one file per module ID
-  under the OS config directory (`internal/host/store.go`). Set defaults on
-  your struct before calling `Get` — nothing stored yet is not an error, it
-  just leaves your defaults alone. A module never sees its own file path (only
-  `Get`/`Set`); the host logs the path on activation so a user can hand-edit it
-  before a config UI exists — see `modules/remap`'s package doc for the
-  documented-editing pattern.
-- **Test with `moduletest.Host`**, which records every LED and MIDI write. No
-  Push required.
-- **ASCII only in text.** The host substitutes non-ASCII (and turns
-  `text.Truncate`'s `…` into `.`), but write ASCII rather than relying on it —
-  `remap`'s empty-overrides message shipped with an em-dash that silently
-  rendered as `?` on real hardware, because every module's "Draw emits only
-  known op kinds" test checked op *kind*, never *content*. Call
-  `moduletest.NonASCIIStrings(f)` in your Draw test to catch this; every
-  built-in module now does.
+- **A module never draws pixels.** `Draw` appends ops to a `*module.Frame`;
+  the host renders them via `core/gfx` + `core/gfx/widgets`. Use the typed
+  methods (`f.Rect`, `f.Text`, `f.List`, …), never `AppendRaw` (that's for the
+  process loader and tests).
+- **`Handle` and `Draw` never run concurrently** — one goroutine, so module
+  state is plain fields, no mutex.
+- **Never block in `Handle`.**
+- **The op set is open** — a new op is one `host.RegisterOp` + one `Frame`
+  method, no ABI change. An unknown op is skipped, never fatal.
+- **Declare `NeedsMIDIOut`** if the module sends MIDI (`modules/thru` is the
+  reference). The host then refuses to activate it if no port can be opened.
+  - **The port opens on activation, never earlier** — `host.Options` takes
+    `OpenMIDIOut` as a **function**, not an open port, since opening one
+    publishes it system-wide on macOS/Linux. A failed open is cached.
+  - **Release your own notes in `Close`** — the host clears LEDs but knows
+    nothing about notes in flight (see `thru`'s `held` set).
+- **`Store()` gives the module its own persisted JSON** (one file per module
+  ID, `internal/host/store.go`). Set defaults on your struct before `Get` —
+  nothing stored yet just leaves defaults alone. The host logs the file path
+  on activation for hand-editing (see `modules/remap`'s doc).
+- **Test with `moduletest.Host`** (records every LED/MIDI write, no Push
+  needed) and call `moduletest.NonASCIIStrings(f)` in Draw tests — op-kind
+  tests alone miss non-ASCII content.
 
 ### Not writing Go? Modules can be any executable
 
-`internal/host/procmod` runs a module as a child process, any language,
-speaking one JSON object per line over its own stdin (host→module) and stdout
-(module→host) — see [plans/2026-08-17-process-loader.md](plans/2026-08-17-process-loader.md)
-for the full wire protocol, and `examples/modules/hello-py` /
-`examples/modules/hello-js` for working references in Python and Node. A
+`internal/host/procmod` runs a module as a child process, any language, one
+JSON object per line over stdin/stdout — see
+[plans/2026-08-17-process-loader.md](plans/2026-08-17-process-loader.md) for
+the wire protocol, `examples/modules/hello-py`/`hello-js` for references. A
 module is a directory with `manifest.json` (`id`, `name`, `exec`, optionally
-`needs_midi_out`) plus its own script/executable and assets:
+`needs_midi_out`) plus its script/executable:
 
 ```bash
-go run ./cmd/pushapp -install path/to/your-module   # copies it in and registers it
+go run ./cmd/pushapp -install path/to/your-module   # copies it in, registers it
 go run ./cmd/pushapp -uninstall your-module-id
-go run ./cmd/pushapp -list                          # shows installed modules too, tagged [installed]
+go run ./cmd/pushapp -list                          # shows installed too, [installed]
 go run ./cmd/pushapp -module your-module-id
 ```
 
-Two things that matter and are easy to get wrong in a new language:
+Two things easy to get wrong in a new language:
 
-- **Flush every line immediately.** The host blocks reading one line at a
-  time; a module that only flushes stdout when its buffer fills (Python's
-  default when stdout isn't a terminal) looks like a hang. `hello-py` calls
-  `sys.stdout.flush()` after every write for exactly this reason.
-- **The Image display-list op is not available.** An `*image.NRGBA` doesn't
-  cross a process boundary; a module needing raw pixel control has to stay
-  an in-tree Go module for now.
+- **Flush every line immediately** — the host reads one line at a time; a
+  module that buffers stdout (Python's default off-terminal) looks hung.
+- **The Image op is not available** — an `*image.NRGBA` doesn't cross a
+  process boundary; raw pixel control needs an in-tree Go module.
 
-`draw`'s response and the ops inside it are the same JSON shapes
-`internal/module`'s Go types already produce — a colour is
-`{"R":.,"G":.,"B":.,"A":.}` (capitalised; that's Go's `image/color.NRGBA`
-encoding with no `json` tags of its own, not a process-loader convention).
+`draw`'s response/ops are the same JSON shapes `internal/module`'s Go types
+produce — a colour is `{"R":.,"G":.,"B":.,"A":.}` (Go's `image/color.NRGBA`
+encoding, capitalised, no `json` tags of its own).
 
 ## Commands
 
 ```bash
-go run ./cmd/pushapp            # host + first module (currently the monitor)
+go run ./cmd/pushapp            # host + first module
 go run ./cmd/pushapp -list      # list compiled-in modules
 go run ./cmd/pushapp -module monitor
-go run ./cmd/probe        # dump USB descriptors: interfaces, altsettings, endpoints
-go run ./cmd/frametest    # claim interface 0, push one frame to the display
-go run ./cmd/midiouttest  # prove MIDI reaches other software on this machine
+go run ./cmd/probe        # dump USB descriptors
+go run ./cmd/frametest    # claim interface 0, push one frame
+go run ./cmd/midiouttest  # prove MIDI reaches other software
 go build ./... && go vet ./... && go test ./...
 ```
 
 `pushapp` flags: `-fps`, `-module <id>`, `-list`, `-no-display` (MIDI only),
 `-no-leds`, `-midi-out <name>`, `-no-midi-out`, `-capture`, `-capture-raw`,
-`-install <dir>`, `-uninstall <id>` (both are pure filesystem operations —
-they run and exit before any hardware is touched, so no Push needs to be
-connected).
+`-install <dir>`, `-uninstall <id>` (filesystem-only, no Push needed).
 
-`midiouttest` flags: `-list`, `-port <name>`, `-ch <1-16>`, `-bpm`, and
-`-listen <name>` to become the receiver instead of the sender. The two halves
-prove each other with no synth involved — run `-listen` in one terminal against
-the port the sender creates.
+`midiouttest` flags: `-list`, `-port <name>`, `-ch <1-16>`, `-bpm`, `-listen
+<name>` (become receiver instead of sender — proves both halves with no synth).
 
 ```bash
 cd cmd/pushapp-ui
@@ -377,155 +302,125 @@ wails3 build            # produces bin/pushapp-ui
 
 ## Cross-platform builds
 
-**There is no cross-compiling this app from one machine.** `gousb` (libusb) and
-`rtmididrv` (vendored RtMidi C++) are both cgo — cgo cross-compilation needs a
-full C cross-toolchain and the target's native libraries, not just a Go
-`GOOS`/`GOARCH` switch. **Build natively on each target OS.**
-`.github/workflows/build.yml` does this on real `macos-latest` /
-`ubuntu-latest` / `windows-latest` runners — that is the actual "build for all
-three platforms" answer; a laptop cannot do it alone.
+**No cross-compiling this app.** `gousb` (libusb) and `rtmididrv` (vendored
+RtMidi C++) are both cgo, which needs a full C toolchain per target — **build
+natively on each target OS**. `.github/workflows/build.yml` does this on real
+macOS/Linux/Windows runners.
 
-Per-OS setup for a local build:
+Per-OS local setup:
 
 - **macOS:** `brew install libusb`, then
-  `export PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH`
-  (1.0.30 confirmed working).
+  `export PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH`.
 - **Linux:** `sudo apt install libusb-1.0-0-dev libasound2-dev pkg-config
-  build-essential` (Debian/Ubuntu; package names differ elsewhere). The ALSA
-  package is easy to miss — `rtmididrv`'s Linux backend needs
-  `alsa/asoundlib.h` and fails at the cgo compile step, not link, if it's
-  absent. Also needs a **udev rule** to claim the display without root:
+  build-essential` (ALSA is easy to miss — `rtmididrv` needs
+  `alsa/asoundlib.h`). Also a udev rule to claim the display without root:
   `SUBSYSTEM=="usb", ATTR{idVendor}=="2982", MODE="0666"` in
   `/etc/udev/rules.d/`, then `udevadm control --reload-rules && udevadm
-  trigger` and replug. Confirmed 2026-08-16: `cmd/probe` builds and runs
-  unmodified.
-- **Windows:** needs a mingw-w64 toolchain (MSYS2) for cgo, plus libusb via
-  MSYS2/vcpkg. MIDI uses WinMM, built into Windows. **The display/USB path is
-  still not tried on real Windows hardware** — CI covers compilation only, not
-  the driver-conflict risk already documented under Known constraints. MIDI
-  *has* now touched real Windows hardware (a user ran a CI-built `pushapp.exe`)
-  and it failed: WinMM doesn't expose the `"Live Port"` jack-string naming
-  `internal/midi` matches on, so auto-detect can't find Push's port there at
-  all — see `docs/open-questions.md` for the fix (`cmd/pushapp-ui` now offers
-  a manual port picker when auto-detect fails).
+  trigger` and replug.
+- **Windows:** mingw-w64 toolchain (MSYS2) for cgo, libusb via MSYS2/vcpkg.
+  MIDI uses WinMM, built in. **The display/USB path is still untried on real
+  Windows hardware.** MIDI *has* touched real Windows hardware and failed
+  once already — see the Windows MIDI port-naming entry under Known
+  constraints.
 
-`go.mod`'s `replace` directive for `core/` is a relative path
-(`../../Documents/GitHub/ableton-push-hack/core`) — a fresh clone on any OS
-needs that sibling repo checked out at the matching relative location, or the
-path edited to match wherever it actually lives.
-
-**CI checks out `ableton-push-hack@main`** for the `core/` dependency, into a
-fixed subdirectory of its own workspace, then runs `go mod edit -replace` to
-point at that checkout — CI-only, never touching the committed `go.mod`. This
-was not straightforward: a naive attempt to mirror the local sibling-repo
-layout inside the CI workspace does not actually satisfy the relative
-`../../` path, because GitHub's runner nests the workspace differently per OS.
-`push-core-refactor` (the branch holding the entire `core/` extraction) merged
-into `main` on 2026-08-17 — before that, this workflow was expected to fail on
-every OS for that reason, documented in the workflow file's own history.
+`go.mod`'s `core/` `replace` is a relative path
+(`../../Documents/GitHub/ableton-push-hack/core`) — a fresh clone needs that
+sibling repo at the matching relative location, or the path edited to match.
+CI checks out `ableton-push-hack@main` into a fixed subdirectory of its own
+workspace and runs `go mod edit -replace` to point at it — CI-only, never
+touching the committed `go.mod`.
 
 ### gousb gotcha — do not enable autodetach
 
-**Never call `dev.SetAutoDetach(true)`.** It is *config-wide*, not
-interface-wide: `Device.Config()` loops over every interface in the
-configuration and detaches each one. On Push that tears audio (1-3) and MIDI
-(4-5) away from the OS class drivers, destroying co-existence mode — and on
-macOS it fails outright with `LIBUSB_ERROR_ACCESS`. If a Linux run reports
-`LIBUSB_ERROR_BUSY` when claiming, detach interface 0 alone.
-
-`Device.Config(n)` only issues `set_configuration` when `n` differs from the
-active config. Push is already on config 1, so no disruptive reconfiguration
-happens.
+**Never call `dev.SetAutoDetach(true)`.** It's *config-wide*, not
+interface-wide — `Device.Config()` detaches every interface in the
+configuration, tearing audio and MIDI away from the OS class drivers and
+destroying co-existence mode (fails outright on macOS with
+`LIBUSB_ERROR_ACCESS`). If Linux reports `LIBUSB_ERROR_BUSY` claiming, detach
+interface 0 alone. `Device.Config(n)` only issues `set_configuration` when `n`
+differs from the active config, so no disruptive reconfiguration happens on
+Push (already config 1).
 
 ## Architecture decisions already made
 
-Recorded so they are not relitigated — rationale in `docs/archive/feasibility.md` §6.
+Rationale in `docs/archive/feasibility.md` §6.
 
-- **Go**, single static binary. Chosen for `core/` reuse.
-- **`gousb`** (cgo → libusb) for USB. Accepted costs: no cross-compilation
-  (needs a per-OS CI matrix; mingw-w64 on Windows) and libusb's LGPL-2.1.
-- **OS MIDI = `gitlab.com/gomidi/midi/v2` + `drivers/rtmididrv`** (chosen
-  2026-08-16). The driver **vendors the RtMidi C++ sources**, so there is no
-  brew/apt dependency — cgo compiles it in. One dependency covers macOS, Linux
-  and Windows. Do not add rtmidi/portmidi as system packages.
-- **Push's MIDI is read through the OS, never libusb** (revised 2026-08-17).
-  §6.1a made this conditional on the operating mode; the module-host decision
-  makes it unconditional. `internal/midi` uses the OS API on all three OSes.
-  Claiming interface 5 over libusb (ep `0x03`/`0x83`) is not planned.
-- **MIDI *out* to other software goes through `internal/midiout`**, which owns a
-  named port rather than assuming it can create one — see Known constraints for
-  the measured per-OS behaviour.
-- **Wails v3** for the UI when a UI is needed. Note it depends on `webkit2gtk`
-  on Linux — the one place the stack is not truly standalone. Fyne/Gio are the
-  fallback if that becomes unacceptable.
-- **Rust + `nusb`** was considered and is genuinely better engineering (pure
-  Rust, no cgo, no LGPL). Rejected only because it forfeits `core/` reuse.
-  Revisit if this becomes a distributed product.
+- **Go**, single static binary, for `core/` reuse.
+- **`gousb`** (cgo → libusb) for USB. Cost: no cross-compilation, LGPL-2.1.
+- **`gitlab.com/gomidi/midi/v2` + `drivers/rtmididrv`** for OS MIDI — vendors
+  RtMidi C++, so no brew/apt dependency across all three OSes. Do not add
+  rtmidi/portmidi as system packages.
+- **Push's MIDI is read through the OS, never libusb.** `internal/midi` uses
+  the OS API on all three OSes; claiming interface 5 over libusb is not
+  planned.
+- **MIDI *out* to other software goes through `internal/midiout`**, which owns
+  a named port rather than assuming it can create one.
+- **Wails v3** for the UI. Depends on `webkit2gtk` on Linux — the one place
+  the stack isn't standalone; Fyne/Gio are the fallback if that becomes
+  unacceptable.
+- **Rust + `nusb`** was considered (no cgo, no LGPL) but rejected — it
+  forfeits `core/` reuse. Revisit if this becomes a distributed product.
 
-## Operating model — decided 2026-08-17
+## Operating model
 
 **The product is a module host.** `pushapp` owns the hardware and runs
-**modules** — small programs, writable by anyone, that draw the screen and
-handle pads/encoders/buttons. No DAW is involved at any layer. See
-[plans/2026-08-17-module-host.md](plans/2026-08-17-module-host.md).
+modules; no DAW involved at any layer. This retired the old co-existence /
+full-ownership split:
 
-This retired the old co-existence / full-ownership split, so **do not plan
-against it**:
-
-- **"Full ownership" does not mean claiming interface 5.** It means *we are the
-  only host*. OS MIDI via `rtmididrv` works on all three OSes with no driver
-  install, and WinMM's exclusive-open only ever hurt when sharing Push with a
-  DAW. **The libusb MIDI backend is out of scope** — a possible later latency
-  optimisation, nothing more.
-- **Co-existence is not a shipping mode**, just a fact about `ErrBusy`: if Live
-  holds the display we degrade and say so.
-- **A remapper is a module, not the product** (the old option B).
+- **"Full ownership" doesn't mean claiming interface 5** — it means *we are
+  the only host*. OS MIDI via `rtmididrv` needs no driver install on any OS.
+  The libusb MIDI backend is out of scope, a possible later latency
+  optimisation only.
+- **Co-existence is not a shipping mode**, just a fact about `ErrBusy`: if
+  Live holds the display we degrade and say so.
+- **A remapper is a module, not the product.**
 
 ## Known constraints
 
-- **Screen exclusivity (§4.1) — measured 2026-08-09.** With Live running and
-  Push as its control surface, claiming interface 0 fails with
-  `LIBUSB_ERROR_ACCESS` ("libusb: bad access [code -3]"), cleanly at claim time
-  before any write. Everything else survives: USB enumeration, all 3 MIDI ports,
-  and 16×16 audio. The claim releases as soon as Live quits — no replug. Handle
-  this error explicitly in any display code: report "Live owns the display" and
-  degrade, don't crash.
-- **MIDI out to other software — solved 2026-08-17, was §6.2's "hardest
-  constraint".** The app does **not** create a virtual port; it **owns a named
-  output port**, obtained two ways, both in `internal/midiout`:
-  - **create** — `rtmididrv.Driver.OpenVirtualOut(name)`
-    (`drivers/rtmididrv/driver.go:105`). macOS calls `MIDISourceCreate`
-    (`RtMidi.cpp:1637`), Linux creates an ALSA seq port (`:2553`).
-    **Verified working end-to-end on macOS 2026-08-17** — notes and CC sent from
-    Go were received back through the published port by a second process.
-  - **attach** — Windows WinMM refuses to create one:
-    `"MidiOutWinMM::openVirtualPort: cannot be implemented in Windows MM MIDI
-    API!"` (`RtMidi.cpp:3128`, WinUWP the same at `:3947`). It is a *warning*, no
-    port. So on Windows we open an **existing** port by name; the user provides
-    it with loopMIDI (free) or Windows MIDI Services.
+- **Screen exclusivity.** With Live running and Push as its control surface,
+  claiming interface 0 fails with `LIBUSB_ERROR_ACCESS`, cleanly, before any
+  write. Everything else survives (USB enumeration, all 3 MIDI ports, 16×16
+  audio). The claim releases the instant Live quits, no replug. Handle this
+  error explicitly: report "Live owns the display" and degrade, don't crash.
+- **MIDI out to other software — solved.** The app does not create a virtual
+  port; it **owns a named output port** two ways, both in `internal/midiout`:
+  - **create** — `rtmididrv.Driver.OpenVirtualOut(name)`. Verified working
+    end-to-end on macOS.
+  - **attach** — Windows WinMM refuses to create a virtual port at all, so on
+    Windows we open an **existing** one by name; the user provides it with
+    loopMIDI (free) or Windows MIDI Services.
 
-  `midiout.Open` tries create then falls back to attach, with no build tags — so
-  Windows would pick up native virtual ports automatically if that ever lands.
-  Cost is one documented install step on Windows, not a blocker. **Never attach
-  to a port whose name mentions Push** — that loops our output back into the
-  decoder; `midiout.isPush` guards it and a test pins it.
+  `midiout.Open` tries create then falls back to attach, no build tags.
+  **Never attach to a port whose name mentions Push** — that loops our output
+  back into the decoder; `midiout.isPush` guards it.
+- **Windows MIDI *input* port naming — real bug, found 2026-08-18.** WinMM
+  doesn't expose the USB MIDI jack strings CoreMIDI/ALSA read `"Live Port"`/
+  `"User Port"`/`"External Port"` from at all — it names the first cable after
+  the bare device name and only prefixes the others (`Ableton Push 3 MIDI`,
+  `MIDIIN2 (Ableton Push 3 MIDI)`, ...). `internal/midi`'s name-based
+  auto-detect can never match there, for Push 2 or Push 3 alike. Fixed with a
+  manual escape hatch, not a naming heuristic: `pmidi.ListInPorts`/
+  `OpenNamed`, wired into `cmd/pushapp-ui` as a port-picker view that appears
+  only when auto-detect fails. Not yet confirmed fixed on real Windows
+  hardware.
+- **No disconnect detection.** Unplugging Push mid-session leaves
+  `cmd/pushapp-ui` reporting the last-active module against a dead port —
+  `hostManager` has no watchdog on port health. See
+  [docs/open-questions.md](docs/open-questions.md).
 - **Channel convention: 1-16 at every API in this repo**, converted to the
   wire's 0-15 inside `midiout`. `gomidi`'s `Message.String()` prints channels
-  **0-based**, so a message sent on channel 3 displays as `channel: 2`. That is
-  correct, not an off-by-one.
-- **Push 2 works from the same binary** (§10, measured 2026-08-16). Display,
-  pads and LEDs are identical to Push 3. Its map is swept to 75/80 CC with zero
-  unknowns; the five differences live in `internal/pushmap/push2.go` — CC 15
-  Swing, 52 Master, 53 Stop Clip, 87 New (Push 3 uses 92), 111 Browse. **Use
-  `pushmap.ButtonNameFor`/`TouchNameFor`/`IsRelativeEncoderCCFor`**, not the
-  device-agnostic versions, wherever the device is known.
-- **Push 2's note 9 is the Swing encoder touch** — the note left unused on
-  Push 3, and the reason the upstream touch numbering was off by one (§10.6).
-- **Push 2 arrow CCs down/right are unverified** (§10.6): observed 45/47 in an
-  order that may not have matched the instruction.
+  0-based, so channel 3 displays as "channel: 2" — that's correct, not a bug.
+- **Push 2 works from the same binary.** Display, pads, LEDs identical to
+  Push 3. Its map is 75/80 CC with zero unknowns; the five differences live in
+  `internal/pushmap/push2.go` — CC 15 Swing, 52 Master, 53 Stop Clip, 87 New
+  (Push 3 uses 92), 111 Browse. Use `pushmap.ButtonNameFor`/`TouchNameFor`/
+  `IsRelativeEncoderCCFor`, not the device-agnostic versions, wherever the
+  device is known.
+- **Push 2's note 9 is the Swing encoder touch** — unused on Push 3.
+- **Push 2 arrow CCs down/right are unverified** — observed 45/47 in an order
+  that may not have matched the instruction.
 - **`xPort` (interface 6)** — vendor-specific, 2 bulk endpoints, undocumented,
-  absent from Push 2's spec. Purpose unknown; enumerate freely, never send it
-  invented payloads.
+  absent from Push 2. Enumerate freely, never send it invented payloads.
 - **Endpoint `0x81` IN** on the display interface is unused by the write path.
   Possibly status/ack. Never read from so far.
 - **Push 3 audio reports 16 in / 16 out** @ 44.1kHz — more than its analog I/O
