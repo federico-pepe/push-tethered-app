@@ -1,0 +1,95 @@
+name: build
+
+# cgo (gousb -> libusb, rtmididrv -> vendored RtMidi) means this app cannot be
+# cross-compiled from one machine — see CLAUDE.md's "gousb gotcha" section.
+# This matrix builds natively on each target OS instead, which is the standard
+# way cgo projects cover multiple platforms without owning three machines.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # ableton-push-hack/core is a sibling checkout via go.mod's replace
+      # directive, at a fixed relative path (../../Documents/GitHub/...).
+      # Reproduce that exact layout here rather than editing go.mod for CI.
+      #
+      # Pinned to `main` on purpose (2026-08-17). core/ does not exist on
+      # main yet — the whole core/ extraction is still on the unmerged
+      # push-core-refactor branch — so THIS WORKFLOW WILL FAIL until that
+      # branch is merged. That is expected, not a bug: main is the intended
+      # long-term reference, and Federico is merging push-core-refactor
+      # separately. Once merged, this job goes green with no further edit.
+      - name: Checkout ableton-push-hack (core/ dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: federico-pepe/ableton-push-hack
+          ref: main
+          path: Documents/GitHub/ableton-push-hack
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install libusb + pkg-config (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libusb-1.0-0-dev libasound2-dev pkg-config
+
+      - name: Install libusb (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libusb
+          echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+
+      - name: Install libusb via MSYS2 (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: mingw-w64-x86_64-libusb mingw-w64-x86_64-pkg-config mingw-w64-x86_64-toolchain
+
+      - name: Build (macOS / Linux)
+        if: runner.os != 'Windows'
+        run: |
+          go build -o probe    ./cmd/probe
+          go build -o frametest ./cmd/frametest
+          go build -o mapcheck ./cmd/mapcheck
+          go build -o pushapp  ./cmd/pushapp
+
+      # MSYS2's shell is required so cgo picks up the mingw toolchain and
+      # libusb pkg-config files installed above.
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          export PATH="/mingw64/bin:$PATH"
+          go build -o probe.exe     ./cmd/probe
+          go build -o frametest.exe ./cmd/frametest
+          go build -o mapcheck.exe  ./cmd/mapcheck
+          go build -o pushapp.exe   ./cmd/pushapp
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: push-tethered-app-${{ matrix.os }}
+          path: |
+            probe*
+            frametest*
+            mapcheck*
+            pushapp*
