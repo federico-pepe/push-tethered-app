@@ -46,10 +46,13 @@ Never fold anything back into `docs/archive/feasibility.md` itself.
   `-module <id>` flag that runs with no window at all, but if the UI and the
   headless path drift apart, Fyne/Gio (already the documented fallback) needs
   revisiting.
-- **CI does not build or test `cmd/pushapp-ui` at all.** Confirmed safe to
-  merge as-is (it's a separate Go module, invisible to root's `./...`), but
-  nothing currently catches a regression there before it reaches `main`. See
-  `plans/2026-08-17-ci-for-pushapp-ui.md`.
+- **Resolved 2026-08-18: CI now builds `cmd/pushapp-ui` too.**
+  `.github/workflows/build.yml` runs `wails3 build` for it on all three OSes,
+  reusing the same job's core/ checkout and per-OS lib installs (plus
+  `webkit2gtk-4.1-dev`, newly added for Linux, and the `wails3`
+  CLI/Node/npm setup). See `plans/2026-08-17-ci-for-pushapp-ui.md`. **Not yet
+  confirmed green on an actual GitHub Actions run** — written and sanity
+  checked locally, not pushed through real CI yet.
 
 ## 2. Needs discovery/exploration
 

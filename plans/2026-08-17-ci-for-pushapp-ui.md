@@ -1,8 +1,16 @@
 # CI coverage for cmd/pushapp-ui
 
-**Status: open, not started.** Follow-up from phase 3
+**Status: DONE 2026-08-18.** Follow-up from phase 3
 ([2026-08-17-module-host.md](2026-08-17-module-host.md)), captured while
-answering "would this build if merged to main?"
+answering "would this build if merged to main?" `.github/workflows/build.yml`
+now runs `wails3 build` for `cmd/pushapp-ui` on all three OSes in the same
+matrix job as the CLI build, using the chosen middle ground below (full
+`wails3 build`, not the manual `npm run build` + `go build` route) since the
+frontend needs generated bindings either way and `wails3 build` produces those
+itself. Not yet confirmed green on a real CI run — the workflow file is
+written and locally sanity-checked (YAML parses, the same commands run
+successfully on this machine) but hasn't executed on GitHub-hosted runners
+yet.
 
 ## Context
 
