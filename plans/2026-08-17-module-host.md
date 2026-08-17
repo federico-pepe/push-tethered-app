@@ -136,12 +136,32 @@ channel and runs a single **module goroutine** that drains events and calls
 `Draw` on the frame tick. Module authors need no mutexes. The driver thread
 never blocks — on a stalled module the host drops oldest events and counts them.
 
-**3. The host clips and sanitises.** `core/gfx` has no clipping (push-manager
-relies on convention — `ui_shadow.go:450` claims clipping that isn't there), and
-`core/gfx/text` renders missing-glyph boxes for any non-ASCII (CLAUDE.md).
-Rendering a display list means both are enforced in one place: ops are clamped
-to the panel box, and `Text` sanitises non-ASCII to `?` rather than trusting
-every module author to remember.
+**3. The host sanitises text.** `core/gfx/text` renders a missing-glyph box for
+any non-ASCII (CLAUDE.md), and per §9.4 that class of bug is invisible in logs
+reporting a healthy frame rate. Rendering a display list means it is enforced in
+one place instead of trusting every module author to remember.
+
+*Corrected during implementation:* this originally also claimed the host would
+clip ops to the panel box. It does not need to — `gfx.FillRect` goes through
+`draw.Draw` and `text.Draw` through `font.Drawer`, and **both already clip to the
+destination bounds**. Off-canvas ops are simply invisible. Adding a second
+clamping layer would have been theatre; `TestOffCanvasOpsAreHarmless` pins the
+upstream behaviour instead, so a regression there fails a test rather than
+reaching hardware.
+
+*Upstream follow-up, done 2026-08-17:* `text.Truncate` appended U+2026 when it
+cut a string, so the likeliest source of non-ASCII was a helper modules are
+*encouraged* to use — and it was drawing glyph boxes on real hardware in
+push-manager's file browser, not just latent here. **Fixed in
+`ableton-push-hack` (branch `fix-truncate-ascii`)**: the marker is now `"..."`,
+a latent `maxRunes <= 0` panic is gone, and `core/gfx/text` gained its first test
+file asserting every output byte is printable ASCII.
+
+The host's `asciiOnly` stays regardless, as defence against older `core/`
+checkouts and any other source of non-ASCII. It maps `…` to `.` and everything
+else non-printable to `?`, and stays a **1:1 character** substitution on purpose:
+expanding one rune to three would change a string's rendered width mid-frame and
+could overflow a layout the module already measured with `text.Width`.
 
 ### Display list — designed to grow with `core/gfx`
 
@@ -286,11 +306,48 @@ converted to the wire's 0-15 inside `midiout`, but `gomidi`'s
 `Message.String()` prints channels **0-based** — a note sent on channel 3 logs as
 `channel: 2`. Pinned by `TestStatusChannelConversion`.
 
-**Phase 1 — contract + host, zero new features.** Build `internal/module`,
-`internal/host`, `render.go`. Port today's `render`/`handle` verbatim into
-`modules/monitor`. Success criterion: `pushapp` looks and behaves exactly as it
-does now, with `main.go` reduced to wiring. Doubles as the debugging tool for
-every later phase.
+**Phase 1 — contract + host. DONE 2026-08-17.** `internal/module`,
+`internal/module/moduletest`, `internal/host`, `modules/monitor`, and
+`cmd/pushapp` cut down to wiring. Verified on Push 3 hardware: the monitor renders
+identically to the pre-host app at 29.3 fps, confirmed by extracting a frame from
+`-capture` rather than trusting the frame counter.
+
+Three things learned or changed while building it:
+
+- **`module.Frame.AppendRaw` was added to the ABI.** Tests need to inject an op
+  the typed constructors cannot produce, to prove a module built against a newer
+  `core/gfx` degrades instead of breaking the frame. That is not test-only
+  scaffolding: the process loader needs exactly the same entry point to rebuild
+  a display list received as JSON.
+- **Drawing types are aliases of `core/gfx/widgets`, not copies** —
+  `type ListView = widgets.ListView` and so on. Upstream stays the single source
+  of truth and an upstream addition appears here for free. Caveat recorded in
+  the code: `ListRow.Icon` is an `*image.NRGBA` and will not survive a process
+  boundary, so icons are in-process only until the loader gains an image handle.
+- **MIDI out is opened lazily, and getting that right took two attempts.** The
+  first hardware run published a `Push Tethered App` port on every launch even
+  though the monitor never sends a byte — on macOS and Linux that call publishes
+  to the whole system. Fix #1 decided from the set of *compiled-in* modules,
+  which broke the moment `thru` was added: one sending module in the binary made
+  every run publish a port again. Fix #2, which is correct: `host.Options` takes
+  an `OpenMIDIOut` **function**, and the Runtime calls it on activation of a
+  module that declares `NeedsMIDIOut` — never earlier. A failed open is cached,
+  so a module sending on every pad press cannot retry a doomed open at input
+  rate (on Windows each attempt enumerates every MIDI port on the machine). The
+  Runtime owns the port's lifetime and closes it on shutdown.
+
+**`modules/thru` was added after phase 1** to close the gap that `moduleHost`'s
+`SendCC`/`SendNote`/`NoteOff` had never executed — `midiout` was proven only by
+`cmd/midiouttest`, which bypasses the host entirely. It forwards pads to notes,
+the eight screen encoders to CC 1-8 (relative accumulated to absolute, clamped),
+and buttons to their own CC. It is the identity case of the phase-2 remap module
+rather than a throwaway probe. Deliberate limits: MPE member channels are
+collapsed onto one output channel and `Expression` is ignored, because
+predictable output matters more than faithful output for something whose job is
+to be verifiable.
+
+Still outstanding from this phase: `Store` is a stub (`memStore`) so the
+interface does not churn later, but nothing persists yet.
 
 **Phase 2 — control API, config store, two more modules.** The host control
 interface plus `-module <id>`; `modules/seq` (proves MIDI out, pad LEDs, timing)

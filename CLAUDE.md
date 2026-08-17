@@ -24,17 +24,23 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 
 `push-tethered-app` — cross-platform desktop app that owns an **Ableton Push 2 /
 Push 3 in tethered (controller) mode**: display, pads, buttons, encoders, LEDs.
-Goal is a fully configurable MIDI controller independent of any DAW.
 
-**Status: pre-alpha, but running.** Protocol verification is done (§8).
-`cmd/pushapp` is a working vertical slice: one binary holding the screen at
-30fps, reading the control surface and driving the LEDs, confirmed on hardware
-(§9). No configuration, mapping or UI yet.
+**It is a module host.** `pushapp` owns the hardware and runs **modules** — small
+programs anyone can write, with or without the help of AI — that draw the screen
+and handle the controls. No DAW is involved at any layer; a MIDI remapper is *a
+module*, not the product. Decided 2026-08-17, see
+[plans/2026-08-17-module-host.md](plans/2026-08-17-module-host.md) for the design
+and the phasing.
 
-**The open question is what v1 actually is** — co-existence mode cannot remap
-MIDI, so the stated goal needs full ownership. See
-[plans/2026-08-16-product-shape-decision.md](plans/2026-08-16-product-shape-decision.md).
-Do not build mapping/config features until that is decided.
+**Status: pre-alpha, but running.** Protocol verification is done (§8). The
+module contract, host and renderer exist and are confirmed on Push 3 hardware,
+with two modules: `monitor` (the control-surface mirror the original vertical
+slice drew) and `thru` (forwards controls out as MIDI). Still missing:
+per-module persistence, the app UI, and the out-of-process loader.
+
+The older [plans/2026-08-16-product-shape-decision.md](plans/2026-08-16-product-shape-decision.md)
+is **closed** — it framed three candidate products and the answer was a fourth.
+Read it for the reasoning trail only; do not plan against it.
 
 Read [docs/archive/feasibility.md](docs/archive/feasibility.md) before doing
 anything substantial. It carries the protocol evidence, the ranked blockers,
@@ -195,29 +201,73 @@ The device is expensive, and some of this is undocumented. Rules:
 ## Layout
 
 ```
-cmd/pushapp/      the app: display + input + LEDs in one process
+cmd/pushapp/      the host: owns the hardware, runs one module. Wiring only.
 cmd/probe/        USB descriptor dump (read-only, never opens the device)
 cmd/frametest/    display-only probe, one frame or a timed hold
 cmd/mapcheck/     cross-references captures against the button map
 cmd/midiouttest/  MIDI-out probe: create/attach a port, send, and receive back
+internal/module/  the ABI: Module, Host, Frame/Op, Event, Meta, Store
+internal/module/moduletest/  fake Host so modules test with no hardware
+internal/host/    runtime: registry, control API, event fan-out, frame loop
+internal/host/render.go      op registry: display list -> image via core/gfx
 internal/display/ USB transport: claim interface 0, frame header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
 internal/midiout/ owns a named MIDI out port for modules (create or attach)
 internal/pushmap/ Push 2 map deltas + shared CC/touch name tables
+modules/monitor/  control-surface monitor; the reference module
+modules/thru/     forwards pads/encoders/buttons out as MIDI
 tools/            macOS-only Swift probes (midimon, ledtest)
 ```
+
+## Writing a module
+
+The contract is `internal/module.Module` — `Meta`, `Init`, `Handle`, `Draw`,
+`Close`. `modules/monitor` is the reference implementation. Rules that are easy
+to get wrong:
+
+- **A module never draws pixels.** `Draw` appends ops to a `*module.Frame`; the
+  host renders them with `core/gfx` + `core/gfx/widgets`. Use the typed methods
+  (`f.Rect`, `f.Text`, `f.List`, …), never `AppendRaw` — that exists for the
+  future process loader and for tests.
+- **`Handle` and `Draw` never run concurrently.** The host serialises both onto
+  one goroutine, so module state is plain fields with **no mutex**. This is part
+  of the contract, not an accident of the current implementation.
+- **Never block in `Handle`.** The same goroutine draws frames.
+- **The op set is open.** Adding support for a new upstream widget is one
+  `host.RegisterOp` + one `Frame` method — no ABI change, no version bump.
+  An op the host doesn't know is skipped and counted, never fatal.
+- **Declare `NeedsMIDIOut`** if the module sends MIDI. `modules/thru` is the
+  reference for that path. The host then refuses to activate the module when no
+  port can be opened, rather than letting every send fail quietly.
+  - **The port is opened on activation of a module that needs it — never
+    earlier.** On macOS and Linux opening one *publishes it to the whole
+    system*, so `host.Options` takes an `OpenMIDIOut` **function**, not an open
+    port. Deciding from the set of compiled-in modules was tried and was wrong:
+    adding one sending module made every run publish a port. A failed open is
+    cached, so a module sending on every pad press cannot retry a doomed open at
+    input rate.
+  - **Release your own notes in `Close`.** The host clears LEDs but knows nothing
+    about notes in flight; leaving one sounding is the worst bug a MIDI tool can
+    have. See `thru`'s `held` set.
+- **Test with `moduletest.Host`**, which records every LED and MIDI write. No
+  Push required.
+- **ASCII only in text.** The host substitutes non-ASCII (and turns
+  `text.Truncate`'s `…` into `.`), but write ASCII rather than relying on it.
 
 ## Commands
 
 ```bash
-go run ./cmd/pushapp      # the vertical slice: screen + input + LEDs
+go run ./cmd/pushapp            # host + first module (currently the monitor)
+go run ./cmd/pushapp -list      # list compiled-in modules
+go run ./cmd/pushapp -module monitor
 go run ./cmd/probe        # dump USB descriptors: interfaces, altsettings, endpoints
 go run ./cmd/frametest    # claim interface 0, push one frame to the display
 go run ./cmd/midiouttest  # prove MIDI reaches other software on this machine
 go build ./... && go vet ./... && go test ./...
 ```
 
-`pushapp` flags: `-fps`, `-no-display` (MIDI only), `-no-leds`, `-capture`.
+`pushapp` flags: `-fps`, `-module <id>`, `-list`, `-no-display` (MIDI only),
+`-no-leds`, `-midi-out <name>`, `-no-midi-out`, `-capture`, `-capture-raw`.
 
 `midiouttest` flags: `-list`, `-port <name>`, `-ch <1-16>`, `-bpm`, and
 `-listen <name>` to become the receiver instead of the sender. The two halves
