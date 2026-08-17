@@ -240,12 +240,15 @@ Per-OS setup for a local build:
 needs that sibling repo checked out at the matching relative location, or the
 path edited to match wherever it actually lives.
 
-**CI checks out `ableton-push-hack@main`, and main has no `core/` yet** — the
-whole `core/` extraction is still on the unmerged `push-core-refactor` branch.
-CI is pinned to `main` on purpose (Federico's call, 2026-08-17: that branch will
-be merged separately) — **so the build workflow will fail until that merge
-happens.** That is expected, not a regression to chase. It goes green the
-moment `push-core-refactor` lands on `main`, no workflow edit required.
+**CI checks out `ableton-push-hack@main`** for the `core/` dependency, into a
+fixed subdirectory of its own workspace, then runs `go mod edit -replace` to
+point at that checkout — CI-only, never touching the committed `go.mod`. This
+was not straightforward: a naive attempt to mirror the local sibling-repo
+layout inside the CI workspace does not actually satisfy the relative
+`../../` path, because GitHub's runner nests the workspace differently per OS.
+`push-core-refactor` (the branch holding the entire `core/` extraction) merged
+into `main` on 2026-08-17 — before that, this workflow was expected to fail on
+every OS for that reason, documented in the workflow file's own history.
 
 ### gousb gotcha — do not enable autodetach
 
