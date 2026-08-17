@@ -1,13 +1,17 @@
 # Push Tethered App
 
-Cross-platform desktop app to own an **Ableton Push 2 / Push 3 in tethered
-(controller) mode** — display, pads, buttons, encoders, LEDs — as a fully
-configurable MIDI controller, independent of any DAW.
+Cross-platform desktop app that owns an **Ableton Push 2 / Push 3 in tethered
+(controller) mode** — display, pads, buttons, encoders, LEDs — and turns it into
+a platform you can write your own tools for, independent of any DAW.
 
 > **Status: pre-alpha, but running.** `cmd/pushapp` is a working vertical slice:
 > one Go binary that holds the screen at 30fps, reads the control surface, and
 > lights the pads you press. **Confirmed on both Push 2 and Push 3 hardware from
-> the same unmodified binary.** No configuration or remapping yet. See
+> the same unmodified binary.**
+>
+> The product shape was decided 2026-08-17 — a **module host** — and the module
+> contract is being built now against that slice. See
+> [plans/2026-08-17-module-host.md](plans/2026-08-17-module-host.md),
 > [docs/archive/feasibility.md](docs/archive/feasibility.md) (§8 = protocol
 > measurements, §9 = the slice, §10 = Push 2) and
 > [docs/open-questions.md](docs/open-questions.md) for what's still open.
@@ -15,6 +19,7 @@ configurable MIDI controller, independent of any DAW.
 ```bash
 go run ./cmd/pushapp                          # screen + input + LEDs
 go run ./cmd/pushapp -capture demo.mp4        # ...and record the screen
+go run ./cmd/midiouttest                      # prove MIDI reaches other apps
 ```
 
 ## Why this can work
@@ -136,17 +141,36 @@ as are the pad grid (notes 36–99) and the LED palette.
 
 Only the button CC table genuinely differs, so the device abstraction is small.
 
-## Two operating modes
+## What this is — a module host
 
-**Co-existence mode** — claim only interface 0. App draws the screen and
-provides configuration; the DAW keeps Push's audio and MIDI natively. Works on
-macOS, Windows and Linux with zero additional software. Cannot remap MIDI.
+Decided 2026-08-17: `pushapp` is a **host** that owns the hardware and runs
+**modules**. A module is a small program — writable by anyone, with or without
+the help of AI — that draws Push's screen and handles its pads, encoders and
+buttons. The app ships a few modules to show what's possible; the point is that
+you write your own.
 
-**Full-ownership mode** — claim the MIDI interface too. Remapping, custom
-layouts, alternate modes. Requires a virtual MIDI port to re-emit to the DAW,
-which has no built-in answer on Windows (see feasibility doc §6.2).
+No DAW is involved at any layer. A MIDI remapper is *a module*, not the product.
 
-Co-existence mode ships first.
+The full design, including the module contract and the phasing, is in
+[plans/2026-08-17-module-host.md](plans/2026-08-17-module-host.md).
+
+This replaces the earlier co-existence / full-ownership split. What survives of
+it: Push's MIDI is always read through the OS API rather than libusb, and if
+Ableton Live happens to be holding the display we degrade cleanly instead of
+fighting for it.
+
+### Reaching other software
+
+Modules can send MIDI out — to a synth, a DAW, anything. The app does not create
+a virtual port; it **owns a named output port**:
+
+| | How | Setup for the user |
+|---|---|---|
+| macOS, Linux | creates the port itself | none |
+| Windows | attaches to an existing port | install [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html) (free) and create one |
+
+Windows MM MIDI cannot create virtual ports at all, so this is a platform fact
+rather than a missing feature. Verified working on macOS 2026-08-17.
 
 ## Requirements
 
@@ -165,8 +189,10 @@ cmd/pushapp/      the app: display + input + LEDs in one process
 cmd/probe/        USB descriptor dump — read-only, never opens the device
 cmd/frametest/    display-only probe: one frame, or a timed hold
 cmd/mapcheck/     cross-references captures against the button map
+cmd/midiouttest/  MIDI-out probe: create/attach a port, send, and receive back
 internal/display/ USB transport: claim interface 0, header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
+internal/midiout/ owns a named MIDI out port for modules (create or attach)
 internal/pushmap/ Push 2 map deltas + shared CC/touch name tables
 tools/            macOS-only Swift probes (midimon, ledtest)
 docs/             archive/feasibility.md (frozen writeup) + open-questions.md
