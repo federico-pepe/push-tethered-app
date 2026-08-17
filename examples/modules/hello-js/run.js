@@ -15,7 +15,15 @@
 
 const readline = require("node:readline");
 
-const PAD_LIT_COLOUR = 21; // green palette index — see core/push3/colors.go
+// 11, matching core/push3/colors.go's NamedColors["green"] (#34C216). That
+// file itself was wrong until 2026-08-18 — it claimed "green" = 22 under an
+// assumption (inherited from Push 2's colors.pyc) that only even velocities
+// carry a real colour. A live SysEx query of Push 3's own palette
+// (ableton-push-hack/docs/push3-led-colors.md) shows every one of the 128
+// raw velocities is a distinct, real colour with no gaps; colors.go has
+// since been corrected to match. This module is what found the original
+// bug: it lit pads pink instead of green on real hardware.
+const PAD_LIT_COLOUR = 11; // green palette index — see core/push3/colors.go
 
 function send(obj) {
   process.stdout.write(JSON.stringify(obj) + "\n");

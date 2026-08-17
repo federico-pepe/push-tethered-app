@@ -22,8 +22,11 @@ import (
 )
 
 // padColour is the palette index a held pad lights up with.
-// 124 = white in core/push3/colors.go.
-const padColour = 124
+// 120 = white in core/push3/colors.go. (Was 124 before that file's
+// 2026-08-18 correction — a live SysEx query of Push 3's own palette showed
+// every one of the 128 raw velocities is a distinct real colour, which moved
+// every named entry; see colors.go's own header comment for the full story.)
+const padColour = 120
 
 // logLines is how many events the on-screen log keeps.
 const logLines = 6
