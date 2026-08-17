@@ -1,5 +1,30 @@
 # Product shape decision
 
+**Status: CLOSED 2026-08-17. Superseded by
+[2026-08-17-module-host.md](2026-08-17-module-host.md) — read that instead.**
+
+The answer was **none of A, B or C as written**: the product is a **module
+host**, and the three candidates resolve into it as follows.
+
+- **B (remapper) became a module**, not a product. The stated goal survives
+  without the app being shaped around it.
+- **A (Live companion) is dead.** No DAW coupling means the §4.1 screen
+  exclusivity tension — the "fatal tension" flagged below — never arises.
+- **C (creative surface) is what the host generalises**, and the overlap worry
+  below is answered: the difference from `ableton-push-hack` is that anyone can
+  write a module here, on Push 2 as well as Push 3, with no device hacking.
+
+Two of the three "what I'd want answered" items were also resolved by the
+decision rather than by measurement: Windows *is* in scope (question 2), because
+"no DAW" removed the virtual-MIDI blocker — see the module-host plan for the
+measured create-or-attach behaviour. Live's Extensions SDK (question 3) is moot.
+Push 2 (question 5) is confirmed day-one and already works.
+
+**Everything below is the original 2026-08-16 text, kept for the reasoning
+trail. Do not plan against it.**
+
+---
+
 **Status: open.** Nothing should be built on top of `cmd/pushapp` until this is
 settled — the three candidate products diverge sharply above the layer that
 already exists.

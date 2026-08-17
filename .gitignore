@@ -4,6 +4,7 @@
 /mapcheck
 /ledtest
 /pushapp
+/midiouttest
 
 # Capture output
 *.mp4

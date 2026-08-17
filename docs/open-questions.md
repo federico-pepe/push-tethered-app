@@ -13,19 +13,34 @@ Never fold anything back into `docs/archive/feasibility.md` itself.
 
 ## 1. Blocking the next phase of work
 
-- **Product shape (A/B/C) is undecided.** `plans/2026-08-16-product-shape-decision.md`
-  is still open. Nothing beyond `cmd/pushapp` should be built until this is
-  settled — mapping, config UI, and Live integration all depend on which of
-  co-existence, full-ownership, or "creative surface" this becomes.
 - **Windows has never touched real hardware.** CI proves the binary compiles on
   `windows-latest`; nothing is known about the actual WinUSB/Zadig driver
-  conflict (§4.3), whether Push advertises WCID/MS OS descriptors (which would
-  sidestep it), or whether a display-only Windows build is even acceptable to
-  users. This blocks committing to option B (full ownership) for Windows.
-- **Windows virtual MIDI out (§6.2) is unresolved.** Windows MIDI Services'
-  minimum OS build was flagged as "verify, don't trust recalled numbers" and
-  never actually verified. teVirtualMIDI is the fallback but adds cost and an
-  install step.
+  conflict (§4.3), or whether Push advertises WCID/MS OS descriptors (which
+  would sidestep it). This is now the **only** remaining Windows unknown — the
+  virtual-MIDI half is settled (below).
+- **Module manifest format for `Install`/`Uninstall` is undesigned.** The host's
+  control API promises both, but they only mean anything once modules live on
+  disk, which arrives with the process loader (phase 4 of the module-host plan).
+  `core/hackcfg`'s `hack.json` is the nearest precedent and is deliberately
+  *not* being reused — it is shaped for on-device sysvinit services.
+- **Whether Wails v3 survives the headless requirement.** A Pi 4/5 running one
+  module in kiosk mode should not need `webkit2gtk`. The plan keeps a
+  `-module <id>` flag that runs with no window at all, but if the UI and the
+  headless path drift apart, Fyne/Gio (already the documented fallback) needs
+  revisiting.
+
+### Resolved 2026-08-17 — kept briefly for context, delete once the code lands
+
+- **Product shape: decided.** Neither A, B nor C — a **module host**, see
+  `plans/2026-08-17-module-host.md`. Option B (remapper) becomes a module;
+  option A is dead (no DAW coupling); option C is what this generalises.
+  `plans/2026-08-16-product-shape-decision.md` is closed.
+- **Windows virtual MIDI out: solved, and it was the wrong question.** The app
+  never needed to *create* a port — it needs to *own a named* one.
+  macOS/Linux create it (`OpenVirtualOut`); Windows attaches to one the user
+  made with loopMIDI. Windows MIDI Services' build floor no longer needs
+  verifying, and teVirtualMIDI's licence cost is avoided. Implemented in
+  `internal/midiout`, verified end-to-end on macOS with `cmd/midiouttest`.
 
 ## 2. Needs discovery/exploration
 

@@ -199,8 +199,10 @@ cmd/pushapp/      the app: display + input + LEDs in one process
 cmd/probe/        USB descriptor dump (read-only, never opens the device)
 cmd/frametest/    display-only probe, one frame or a timed hold
 cmd/mapcheck/     cross-references captures against the button map
+cmd/midiouttest/  MIDI-out probe: create/attach a port, send, and receive back
 internal/display/ USB transport: claim interface 0, frame header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
+internal/midiout/ owns a named MIDI out port for modules (create or attach)
 internal/pushmap/ Push 2 map deltas + shared CC/touch name tables
 tools/            macOS-only Swift probes (midimon, ledtest)
 ```
@@ -211,10 +213,16 @@ tools/            macOS-only Swift probes (midimon, ledtest)
 go run ./cmd/pushapp      # the vertical slice: screen + input + LEDs
 go run ./cmd/probe        # dump USB descriptors: interfaces, altsettings, endpoints
 go run ./cmd/frametest    # claim interface 0, push one frame to the display
+go run ./cmd/midiouttest  # prove MIDI reaches other software on this machine
 go build ./... && go vet ./... && go test ./...
 ```
 
-`pushapp` flags: `-fps`, `-no-display` (MIDI only), `-no-leds`.
+`pushapp` flags: `-fps`, `-no-display` (MIDI only), `-no-leds`, `-capture`.
+
+`midiouttest` flags: `-list`, `-port <name>`, `-ch <1-16>`, `-bpm`, and
+`-listen <name>` to become the receiver instead of the sender. The two halves
+prove each other with no synth involved — run `-listen` in one terminal against
+the port the sender creates.
 
 ## Cross-platform builds
 
@@ -284,12 +292,13 @@ Recorded so they are not relitigated — rationale in `docs/archive/feasibility.
   2026-08-16). The driver **vendors the RtMidi C++ sources**, so there is no
   brew/apt dependency — cgo compiles it in. One dependency covers macOS, Linux
   and Windows. Do not add rtmidi/portmidi as system packages.
-- **Device MIDI path depends on the mode** (§6.1a — corrected 2026-08-09):
-  full-ownership claims interface 5 over libusb (ep `0x03`/`0x83`);
-  **co-existence must use an OS MIDI API**, because claiming interface 5 takes
-  the CoreMIDI/ALSA ports away from the DAW. Multi-client MIDI is free on
-  macOS/Linux; on Windows WinMM is exclusive-open, so co-existence there cannot
-  read buttons while the DAW holds Push.
+- **Push's MIDI is read through the OS, never libusb** (revised 2026-08-17).
+  §6.1a made this conditional on the operating mode; the module-host decision
+  makes it unconditional. `internal/midi` uses the OS API on all three OSes.
+  Claiming interface 5 over libusb (ep `0x03`/`0x83`) is not planned.
+- **MIDI *out* to other software goes through `internal/midiout`**, which owns a
+  named port rather than assuming it can create one — see Known constraints for
+  the measured per-OS behaviour.
 - **Wails v3** for the UI when a UI is needed. Note it depends on `webkit2gtk`
   on Linux — the one place the stack is not truly standalone. Fyne/Gio are the
   fallback if that becomes unacceptable.
@@ -297,14 +306,24 @@ Recorded so they are not relitigated — rationale in `docs/archive/feasibility.
   Rust, no cgo, no LGPL). Rejected only because it forfeits `core/` reuse.
   Revisit if this becomes a distributed product.
 
-## Two operating modes
+## Operating model — decided 2026-08-17
 
-- **Co-existence** — claim interface 0 only. DAW keeps Push's audio + MIDI.
-  Zero extra software on all three OSes. No MIDI remapping. **Ships first.**
-- **Full ownership** — also claim MIDI. Enables remapping, needs a virtual MIDI
-  port to reach the DAW. macOS: CoreMIDI virtual source (or the built-in IAC
-  Driver). Linux: ALSA seq, reuse `core/alsaseq`. **Windows: no built-in
-  answer** — this is the project's hardest constraint (§6.2).
+**The product is a module host.** `pushapp` owns the hardware and runs
+**modules** — small programs, writable by anyone, that draw the screen and
+handle pads/encoders/buttons. No DAW is involved at any layer. See
+[plans/2026-08-17-module-host.md](plans/2026-08-17-module-host.md).
+
+This retired the old co-existence / full-ownership split, so **do not plan
+against it**:
+
+- **"Full ownership" does not mean claiming interface 5.** It means *we are the
+  only host*. OS MIDI via `rtmididrv` works on all three OSes with no driver
+  install, and WinMM's exclusive-open only ever hurt when sharing Push with a
+  DAW. **The libusb MIDI backend is out of scope** — a possible later latency
+  optimisation, nothing more.
+- **Co-existence is not a shipping mode**, just a fact about `ErrBusy`: if Live
+  holds the display we degrade and say so.
+- **A remapper is a module, not the product** (the old option B).
 
 ## Known constraints
 
@@ -315,10 +334,29 @@ Recorded so they are not relitigated — rationale in `docs/archive/feasibility.
   and 16×16 audio. The claim releases as soon as Live quits — no replug. Handle
   this error explicitly in any display code: report "Live owns the display" and
   degrade, don't crash.
-- **Windows virtual MIDI (§6.2):** the one requirement with no clean
-  cross-platform answer. Options are Windows MIDI Services (recent Win11 only —
-  verify the build floor, don't trust recalled version numbers), teVirtualMIDI
-  (commercial driver), or shipping co-existence mode only.
+- **MIDI out to other software — solved 2026-08-17, was §6.2's "hardest
+  constraint".** The app does **not** create a virtual port; it **owns a named
+  output port**, obtained two ways, both in `internal/midiout`:
+  - **create** — `rtmididrv.Driver.OpenVirtualOut(name)`
+    (`drivers/rtmididrv/driver.go:105`). macOS calls `MIDISourceCreate`
+    (`RtMidi.cpp:1637`), Linux creates an ALSA seq port (`:2553`).
+    **Verified working end-to-end on macOS 2026-08-17** — notes and CC sent from
+    Go were received back through the published port by a second process.
+  - **attach** — Windows WinMM refuses to create one:
+    `"MidiOutWinMM::openVirtualPort: cannot be implemented in Windows MM MIDI
+    API!"` (`RtMidi.cpp:3128`, WinUWP the same at `:3947`). It is a *warning*, no
+    port. So on Windows we open an **existing** port by name; the user provides
+    it with loopMIDI (free) or Windows MIDI Services.
+
+  `midiout.Open` tries create then falls back to attach, with no build tags — so
+  Windows would pick up native virtual ports automatically if that ever lands.
+  Cost is one documented install step on Windows, not a blocker. **Never attach
+  to a port whose name mentions Push** — that loops our output back into the
+  decoder; `midiout.isPush` guards it and a test pins it.
+- **Channel convention: 1-16 at every API in this repo**, converted to the
+  wire's 0-15 inside `midiout`. `gomidi`'s `Message.String()` prints channels
+  **0-based**, so a message sent on channel 3 displays as `channel: 2`. That is
+  correct, not an off-by-one.
 - **Push 2 works from the same binary** (§10, measured 2026-08-16). Display,
   pads and LEDs are identical to Push 3. Its map is swept to 75/80 CC with zero
   unknowns; the five differences live in `internal/pushmap/push2.go` — CC 15
