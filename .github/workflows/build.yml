@@ -54,9 +54,12 @@ jobs:
       - name: Point core/ replace at the CI checkout
         run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=./.ableton-push-hack/core
 
+      # libgtk-4-dev/libwebkitgtk-6.0-dev, not webkit2gtk-4.1 — Wails v3 moved
+      # to GTK4/WebKitGTK 6.0 (v2 used webkit2gtk). Confirmed 2026-08-18: CI
+      # failed with "Package gtk4 was not found" against the 4.1 packages.
       - name: Install libusb + pkg-config (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libusb-1.0-0-dev libasound2-dev pkg-config webkit2gtk-4.1-dev
+        run: sudo apt-get update && sudo apt-get install -y libusb-1.0-0-dev libasound2-dev pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Install libusb (macOS)
         if: runner.os == 'macOS'
@@ -159,16 +162,25 @@ jobs:
         working-directory: cmd/pushapp-ui
         run: wails3 build
 
-      # Same MSYS2 shell as the cgo build above — wails3 build still runs
-      # `go build` under the hood, which needs the mingw toolchain and
-      # libusb's pkg-config file on PATH exactly like cmd/pushapp does.
+      # `wails3 build`'s own Windows Taskfile defaults CGO_ENABLED=0 (a pure-Go
+      # cross-compile assumption that doesn't hold for us: gousb + rtmididrv
+      # are both cgo). darwin/linux's Taskfiles hardcode CGO_ENABLED=1 already,
+      # which is why only Windows needs this override. `wails3 build` itself
+      # has no flag to pass task vars through, so this calls the underlying
+      # task directly instead — confirmed 2026-08-18 that `wails3 task build
+      # CGO_ENABLED=1` actually threads the var through (verified locally via
+      # -dry: it re-routes to the Docker/cross-compile branch, proving the var
+      # was received — the same var on a real Windows runner instead enables
+      # cgo on the native branch, since OS is already windows there). Same
+      # MSYS2 shell as the cgo build above, for the same mingw toolchain +
+      # libusb pkg-config reasons.
       - name: Build UI (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
         working-directory: cmd/pushapp-ui
         run: |
           export PATH="/mingw64/bin:$PATH"
-          wails3 build
+          wails3 task build CGO_ENABLED=1
 
       - name: Upload UI binary
         uses: actions/upload-artifact@v4
