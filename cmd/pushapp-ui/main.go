@@ -48,34 +48,34 @@ func availableModules() []module.Module {
 func main() {
 	log.SetFlags(0)
 
-	rt, cleanup, err := bootstrap.Open(bootstrap.Options{
-		FPS:     30,
-		Modules: availableModules(),
-	})
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	defer cleanup()
-
-	if err := rt.Activate(rt.List()[0].ID); err != nil {
-		log.Fatalf("host: %v", err)
-	}
-
 	// A context the host loop runs under, cancelled once the window closes or
 	// the app is asked to quit (see the end of main), plus SIGINT/SIGTERM for
 	// `wails3 dev` and any headless-ish invocation.
 	ctx, cancel := context.WithCancel(context.Background())
 	sigCtx, stopSignals := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
+	defer cancel()
 
-	runDone := make(chan error, 1)
-	go func() { runDone <- rt.Run(sigCtx) }()
+	mgr := newHostManager(sigCtx, bootstrap.Options{
+		FPS:     30,
+		Modules: availableModules(),
+	})
+
+	// Auto-detect attempt. Most setups find the Live port by name and are
+	// running before the window even paints. When it fails — mostly on
+	// Windows, where WinMM doesn't expose the port name this relies on, see
+	// internal/midi's OpenNamed doc — the window still opens and the frontend
+	// falls back to PushService.ListMIDIPorts/ConnectMIDIPort so the user can
+	// pick the right one by hand.
+	if err := mgr.connect(""); err != nil {
+		log.Printf("MIDI: auto-detect failed, waiting for a manual port pick: %v", err)
+	}
 
 	app := application.New(application.Options{
 		Name:        "Push Tethered App",
 		Description: "Module host for Ableton Push 2/3 in tethered mode",
 		Services: []application.Service{
-			application.NewService(NewPushService(rt)),
+			application.NewService(NewPushService(mgr)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -101,13 +101,7 @@ func main() {
 	// Blocks until the window closes or the app is asked to quit.
 	appErr := app.Run()
 
-	// Stop the host loop and wait for it to actually finish (Run drains events
-	// and drives the frame ticker; letting Shutdown race it would let a frame
-	// draw against a module the host is mid-switch away from) before releasing
-	// the hardware.
-	cancel()
-	<-runDone
-	rt.Shutdown()
+	mgr.shutdown()
 
 	if appErr != nil {
 		log.Fatalf("ui: %v", appErr)

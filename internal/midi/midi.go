@@ -212,17 +212,41 @@ func (p *Port) Device() pushmap.Device { return p.dev }
 // Name returns the MIDI port this connection uses.
 func (p *Port) Name() string { return p.name }
 
-// Open connects to Push's Live Port for both input and LED output.
-func Open() (*Port, error) {
-	var inNames []string
+// ListInPorts returns the name of every MIDI input port the OS currently
+// sees, Push or not. Exists so a caller that can't auto-detect the Live port
+// (§ Windows naming below) can offer the user a manual pick.
+func ListInPorts() []string {
+	var names []string
 	for _, p := range gm.GetInPorts() {
-		inNames = append(inNames, p.String())
+		names = append(names, p.String())
 	}
-	name, err := findPortName(inNames)
+	return names
+}
+
+// Open connects to Push's Live Port for both input and LED output, guessing
+// which port that is by name.
+//
+// The guess is unreliable on Windows: CoreMIDI and ALSA read the "Live
+// Port"/"User Port"/"External Port" strings straight from the device's own
+// USB MIDI jack descriptors, but WinMM does not expose jack strings at all —
+// it names the first cable after the bare device name and prefixes only the
+// others ("Ableton Push 3 MIDI", "MIDIIN2 (Ableton Push 3 MIDI)", "MIDIIN3
+// (...)"), so livePortSuffix never matches there. Found 2026-08-18 from a
+// real Windows report. OpenNamed exists as the escape hatch — a caller with
+// no better guess should list ListInPorts() and let the user pick.
+func Open() (*Port, error) {
+	name, err := findPortName(ListInPorts())
 	if err != nil {
 		return nil, err
 	}
+	return OpenNamed(name)
+}
 
+// OpenNamed connects to the given MIDI port by exact name for both input and
+// LED output, skipping the Live-port guess Open makes. Use when the caller
+// already knows which port is Push's Live port — typically because the user
+// picked it, after Open's heuristic failed.
+func OpenNamed(name string) (*Port, error) {
 	in, err := gm.FindInPort(name)
 	if err != nil {
 		return nil, fmt.Errorf("opening MIDI in %q: %w", name, err)

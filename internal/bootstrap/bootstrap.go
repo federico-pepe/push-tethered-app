@@ -31,6 +31,7 @@ type Options struct {
 	FPS         int
 	NoDisplay   bool
 	NoLEDs      bool
+	MIDIInName  string // exact port name; empty auto-detects the Live port (see pmidi.Open)
 	MIDIOutName string
 	NoMIDIOut   bool
 	CapturePath string
@@ -50,7 +51,12 @@ func Open(opts Options) (rt *host.Runtime, cleanup func(), err error) {
 		opts.FPS = 30
 	}
 
-	port, err := pmidi.Open()
+	var port *pmidi.Port
+	if opts.MIDIInName != "" {
+		port, err = pmidi.OpenNamed(opts.MIDIInName)
+	} else {
+		port, err = pmidi.Open()
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("MIDI: %w", err)
 	}

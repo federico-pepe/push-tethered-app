@@ -11,13 +11,36 @@ import type { ModuleInfo } from "../bindings/github.com/federico-pepe/push-tethe
 const listEl = document.getElementById("module-list") as HTMLUListElement;
 const statusEl = document.getElementById("status") as HTMLParagraphElement;
 const installBtn = document.getElementById("install-btn") as HTMLButtonElement;
+const connectViewEl = document.getElementById("connect-view") as HTMLElement;
+const portListEl = document.getElementById("port-list") as HTMLUListElement;
+const retryBtn = document.getElementById("retry-btn") as HTMLButtonElement;
 
-// busy covers any in-flight Activate/Install/Uninstall — all three mutate the
-// Runtime's module list or its active module, so serialising them avoids a
-// user's second click racing the first one's effects.
+// busy covers any in-flight Activate/Install/Uninstall/Connect — all mutate
+// shared state, so serialising them avoids a user's second click racing the
+// first one's effects.
 let busy = false;
 
 async function refresh(): Promise<void> {
+    let connected: boolean;
+    try {
+        connected = await PushService.IsConnected();
+    } catch (err) {
+        statusEl.textContent = `Could not reach the host: ${err}`;
+        return;
+    }
+
+    if (!connected) {
+        connectViewEl.hidden = false;
+        listEl.hidden = true;
+        installBtn.hidden = true;
+        statusEl.textContent = "Not connected";
+        await renderPorts();
+        return;
+    }
+    connectViewEl.hidden = true;
+    listEl.hidden = false;
+    installBtn.hidden = false;
+
     let modules: ModuleInfo[];
     try {
         modules = await PushService.ListModules();
@@ -26,6 +49,55 @@ async function refresh(): Promise<void> {
         return;
     }
     render(modules);
+}
+
+async function renderPorts(): Promise<void> {
+    retryBtn.disabled = busy;
+    let ports: string[];
+    try {
+        ports = await PushService.ListMIDIPorts();
+    } catch (err) {
+        portListEl.innerHTML = `<li>Could not list MIDI ports: ${err}</li>`;
+        return;
+    }
+
+    portListEl.innerHTML = "";
+    if (ports.length === 0) {
+        portListEl.innerHTML = "<li>No MIDI input ports found — is Push connected?</li>";
+        return;
+    }
+    for (const name of ports) {
+        const li = document.createElement("li");
+        li.className = "port-row";
+
+        const label = document.createElement("span");
+        label.className = "port-name";
+        label.textContent = name;
+
+        const connectBtn = document.createElement("button");
+        connectBtn.className = "port-connect";
+        connectBtn.textContent = "Connect";
+        connectBtn.disabled = busy;
+        connectBtn.addEventListener("click", () => connect(name));
+
+        li.append(label, connectBtn);
+        portListEl.appendChild(li);
+    }
+}
+
+async function connect(name: string): Promise<void> {
+    if (busy) return;
+    busy = true;
+    statusEl.textContent = `Connecting to ${name}…`;
+    try {
+        await PushService.ConnectMIDIPort(name);
+        busy = false;
+        await refresh(); // switches to the module-list view
+    } catch (err) {
+        statusEl.textContent = `Could not connect: ${err}`;
+        busy = false;
+        await renderPorts(); // stay on the picker, re-enable its buttons
+    }
 }
 
 function render(modules: ModuleInfo[]): void {
@@ -132,6 +204,7 @@ async function uninstall(id: string): Promise<void> {
 }
 
 installBtn.addEventListener("click", install);
+retryBtn.addEventListener("click", () => connect(""));
 
 // No push events from the host yet (phase 4's process loader is the natural
 // point to add an "active module changed" event) — poll instead. Slow enough
