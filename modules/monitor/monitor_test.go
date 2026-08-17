@@ -169,3 +169,19 @@ func TestReinitKeepsHistory(t *testing.T) {
 		t.Errorf("frames = %d after re-Init, want 0 (fps is measured per activation)", m.frames)
 	}
 }
+
+// TestDrawTextIsASCII guards the class of bug "Draw emitted only known op
+// kinds" cannot catch: a rendered string containing a non-ASCII character,
+// which the host's sanitiser would silently turn into "?" rather than fail.
+func TestDrawTextIsASCII(t *testing.T) {
+	m, _ := newTest(t)
+	m.Handle(module.Pad{Note: 60, Col: 0, Row: 3, Channel: 1, Velocity: 100, Pressed: true})
+	m.Handle(module.Button{CC: 20, Name: "Screen Bot 1", Pressed: true})
+	m.Handle(module.Encoder{Index: 0, Delta: 3})
+
+	f := module.NewFrame(960, 160)
+	m.Draw(f)
+	if bad := moduletest.NonASCIIStrings(f); len(bad) != 0 {
+		t.Errorf("Draw emitted non-ASCII text: %q", bad)
+	}
+}

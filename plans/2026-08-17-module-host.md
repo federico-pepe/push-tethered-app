@@ -349,11 +349,57 @@ to be verifiable.
 Still outstanding from this phase: `Store` is a stub (`memStore`) so the
 interface does not churn later, but nothing persists yet.
 
-**Phase 2 — control API, config store, two more modules.** The host control
-interface plus `-module <id>`; `modules/seq` (proves MIDI out, pad LEDs, timing)
-and `modules/remap` (option B, reduced to a module — port the model from
-`hacks/push-manager/src/remap.go:24`, which already handles relative-encoder
-accumulation and src→out scaling). Switching still driven from the CLI here.
+**Phase 2 — config store, two more modules. DONE 2026-08-17.** Control API and
+`-module <id>` already existed from phase 1; this phase built the real
+persistence they were stubbed for, plus `modules/seq` and `modules/remap`.
+Verified on Push 3 hardware: `seq`'s playhead was confirmed advancing correctly
+by sampling multiple frames from `-capture` (a single frame at BPM 120 landed
+back on step 0 by coincidence — 2.0s / 0.25s-per-step = exactly 8 steps —
+which would have read as a stuck sequencer if only one frame had been checked);
+`remap` was confirmed loading a hand-edited override end to end (`1 override(s)
+loaded`, then rendering `note:40 -> note 45 [20-100]` via `KVRows`, the one
+widget none of the other three modules exercise).
+
+- **Persistence: `internal/host/store.go`.** One JSON file per module ID under
+  `os.UserConfigDir()/push-tethered-app/modules/`, atomic write via temp file +
+  rename. `moduleHost.Store()` now returns this instead of the phase-1 no-op
+  stub. If the config directory can't be resolved, it degrades to an in-memory
+  store rather than failing activation — persistence is not load-bearing for a
+  module's actual job. `userConfigDir` is a package-level function variable so
+  tests point it at `t.TempDir()` instead of touching the real OS location.
+- **A module never sees its own config path — only `Store.Get/Set`.** But
+  there is no config UI yet (phase 3), so a user has no way to hand-edit a
+  module's JSON without knowing where it lives. Resolved by having the host log
+  it on activation (`module remap: config at ...`) — purely informational,
+  doesn't leak the path into the `Host` interface.
+- **`modules/seq`** — an 8-step, 8-lane gate sequencer using the pad grid
+  itself as the sequencer (columns = steps, rows = lanes). Proves MIDI driven by
+  wall-clock timing rather than input: the step-advance logic (`tick`) takes an
+  explicit `time.Time` rather than reading the clock itself, so it is fully
+  testable without a real clock or a sleep — `Draw` is the only thing that ever
+  calls it with `time.Now()`. Known rough edge, documented in the code: because
+  the step index is derived from total elapsed time rather than an incrementing
+  counter, changing BPM mid-playback can visibly jump the current step, not
+  just its speed. Not worth the complexity of re-anchoring for an 8-step proof.
+- **`modules/remap`** — the actual option-B remapper, ported from
+  `hacks/push-manager/src/remap.go`. With no overrides configured its behaviour
+  is identical to `thru` — `thru` is this module's identity case, proved by
+  `TestNoOverridesBehavesLikeThru`. One deliberate deviation from the ported
+  model, documented in the package doc: push-manager's `srcKey` includes the
+  source channel; this module's does not, because pad note-ons are the one
+  control that's multi-channel (MPE rotates a pad's channel between sessions
+  with no user action), so keying on channel would make a saved override
+  silently stop matching after a channel rotation.
+- **A real hardware bug surfaced here, not caught by any existing test**:
+  `remap`'s empty-overrides message used an em-dash in the source. The host's
+  `asciiOnly` sanitiser did exactly its job and silently turned it into `?` on
+  the real screen — but nothing failed, because every module's
+  "Draw emits only known op kinds" test checked op *Kind* only, never op
+  *content*. Fixed the string, and closed the actual gap: added
+  `moduletest.NonASCIIStrings(f)`, which decodes every text-bearing field in a
+  `Frame`'s display list, and wired a `TestDrawTextIsASCII` into all four
+  modules so this class of bug fails a test next time instead of only showing
+  up on the panel.
 
 **Phase 3 — app UI.** Wails v3 window bound to the control API: list modules,
 see which is active, switch. Headless `-module` path stays working.

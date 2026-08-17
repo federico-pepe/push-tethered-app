@@ -212,12 +212,15 @@ cmd/mapcheck/     cross-references captures against the button map
 cmd/midiouttest/  MIDI-out probe: create/attach a port, send, and receive back
 internal/module/  the module ABI: Module, Host, Frame/Op, Event
 internal/host/    runtime: registry, control API, event fan-out, frame loop
+internal/host/store.go  per-module JSON persistence, atomic writes
 internal/display/ USB transport: claim interface 0, header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
 internal/midiout/ owns a named MIDI out port for modules (create or attach)
 internal/pushmap/ Push 2 map deltas + shared CC/touch name tables
 modules/monitor/  control-surface monitor; the reference module
 modules/thru/     forwards pads/encoders/buttons out as MIDI
+modules/seq/      8-step pad-grid sequencer; wall-clock-driven MIDI + Store
+modules/remap/    user-editable overrides on top of thru's passthrough default
 tools/            macOS-only Swift probes (midimon, ledtest)
 docs/             archive/feasibility.md (frozen writeup) + open-questions.md
 ```

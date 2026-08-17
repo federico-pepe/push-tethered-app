@@ -279,3 +279,19 @@ func contains(hay, needle string) bool {
 		return false
 	})()
 }
+
+// TestDrawTextIsASCII guards the class of bug "Draw emitted only known op
+// kinds" cannot catch: a rendered string containing a non-ASCII character,
+// which the host's sanitiser would silently turn into "?" rather than fail.
+func TestDrawTextIsASCII(t *testing.T) {
+	m, _ := newTest(t)
+	m.Handle(module.Pad{Note: 36, Velocity: 100, Pressed: true})
+	m.Handle(module.Encoder{Index: 2, Delta: 3})
+	m.Handle(module.Button{CC: 20, Name: "Screen Bot 1", Pressed: true})
+
+	f := module.NewFrame(960, 160)
+	m.Draw(f)
+	if bad := moduletest.NonASCIIStrings(f); len(bad) != 0 {
+		t.Errorf("Draw emitted non-ASCII text: %q", bad)
+	}
+}
