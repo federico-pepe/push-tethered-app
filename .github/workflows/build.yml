@@ -37,12 +37,9 @@ jobs:
       # (next step). That never touches the committed go.mod, so Federico's
       # local sibling-checkout layout is untouched.
       #
-      # Pinned to `main` on purpose (2026-08-17). core/ does not exist on
-      # main yet — the whole core/ extraction is still on the unmerged
-      # push-core-refactor branch — so THIS WORKFLOW WILL FAIL until that
-      # branch is merged. That is expected, not a bug: main is the intended
-      # long-term reference, and Federico is merging push-core-refactor
-      # separately. Once merged, this job goes green with no further edit.
+      # Pinned to `main` (2026-08-17). push-core-refactor, which held the
+      # entire core/ extraction, has since merged into main — this is now
+      # simply "build against the current core/".
       - name: Checkout ableton-push-hack (core/ dependency)
         uses: actions/checkout@v4
         with:
