@@ -18,29 +18,15 @@ Never fold anything back into `docs/archive/feasibility.md` itself.
   conflict (§4.3), or whether Push advertises WCID/MS OS descriptors (which
   would sidestep it). This is now the **only** remaining Windows unknown — the
   virtual-MIDI half is settled (below).
-- **Module manifest format for `Install`/`Uninstall` is undesigned.** The host's
-  control API promises both, but they only mean anything once modules live on
-  disk, which arrives with the process loader (phase 4 of the module-host plan).
-  `core/hackcfg`'s `hack.json` is the nearest precedent and is deliberately
-  *not* being reused — it is shaped for on-device sysvinit services.
 - **Whether Wails v3 survives the headless requirement.** A Pi 4/5 running one
   module in kiosk mode should not need `webkit2gtk`. The plan keeps a
   `-module <id>` flag that runs with no window at all, but if the UI and the
   headless path drift apart, Fyne/Gio (already the documented fallback) needs
   revisiting.
-
-### Resolved 2026-08-17 — kept briefly for context, delete once the code lands
-
-- **Product shape: decided.** Neither A, B nor C — a **module host**, see
-  `plans/2026-08-17-module-host.md`. Option B (remapper) becomes a module;
-  option A is dead (no DAW coupling); option C is what this generalises.
-  `plans/2026-08-16-product-shape-decision.md` is closed.
-- **Windows virtual MIDI out: solved, and it was the wrong question.** The app
-  never needed to *create* a port — it needs to *own a named* one.
-  macOS/Linux create it (`OpenVirtualOut`); Windows attaches to one the user
-  made with loopMIDI. Windows MIDI Services' build floor no longer needs
-  verifying, and teVirtualMIDI's licence cost is avoided. Implemented in
-  `internal/midiout`, verified end-to-end on macOS with `cmd/midiouttest`.
+- **CI does not build or test `cmd/pushapp-ui` at all.** Confirmed safe to
+  merge as-is (it's a separate Go module, invisible to root's `./...`), but
+  nothing currently catches a regression there before it reaches `main`. See
+  `plans/2026-08-17-ci-for-pushapp-ui.md`.
 
 ## 2. Needs discovery/exploration
 

@@ -65,7 +65,16 @@ type Runtime struct {
 	opts    Options
 	port    *pmidi.Port
 	dev     *display.Device
-	modules []module.Module
+	modules []module.Module // compiled-in, fixed at construction — never mutated
+
+	// installed holds process-loaded modules (see internal/host/procmod),
+	// added by Install and removed by Uninstall. Separate from modules rather
+	// than merged into one mutable slice: modules is a fixed set no lock is
+	// ever needed for, and keeping it that way means every method that only
+	// cares about compiled-in modules (there are none yet, but a future one
+	// might) needs no lock either.
+	installedMu sync.RWMutex
+	installed   []*installedModule
 
 	// portMu guards writes to the MIDI port. internal/midi.Port has no internal
 	// synchronisation, and the host writes to it (Clear) from a different
@@ -123,11 +132,17 @@ func New(port *pmidi.Port, dev *display.Device, opts Options, modules ...module.
 // socket protocol: the UI runs in-process (Wails), and a headless run needs none
 // of it.
 
-// List returns metadata for every available module.
+// List returns metadata for every available module — compiled-in first, then
+// installed, each in the order they were added.
 func (r *Runtime) List() []module.Meta {
-	metas := make([]module.Meta, 0, len(r.modules))
+	r.installedMu.RLock()
+	defer r.installedMu.RUnlock()
+	metas := make([]module.Meta, 0, len(r.modules)+len(r.installed))
 	for _, m := range r.modules {
 		metas = append(metas, m.Meta())
+	}
+	for _, im := range r.installed {
+		metas = append(metas, im.mod.Meta())
 	}
 	return metas
 }
@@ -147,13 +162,7 @@ func (r *Runtime) Active() module.Meta {
 // Refuses a module that needs MIDI out when none is available: better to fail
 // here, once and loudly, than to let every SendCC in a sequencer fail quietly.
 func (r *Runtime) Activate(id string) error {
-	var next module.Module
-	for _, m := range r.modules {
-		if m.Meta().ID == id {
-			next = m
-			break
-		}
-	}
+	next := r.findModule(id)
 	if next == nil {
 		return fmt.Errorf("no module with id %q", id)
 	}

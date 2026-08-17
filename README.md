@@ -4,16 +4,17 @@ Cross-platform desktop app that owns an **Ableton Push 2 / Push 3 in tethered
 (controller) mode** — display, pads, buttons, encoders, LEDs — and turns it into
 a platform you can write your own tools for, independent of any DAW.
 
-> **Status: pre-alpha, but running.** `cmd/pushapp` is a working vertical slice:
-> one Go binary that holds the screen at 30fps, reads the control surface, and
-> lights the pads you press. **Confirmed on both Push 2 and Push 3 hardware from
-> the same unmodified binary.**
->
-> The product shape was decided 2026-08-17 — a **module host** — and the module
-> contract is being built now against that slice. See
-> [plans/2026-08-17-module-host.md](plans/2026-08-17-module-host.md),
-> [docs/archive/feasibility.md](docs/archive/feasibility.md) (§8 = protocol
-> measurements, §9 = the slice, §10 = Push 2) and
+> **Status: pre-alpha, but running.** `cmd/pushapp` is a module host: one Go
+> binary that holds the screen at 30fps, reads the control surface, and runs
+> whichever module is active. **Confirmed on both Push 2 and Push 3 hardware
+> from the same unmodified binary.** Modules can be Go compiled into the
+> binary, or **any executable in any language** — see
+> [plans/2026-08-17-process-loader.md](plans/2026-08-17-process-loader.md) and
+> `examples/modules/` for working Python and Node.js modules, both confirmed
+> end-to-end on real hardware. See
+> [plans/2026-08-17-module-host.md](plans/2026-08-17-module-host.md) for the
+> overall design, [docs/archive/feasibility.md](docs/archive/feasibility.md)
+> (§8 = protocol measurements, §9 = the slice, §10 = Push 2) and
 > [docs/open-questions.md](docs/open-questions.md) for what's still open.
 
 ```bash
@@ -49,6 +50,15 @@ widget toolkit. `Handle` and `Draw` are guaranteed never to run concurrently, so
 module state needs no locks. `modules/monitor` is the reference, and
 `internal/module/moduletest` provides a fake host so modules can be unit-tested
 with no Push attached.
+
+Not writing Go? A module can be any executable, speaking a small JSON protocol
+over stdin/stdout — `examples/modules/hello-py` and `examples/modules/hello-js`
+are working references:
+
+```bash
+go run ./cmd/pushapp -install examples/modules/hello-py
+go run ./cmd/pushapp -module hello-py
+```
 
 ## Why this can work
 
@@ -221,6 +231,7 @@ cmd/midiouttest/  MIDI-out probe: create/attach a port, send, and receive back
 internal/module/  the module ABI: Module, Host, Frame/Op, Event
 internal/host/    runtime: registry, control API, event fan-out, frame loop
 internal/host/store.go  per-module JSON persistence, atomic writes
+internal/host/procmod/  process-loaded modules: JSON-over-stdio protocol
 internal/display/ USB transport: claim interface 0, header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
 internal/midiout/ owns a named MIDI out port for modules (create or attach)
@@ -229,6 +240,7 @@ modules/monitor/  control-surface monitor; the reference module
 modules/thru/     forwards pads/encoders/buttons out as MIDI
 modules/seq/      8-step pad-grid sequencer; wall-clock-driven MIDI + Store
 modules/remap/    user-editable overrides on top of thru's passthrough default
+examples/modules/ process-loaded example modules (Python, Node.js)
 tools/            macOS-only Swift probes (midimon, ledtest)
 docs/             archive/feasibility.md (frozen writeup) + open-questions.md
 ```

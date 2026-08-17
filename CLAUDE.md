@@ -39,9 +39,14 @@ mirror the original vertical slice drew), `thru` (forwards controls out as
 MIDI), `seq` (an 8-step pad-grid sequencer, proving wall-clock-driven MIDI) and
 `remap` (the original stated goal, reduced to a module — user-editable
 overrides on top of `thru`'s passthrough default). `cmd/pushapp-ui` is a
-minimal Wails v3 switcher (list modules, see which is active, switch) — builds
-clean and packages end to end, but the window itself hasn't been eyeballed by
-a human yet. Still missing: the out-of-process loader.
+minimal Wails v3 switcher (list modules, see which is active, switch),
+eyeballed and confirmed working. **Modules can now be any executable, not just
+Go compiled into the binary** — `internal/host/procmod` runs one as a child
+process over a small JSON protocol on its stdin/stdout; `examples/modules/`
+has a Python and a Node.js module proving it, both confirmed end-to-end on
+Push 3 hardware including a real pad press lighting a real LED through a real
+spawned child process. See
+[plans/2026-08-17-process-loader.md](plans/2026-08-17-process-loader.md).
 
 The older [plans/2026-08-16-product-shape-decision.md](plans/2026-08-16-product-shape-decision.md)
 is **closed** — it framed three candidate products and the answer was a fourth.
@@ -218,6 +223,9 @@ internal/module/moduletest/  fake Host so modules test with no hardware
 internal/host/    runtime: registry, control API, event fan-out, frame loop
 internal/host/render.go      op registry: display list -> image via core/gfx
 internal/host/store.go       per-module JSON persistence, atomic writes
+internal/host/procinstall.go Runtime.Install/Uninstall/LoadInstalled
+internal/host/procmod/       process-loaded module: JSON-over-stdio protocol,
+                              manifest.json, the supervisor (Proc)
 internal/display/ USB transport: claim interface 0, frame header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
 internal/midiout/ owns a named MIDI out port for modules (create or attach)
@@ -226,6 +234,8 @@ modules/monitor/  control-surface monitor; the reference module
 modules/thru/     forwards pads/encoders/buttons out as MIDI
 modules/seq/      8-step pad-grid sequencer; wall-clock-driven MIDI + Store
 modules/remap/    user-editable overrides on top of thru's passthrough default
+examples/modules/ process-loaded example modules (Python, Node.js) — see
+                   plans/2026-08-17-process-loader.md
 tools/            macOS-only Swift probes (midimon, ledtest)
 ```
 
@@ -303,6 +313,38 @@ to get wrong:
   `moduletest.NonASCIIStrings(f)` in your Draw test to catch this; every
   built-in module now does.
 
+### Not writing Go? Modules can be any executable
+
+`internal/host/procmod` runs a module as a child process, any language,
+speaking one JSON object per line over its own stdin (host→module) and stdout
+(module→host) — see [plans/2026-08-17-process-loader.md](plans/2026-08-17-process-loader.md)
+for the full wire protocol, and `examples/modules/hello-py` /
+`examples/modules/hello-js` for working references in Python and Node. A
+module is a directory with `manifest.json` (`id`, `name`, `exec`, optionally
+`needs_midi_out`) plus its own script/executable and assets:
+
+```bash
+go run ./cmd/pushapp -install path/to/your-module   # copies it in and registers it
+go run ./cmd/pushapp -uninstall your-module-id
+go run ./cmd/pushapp -list                          # shows installed modules too, tagged [installed]
+go run ./cmd/pushapp -module your-module-id
+```
+
+Two things that matter and are easy to get wrong in a new language:
+
+- **Flush every line immediately.** The host blocks reading one line at a
+  time; a module that only flushes stdout when its buffer fills (Python's
+  default when stdout isn't a terminal) looks like a hang. `hello-py` calls
+  `sys.stdout.flush()` after every write for exactly this reason.
+- **The Image display-list op is not available.** An `*image.NRGBA` doesn't
+  cross a process boundary; a module needing raw pixel control has to stay
+  an in-tree Go module for now.
+
+`draw`'s response and the ops inside it are the same JSON shapes
+`internal/module`'s Go types already produce — a colour is
+`{"R":.,"G":.,"B":.,"A":.}` (capitalised; that's Go's `image/color.NRGBA`
+encoding with no `json` tags of its own, not a process-loader convention).
+
 ## Commands
 
 ```bash
@@ -316,7 +358,10 @@ go build ./... && go vet ./... && go test ./...
 ```
 
 `pushapp` flags: `-fps`, `-module <id>`, `-list`, `-no-display` (MIDI only),
-`-no-leds`, `-midi-out <name>`, `-no-midi-out`, `-capture`, `-capture-raw`.
+`-no-leds`, `-midi-out <name>`, `-no-midi-out`, `-capture`, `-capture-raw`,
+`-install <dir>`, `-uninstall <id>` (both are pure filesystem operations —
+they run and exit before any hardware is touched, so no Push needs to be
+connected).
 
 `midiouttest` flags: `-list`, `-port <name>`, `-ch <1-16>`, `-bpm`, and
 `-listen <name>` to become the receiver instead of the sender. The two halves

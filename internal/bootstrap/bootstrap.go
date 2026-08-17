@@ -110,6 +110,14 @@ func Open(opts Options) (rt *host.Runtime, cleanup func(), err error) {
 		return nil, nil, fmt.Errorf("host: %w", err)
 	}
 
+	// Process-loaded modules a previous run installed (see internal/host's
+	// Install/Uninstall and internal/host/procmod). A scan failure here is
+	// not fatal to starting the app — the compiled-in modules still work
+	// regardless of whatever is wrong with the installed-modules directory.
+	if err := rt.LoadInstalled(); err != nil {
+		log.Printf("loading installed modules: %v", err)
+	}
+
 	return rt, func() { closeHardware(dev, port) }, nil
 }
 

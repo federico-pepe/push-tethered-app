@@ -1,0 +1,8 @@
+{
+  "id": "hello-py",
+  "name": "Hello (Python example)",
+  "version": "1.0.0",
+  "author": "push-tethered-app examples",
+  "needs_midi_out": false,
+  "exec": "python3 run.py"
+}

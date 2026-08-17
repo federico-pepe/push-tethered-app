@@ -26,6 +26,7 @@ import (
 	"syscall"
 
 	"github.com/federico-pepe/push-tethered-app/internal/bootstrap"
+	"github.com/federico-pepe/push-tethered-app/internal/host/procmod"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/modules/monitor"
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
@@ -58,9 +59,30 @@ func main() {
 	noMIDIOut := flag.Bool("no-midi-out", false, "do not open a MIDI output port")
 	capturePath := flag.String("capture", "", "record the screen to a file (.mp4, .mov or .gif)")
 	captureRaw := flag.Bool("capture-raw", false, "record the source image instead of panel-accurate BGR565 colour")
+	installDir := flag.String("install", "", "install the module directory at this path (manifest.json + executable), then exit")
+	uninstallID := flag.String("uninstall", "", "uninstall the process-loaded module with this id, then exit")
 	flag.Parse()
 
 	log.SetFlags(0)
+
+	// Both are pure filesystem operations — no hardware touched, no Push
+	// needed connected, so they run before bootstrap.Open ever claims MIDI
+	// or the display.
+	if *installDir != "" {
+		man, err := procmod.Install(*installDir)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		fmt.Printf("installed %q (%s)\n", man.ID, man.Name)
+		return
+	}
+	if *uninstallID != "" {
+		if err := procmod.Uninstall(*uninstallID); err != nil {
+			log.Fatalf("%v", err)
+		}
+		fmt.Printf("uninstalled %q\n", *uninstallID)
+		return
+	}
 
 	mods := available()
 	if *listMods {
@@ -71,6 +93,15 @@ func main() {
 				fmt.Print("  [needs MIDI out]")
 			}
 			fmt.Println()
+		}
+		if installed, err := procmod.ListInstalled(); err == nil {
+			for _, man := range installed {
+				fmt.Printf("%-12s %s  [installed]", man.ID, man.Name)
+				if man.NeedsMIDIOut {
+					fmt.Print(", needs MIDI out")
+				}
+				fmt.Println()
+			}
 		}
 		return
 	}
