@@ -1,4 +1,4 @@
-# push-tethered-app
+# Push Tethered App
 
 Cross-platform desktop app to own an **Ableton Push 2 / Push 3 in tethered
 (controller) mode** — display, pads, buttons, encoders, LEDs — as a fully
@@ -8,8 +8,9 @@ configurable MIDI controller, independent of any DAW.
 > one Go binary that holds the screen at 30fps, reads the control surface, and
 > lights the pads you press. **Confirmed on both Push 2 and Push 3 hardware from
 > the same unmodified binary.** No configuration or remapping yet. See
-> [docs/feasibility.md](docs/feasibility.md) (§8 = protocol measurements,
-> §9 = the slice, §10 = Push 2).
+> [docs/archive/feasibility.md](docs/archive/feasibility.md) (§8 = protocol
+> measurements, §9 = the slice, §10 = Push 2) and
+> [docs/open-questions.md](docs/open-questions.md) for what's still open.
 
 ```bash
 go run ./cmd/pushapp                          # screen + input + LEDs
@@ -166,9 +167,9 @@ cmd/frametest/    display-only probe: one frame, or a timed hold
 cmd/mapcheck/     cross-references captures against the button map
 internal/display/ USB transport: claim interface 0, header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
-internal/pushmap/ map corrections + shared CC/touch name tables
+internal/pushmap/ Push 2 map deltas + shared CC/touch name tables
 tools/            macOS-only Swift probes (midimon, ledtest)
-docs/             feasibility.md — writeup, measurements, blockers
+docs/             archive/feasibility.md (frozen writeup) + open-questions.md
 ```
 
 ## Stack

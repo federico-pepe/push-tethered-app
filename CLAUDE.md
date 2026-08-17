@@ -12,6 +12,13 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 > `docs/`. `docs/` holds durable reference — protocol facts, measurements,
 > rationale; `plans/` holds intent — what we are about to do and why, including
 > decisions that are still open.
+>
+> **`docs/archive/` is frozen — never edit, move, or delete anything inside
+> it**, and never add anything to it unless explicitly asked to archive a
+> specific file. It holds superseded docs (e.g. `feasibility.md`) kept for
+> history; treat it as read-only. Current open questions live in
+> [docs/open-questions.md](docs/open-questions.md) instead — update that file,
+> not the archive, when something gets resolved or newly discovered.
 
 ## Project
 
@@ -29,9 +36,12 @@ MIDI, so the stated goal needs full ownership. See
 [plans/2026-08-16-product-shape-decision.md](plans/2026-08-16-product-shape-decision.md).
 Do not build mapping/config features until that is decided.
 
-Read [docs/feasibility.md](docs/feasibility.md) before doing anything
-substantial. It carries the protocol evidence, the ranked blockers, and the
-stack rationale, with section numbers referenced throughout this file.
+Read [docs/archive/feasibility.md](docs/archive/feasibility.md) before doing
+anything substantial. It carries the protocol evidence, the ranked blockers,
+and the stack rationale, with section numbers referenced throughout this file
+(it's archived/frozen — don't edit it, see the doc-sync rule above). Check
+[docs/open-questions.md](docs/open-questions.md) for what's still unresolved
+since that snapshot.
 
 ## Relationship to `ableton-push-hack`
 
@@ -95,20 +105,20 @@ Push emits MIDI **with no host handshake**, on `Ableton Push 3 Live Port` only
   verified.
 - **Encoders:** relative two's-complement — `1` = +1 click, `127` = -1.
   Encoder 1 = CC 71. `core/push3.DecodeRel` handles this unchanged.
-- **Touch sensors — use `internal/pushmap`, NOT `core/push3`.** The shared map's
-  touch notes are wrong (§8.8). Measured: encoders 1-8 = notes **0-7**, volume
-  wheel = **8**, note 9 **unused**, tempo = 10, jog = 11, touch strip = **12**
-  (absent upstream), D-Pad center = 13. Note On vel 127 = contact.
-  `internal/pushmap` overrides only these; `core/push3` stays authoritative for
-  pads, button CCs, encoder CCs, the LED palette and `DecodeRel`.
-- **Jog wheel is CC 70 and IS a relative encoder** — but `push3.IsEncoderCC`
-  omits it, so use **`pushmap.IsRelativeEncoderCC`** instead. Decoding CC 70 as
-  a button turns every jog turn into a stream of phantom button presses (§9.4).
+- **Touch sensors.** Encoders 1-8 = notes **0-7**, volume wheel = **8**, note 9
+  **unused**, tempo = 10, jog = 11, touch strip = **12**, D-Pad center = 13.
+  Note On vel 127 = contact. These were off by one upstream (§8.8) but the
+  correction has since been applied to `core/push3` itself (confirmed on both
+  Push 3 and Push 2) — `core/push3` is directly authoritative now,
+  `internal/pushmap` no longer overrides touch notes.
+- **Jog wheel is CC 70 and IS a relative encoder.** `push3.IsEncoderCC` now
+  covers it directly — the omission from §9.4 was fixed upstream. Decoding
+  CC 70 as a button turns every jog turn into a stream of phantom button
+  presses, which is what the original bug looked like.
 - **Encoders accelerate.** Deltas up to ±11 on fast turns — always use
   `push3.DecodeRel`'s signed value, never assume one message = one click.
-- `core/push3/buttons.go:7` and that repo's map doc claim encoder "CW=127,
-  CCW=1". **That prose is inverted** — CW sends `1`. `DecodeRel`'s code is
-  correct. Deliberately not fixed upstream; see §8.8.
+- Encoder direction is `1` = CW, `127` = CCW — `core/push3/buttons.go` and its
+  map doc used to state this backwards (§8.8); both were corrected upstream.
 - **Buttons:** CC, 127 press / 0 release. CC 104-107 above the screen,
   CC 20-22 below.
 - **Filter Active Sensing.** Push sends `0xFE` ~37×/second — over half of all
@@ -191,7 +201,7 @@ cmd/frametest/    display-only probe, one frame or a timed hold
 cmd/mapcheck/     cross-references captures against the button map
 internal/display/ USB transport: claim interface 0, frame header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
-internal/pushmap/ map corrections + shared CC/touch name tables
+internal/pushmap/ Push 2 map deltas + shared CC/touch name tables
 tools/            macOS-only Swift probes (midimon, ledtest)
 ```
 
@@ -265,7 +275,7 @@ happens.
 
 ## Architecture decisions already made
 
-Recorded so they are not relitigated — rationale in `docs/feasibility.md` §6.
+Recorded so they are not relitigated — rationale in `docs/archive/feasibility.md` §6.
 
 - **Go**, single static binary. Chosen for `core/` reuse.
 - **`gousb`** (cgo → libusb) for USB. Accepted costs: no cross-compilation
