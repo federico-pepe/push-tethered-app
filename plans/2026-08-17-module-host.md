@@ -401,8 +401,68 @@ widget none of the other three modules exercise).
   modules so this class of bug fails a test next time instead of only showing
   up on the panel.
 
-**Phase 3 — app UI.** Wails v3 window bound to the control API: list modules,
-see which is active, switch. Headless `-module` path stays working.
+**Phase 3 — app UI. DONE 2026-08-17 (Go side verified; window not yet
+eyeballed).** Minimal switcher, deliberately scoped down from the original
+phase description: list modules, show which is active, switch. No per-module
+settings editor — `seq`'s BPM and `remap`'s overrides are still edited by
+hand-editing the config file the host logs on activation, same as from the
+CLI, until a later phase adds a settings view. Headless `-module` path in
+`cmd/pushapp` is untouched.
+
+- **`cmd/pushapp-ui` is a separate nested Go module**, the same pattern
+  `ableton-push-hack/core` already uses, chosen over folding it into the main
+  module specifically to keep the existing CI job (`go build ./... && go vet
+  ./... && go test ./...` at repo root) completely untouched — Wails and
+  webkit2gtk never enter that graph unless someone explicitly builds the UI.
+  Confirmed: `go list ./...` from repo root does not mention `pushapp-ui` at
+  all. Cost, paid once: its `go.mod` carries its own two `replace` directives
+  (back to the repo root, and to `ableton-push-hack/core`), mirroring the
+  fragile-relative-path problem the root module already has — CI's existing
+  core-checkout step will need one more `go mod edit -replace` line to cover
+  it, not yet done.
+- **`internal/bootstrap` is new**: the hardware-opening sequence (claim MIDI,
+  claim the display with the `ErrBusy` degrade path, wire the lazy `OpenMIDIOut`
+  opener, wire an optional capture recorder, build the `Runtime`) was inlined in
+  `cmd/pushapp/main.go` alone through phase 2. With a second real caller
+  (`cmd/pushapp-ui`), duplicating it would risk the two entry points' error
+  handling silently drifting apart, so it moved to a shared package first.
+  `cmd/pushapp/main.go` now calls it too — refactor verified byte-for-byte
+  behaviourally identical on Push 3 hardware before building anything new on
+  top of it.
+- **`internal/` packages are importable across the module boundary on
+  purpose.** Go's internal-package visibility rule is based on import *path*
+  text, not module identity — a separate module can import
+  `.../push-tethered-app/internal/host` as long as its own declared module
+  path also starts with `github.com/federico-pepe/push-tethered-app/`. That is
+  why `-mod` was set explicitly to
+  `github.com/federico-pepe/push-tethered-app/cmd/pushapp-ui` rather than left
+  to whatever `wails3 init` would have derived from a git URL.
+- **`PushService`** (`cmd/pushapp-ui/pushservice.go`) is a thin JSON-shaping
+  wrapper over `Runtime.List`/`Active`/`Activate` — no new behaviour, bound to
+  the frontend via Wails' service mechanism. `ModuleInfo` is a dedicated bound
+  type rather than exposing `module.Meta` directly, so the frontend's contract
+  doesn't move if `Meta` gains fields later.
+- **The frontend polls, it doesn't subscribe.** There is no "module switched"
+  event yet — `main.ts` re-fetches `ListModules` every 2s and after every
+  `ActivateModule` call. Phase 4's process loader is the natural point to add
+  a real event, once there's a loader-level reason to push state rather than
+  poll it.
+- **Verified**: `go build`/`go vet` clean on the actual app package; a full
+  `wails3 build` succeeds end to end (icons, bindings generation, frontend
+  build via Vite, native Go build) and produces a working 8.6MB
+  `cmd/pushapp-ui/bin/pushapp-ui`. Bindings were inspected directly — Wails
+  generated exactly 1 service, 2 methods and 1 model, matching `PushService`
+  and `ModuleInfo`, with the Go doc comments carried through into the
+  generated JS. **Not verified: the window itself.** There is no way to drive
+  or screenshot a live GUI window from this environment, so whether the list
+  actually renders correctly and switching feels right needs a human running
+  `wails3 dev` (hot reload) or the built binary and looking at it.
+- **`go build ./...` inside `cmd/pushapp-ui` fails on `build/ios` and
+  `build/android`** — Wails' own generated mobile entry-point stubs, which
+  only satisfy their build constraints under their respective mobile
+  toolchains, not a bare desktop `go build`. Not a bug; scope every build/vet
+  command to the app package itself (`go build .`, or let `wails3 build`
+  choose the target) rather than `./...` in this directory.
 
 **Phase 4 — process loader.** `internal/host/procmod`: a module is any
 executable, contract marshalled over stdio or a unix socket. This is what makes
