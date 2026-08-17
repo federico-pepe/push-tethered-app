@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -26,11 +25,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/federico-pepe/push-tethered-app/internal/capture"
-	"github.com/federico-pepe/push-tethered-app/internal/display"
-	"github.com/federico-pepe/push-tethered-app/internal/host"
-	pmidi "github.com/federico-pepe/push-tethered-app/internal/midi"
-	"github.com/federico-pepe/push-tethered-app/internal/midiout"
+	"github.com/federico-pepe/push-tethered-app/internal/bootstrap"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/modules/monitor"
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
@@ -80,69 +75,20 @@ func main() {
 		return
 	}
 
-	// ── MIDI in ─────────────────────────────────────────────────────────────
-	port, err := pmidi.Open()
-	if err != nil {
-		log.Fatalf("MIDI: %v", err)
-	}
-	defer port.Close()
-	log.Printf("MIDI: connected to %q", port.Name())
-
-	// ── Display ─────────────────────────────────────────────────────────────
-	var dev *display.Device
-	if !*noDisplay {
-		dev, err = display.Open()
-		switch {
-		case errors.Is(err, display.ErrBusy):
-			// The documented degrade path: something else owns the screen
-			// (usually Live with Push as a control surface). Keep the session.
-			log.Printf("display: %v", err)
-			log.Printf("display: continuing MIDI-only — quit Live to get the screen")
-		case err != nil:
-			log.Fatalf("display: %v", err)
-		default:
-			defer dev.Close()
-			log.Printf("display: claimed %s", dev.Model())
-		}
-	}
-
-	// ── MIDI out ────────────────────────────────────────────────────────────
-	// Handed to the host as an *opener*, not an open port. On macOS and Linux
-	// opening one publishes it to the whole system, so it must happen only when
-	// a module that actually sends MIDI is activated — not merely because such a
-	// module is compiled into the binary. The host owns the lifetime.
-	openMIDIOut := func() (*midiout.Out, error) { return midiout.Open(*midiOutName) }
-	if *noMIDIOut {
-		openMIDIOut = nil
-	}
-
-	// ── Capture ─────────────────────────────────────────────────────────────
-	// Taps the render output, so it costs no extra USB traffic and cannot
-	// disturb what the panel shows.
-	var rec capture.Recorder
-	if *capturePath != "" {
-		rec, err = capture.New(capture.Options{Path: *capturePath, FPS: *fps, Raw: *captureRaw})
-		if err != nil {
-			log.Fatalf("capture: %v", err)
-		}
-		mode := "panel-accurate"
-		if *captureRaw {
-			mode = "raw source"
-		}
-		log.Printf("capture: recording %s (%s)", rec.Path(), mode)
-	}
-
-	// ── Host ────────────────────────────────────────────────────────────────
-	rt, err := host.New(port, dev, host.Options{
+	rt, cleanup, err := bootstrap.Open(bootstrap.Options{
 		FPS:         *fps,
 		NoDisplay:   *noDisplay,
 		NoLEDs:      *noLEDs,
-		OpenMIDIOut: openMIDIOut,
-		Recorder:    rec,
-	}, mods...)
+		MIDIOutName: *midiOutName,
+		NoMIDIOut:   *noMIDIOut,
+		CapturePath: *capturePath,
+		CaptureRaw:  *captureRaw,
+		Modules:     mods,
+	})
 	if err != nil {
-		log.Fatalf("host: %v", err)
+		log.Fatalf("%v", err)
 	}
+	defer cleanup()
 
 	if *modID != "" {
 		if err := rt.Activate(*modID); err != nil {

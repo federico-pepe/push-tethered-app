@@ -38,8 +38,10 @@ confirmed on Push 3 hardware, with four modules: `monitor` (the control-surface
 mirror the original vertical slice drew), `thru` (forwards controls out as
 MIDI), `seq` (an 8-step pad-grid sequencer, proving wall-clock-driven MIDI) and
 `remap` (the original stated goal, reduced to a module — user-editable
-overrides on top of `thru`'s passthrough default). Still missing: the app UI and
-the out-of-process loader.
+overrides on top of `thru`'s passthrough default). `cmd/pushapp-ui` is a
+minimal Wails v3 switcher (list modules, see which is active, switch) — builds
+clean and packages end to end, but the window itself hasn't been eyeballed by
+a human yet. Still missing: the out-of-process loader.
 
 The older [plans/2026-08-16-product-shape-decision.md](plans/2026-08-16-product-shape-decision.md)
 is **closed** — it framed three candidate products and the answer was a fourth.
@@ -205,10 +207,12 @@ The device is expensive, and some of this is undocumented. Rules:
 
 ```
 cmd/pushapp/      the host: owns the hardware, runs one module. Wiring only.
+cmd/pushapp-ui/   Wails v3 module switcher — SEPARATE Go module, see below.
 cmd/probe/        USB descriptor dump (read-only, never opens the device)
 cmd/frametest/    display-only probe, one frame or a timed hold
 cmd/mapcheck/     cross-references captures against the button map
 cmd/midiouttest/  MIDI-out probe: create/attach a port, send, and receive back
+internal/bootstrap/  hardware-opening sequence shared by cmd/pushapp and -ui
 internal/module/  the ABI: Module, Host, Frame/Op, Event, Meta, Store
 internal/module/moduletest/  fake Host so modules test with no hardware
 internal/host/    runtime: registry, control API, event fan-out, frame loop
@@ -224,6 +228,33 @@ modules/seq/      8-step pad-grid sequencer; wall-clock-driven MIDI + Store
 modules/remap/    user-editable overrides on top of thru's passthrough default
 tools/            macOS-only Swift probes (midimon, ledtest)
 ```
+
+### `cmd/pushapp-ui` is a separate Go module — do not add it to root's `./...`
+
+It has its own `go.mod`, the same pattern `ableton-push-hack/core` already
+uses, so the main `go build ./... && go vet ./... && go test ./...` stays
+untouched by Wails and by webkit2gtk (Linux). Consequences:
+
+- Its `go.mod` carries **two** `replace` directives of its own — one back to
+  this repo's root, one to `ableton-push-hack/core` — because a `replace` in a
+  dependency's own `go.mod` is never honoured; only the main module's
+  `replace`s apply. If CI's core-checkout step (see "Cross-platform builds"
+  below) is ever extended to build this module too, it needs a second
+  `go mod edit -replace` line to match.
+- **Building it needs `wails3` (the CLI) and Node/npm**, on top of everything
+  `cmd/pushapp` needs. Install: `go install
+  github.com/wailsapp/wails/v3/cmd/wails3@latest`, then `wails3 doctor` to
+  check the rest.
+- **`go build ./...` inside `cmd/pushapp-ui` will fail** on `build/ios` and
+  `build/android` — Wails' generated mobile entry-point stubs, which only
+  satisfy their build constraints under their own mobile toolchains. Not a
+  bug; build the app package itself (`go build .`) or use `wails3 build`,
+  never `./...`, from that directory.
+- It **can** import `internal/*` packages of the root module despite being a
+  different module, because Go's internal-visibility rule is based on import
+  *path* text, not module identity — its module path was deliberately set to
+  `github.com/federico-pepe/push-tethered-app/cmd/pushapp-ui`, which shares
+  the required prefix.
 
 ## Writing a module
 
@@ -291,6 +322,12 @@ go build ./... && go vet ./... && go test ./...
 `-listen <name>` to become the receiver instead of the sender. The two halves
 prove each other with no synth involved — run `-listen` in one terminal against
 the port the sender creates.
+
+```bash
+cd cmd/pushapp-ui
+wails3 dev              # hot-reload window; needs wails3 + Node/npm
+wails3 build            # produces bin/pushapp-ui
+```
 
 ## Cross-platform builds
 

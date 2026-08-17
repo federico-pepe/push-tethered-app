@@ -23,6 +23,14 @@ go run ./cmd/pushapp -capture demo.mp4        # ...and record the screen
 go run ./cmd/midiouttest                      # prove MIDI reaches other apps
 ```
 
+A minimal desktop UI for switching modules lives in
+[cmd/pushapp-ui](cmd/pushapp-ui) (Wails v3 — its own Go module, see
+CLAUDE.md's "Cross-platform builds" for why):
+
+```bash
+cd cmd/pushapp-ui && wails3 dev     # hot-reload window
+```
+
 ### Writing a module
 
 ```go
