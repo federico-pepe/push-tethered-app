@@ -21,8 +21,21 @@ jobs:
       - uses: actions/checkout@v4
 
       # ableton-push-hack/core is a sibling checkout via go.mod's replace
-      # directive, at a fixed relative path (../../Documents/GitHub/...).
-      # Reproduce that exact layout here rather than editing go.mod for CI.
+      # directive. Locally that directive is a fixed relative path
+      # (../../Documents/GitHub/ableton-push-hack/core) which only works
+      # because ~/Developer/push-tethered-app and
+      # ~/Documents/GitHub/ableton-push-hack sit at matching depth under $HOME
+      # on Federico's machine. GitHub runners nest the workspace differently
+      # per OS, so that same relative path does not land in the same place —
+      # checking out to a path meant to mirror it does NOT actually satisfy
+      # go.mod's ../../ (learned the hard way: first version of this workflow
+      # failed with "replacement directory does not exist" on every OS, for
+      # this reason rather than the expected missing-core/ reason below).
+      #
+      # Fix: check out into a fixed subdirectory of THIS repo's own workspace,
+      # then override the replace directive for CI only via `go mod edit`
+      # (next step). That never touches the committed go.mod, so Federico's
+      # local sibling-checkout layout is untouched.
       #
       # Pinned to `main` on purpose (2026-08-17). core/ does not exist on
       # main yet — the whole core/ extraction is still on the unmerged
@@ -35,11 +48,14 @@ jobs:
         with:
           repository: federico-pepe/ableton-push-hack
           ref: main
-          path: Documents/GitHub/ableton-push-hack
+          path: .ableton-push-hack
 
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
+      - name: Point core/ replace at the CI checkout
+        run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=./.ableton-push-hack/core
 
       - name: Install libusb + pkg-config (Linux)
         if: runner.os == 'Linux'
@@ -51,11 +67,16 @@ jobs:
           brew install libusb
           echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
 
+      # path-type: inherit is required so this shell sees the Windows PATH
+      # (where actions/setup-go put go.exe) layered under MSYS2's own paths.
+      # Without it the default MSYS2 PATH is minimal and "go" is not found —
+      # the first version of this workflow failed with exactly that error.
       - name: Install libusb via MSYS2 (Windows)
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
+          path-type: inherit
           install: mingw-w64-x86_64-libusb mingw-w64-x86_64-pkg-config mingw-w64-x86_64-toolchain
 
       - name: Build (macOS / Linux)
@@ -78,11 +99,31 @@ jobs:
           go build -o mapcheck.exe  ./cmd/mapcheck
           go build -o pushapp.exe   ./cmd/pushapp
 
-      - name: Vet
+      # Vet and Test also touch cgo (via the gousb/rtmididrv imports in
+      # internal/display and internal/midi), so on Windows they need the same
+      # MSYS2 shell as Build — the default pwsh shell has neither mingw's gcc
+      # nor libusb's pkg-config file on PATH.
+      - name: Vet (macOS / Linux)
+        if: runner.os != 'Windows'
         run: go vet ./...
 
-      - name: Test
+      - name: Vet (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          export PATH="/mingw64/bin:$PATH"
+          go vet ./...
+
+      - name: Test (macOS / Linux)
+        if: runner.os != 'Windows'
         run: go test ./...
+
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          export PATH="/mingw64/bin:$PATH"
+          go test ./...
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4
