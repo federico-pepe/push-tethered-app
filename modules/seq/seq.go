@@ -53,8 +53,9 @@ const (
 	// and "white" = 124 (a Push-2-derived assumption that only even velocities
 	// carry a real colour), found wrong when a pad rendered pink instead of
 	// green on real hardware. A live SysEx query of Push 3's own palette
-	// (docs/push3-led-colors.md) shows every one of the 128 raw velocities is
-	// a distinct, real colour with no gaps; colors.go now reflects that.
+	// (see docs/hardware-reference.md for the palette doc link) shows every
+	// one of the 128 raw velocities is a distinct, real colour with no gaps;
+	// colors.go now reflects that.
 	// These are pad LEDs (SetPad below) — note that 122, which these constants
 	// used to sit near, is white *only for CC buttons*; for a pad Note On,
 	// velocity 122 is a near-black grey. The button-brightness alias and the

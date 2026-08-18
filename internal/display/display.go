@@ -6,7 +6,7 @@
 // transport: device discovery, interface claiming, the frame header, the XOR
 // line shaping, and the refresh loop.
 //
-// Protocol confirmed on tethered hardware 2026-08-09, see docs/feasibility.md
+// Protocol confirmed on tethered hardware 2026-08-09, see docs/archive/feasibility.md
 // §8.3. It is identical on Push 2 and Push 3.
 package display
 
@@ -73,7 +73,7 @@ func (d *Device) Model() string { return d.model }
 
 // Open finds a Push and claims ONLY the display interface. Audio (1-3) and
 // MIDI (4-5) stay bound to the OS class drivers, which is what allows a DAW to
-// keep using them — see docs/feasibility.md §6.3.
+// keep using them — see docs/archive/feasibility.md §6.3.
 func Open() (*Device, error) {
 	ctx := gousb.NewContext()
 
@@ -205,7 +205,7 @@ func isAccessError(err error) bool {
 
 // WriteFrame encodes img and pushes one frame. A single frame is sufficient —
 // the standalone device's frame duplication is a quirk of Ableton's binary,
-// not a hardware requirement (docs/feasibility.md §8.3).
+// not a hardware requirement (docs/archive/feasibility.md §8.3).
 func (d *Device) WriteFrame(ctx context.Context, img image.Image) error {
 	full := coredisplay.ToBGR565(img)
 	copy(d.buf, full[:push3.FrameBytes])
