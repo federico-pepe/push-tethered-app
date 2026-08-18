@@ -27,8 +27,15 @@ WinMM does **not** expose USB jack strings like CoreMIDI/ALSA. Push ports appear
 Name-based auto-detect cannot match `"Live Port"`. **Escape hatch:** manual port
 selection in `pushapp-ui` when auto-detect fails (`ListInPorts` / `OpenNamed`).
 
-Fix written 2026-08-18 — **not yet confirmed on real Windows hardware** by the
-reporting user.
+This broke `OpenNamed` too, not just auto-detect: it opened MIDI in and out by
+the *same literal string*, but WinMM numbers in/out cables independently, so
+an input like `MIDIIN2 (Ableton Push 3 MIDI)` has no output port sharing that
+name — manual picking failed with `can't find MIDI output port for ...`.
+Fixed 2026-08-18: `OpenNamed` now falls back to matching the output cable by
+*position* among Push-named ports (same index as the chosen input among
+Push-named inputs), since both lists enumerate in the device's own cable
+order. Confirmed against a real Windows report; not yet re-verified by that
+user after the fix.
 
 ## MIDI output
 
