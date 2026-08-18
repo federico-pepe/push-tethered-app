@@ -104,8 +104,8 @@ func New() *Module { return &Module{} }
 func (m *Module) Meta() module.Meta {
 	return module.Meta{
 		ID:           "seq",
-		Name:         "Step Sequencer",
-		Author:       "push-tethered-app",
+		Name:         "Step Sequencer (Test)",
+		Author:       "Federico Pepe",
 		Version:      "1.0.0",
 		NeedsMIDIOut: true,
 	}
