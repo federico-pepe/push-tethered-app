@@ -4,9 +4,12 @@ name: build
 # cross-compiled from one machine — see CLAUDE.md's "gousb gotcha" section.
 # This matrix builds natively on each target OS instead, which is the standard
 # way cgo projects cover multiple platforms without owning three machines.
+# Free-tier account: no `push: branches: [main]` trigger on purpose. Merging
+# a green PR would otherwise re-run this whole matrix a second time against
+# the same tree the PR already tested — pure duplicate cost. CI runs on PRs
+# (before merge) and on demand; a direct push to main bypassing a PR runs
+# untested until manually dispatched.
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
