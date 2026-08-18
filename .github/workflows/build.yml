@@ -170,7 +170,7 @@ jobs:
       # the CLI drift out from under this workflow between runs.
       - name: Cache wails3 CLI
         id: cache-wails3
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/go/bin/wails3
