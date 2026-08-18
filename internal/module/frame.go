@@ -167,7 +167,7 @@ type BotStripParams struct {
 	W       int           `json:"w"`
 	ColW    int           `json:"col_w"`
 	H       int           `json:"h"`
-	Buttons [4]SoftButton `json:"buttons"`
+	Buttons [8]SoftButton `json:"buttons"`
 	Hint    string        `json:"hint"`
 }
 
@@ -240,8 +240,8 @@ func (f *Frame) List(v ListView, y, w, rowH, maxY int) {
 	f.add("list", ListParams{View: v, Y: y, W: w, RowH: rowH, MaxY: maxY})
 }
 
-// BotStrip draws the four soft buttons under the screen plus a hint.
-func (f *Frame) BotStrip(y, w, colW, h int, buttons [4]SoftButton, hint string) {
+// BotStrip draws the eight soft buttons under the screen plus a hint.
+func (f *Frame) BotStrip(y, w, colW, h int, buttons [8]SoftButton, hint string) {
 	f.add("botstrip", BotStripParams{Y: y, W: w, ColW: colW, H: h, Buttons: buttons, Hint: hint})
 }
 

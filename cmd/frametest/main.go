@@ -241,7 +241,7 @@ func renderTestImage(double, noXOR bool, phase int) *image.NRGBA {
 		xorLabel = "XOR OFF"
 	}
 	widgets.DrawBotStrip(img, t, push3.VisH-26, push3.VisW, push3.VisW/4, 24,
-		[4]widgets.SoftButton{
+		[8]widgets.SoftButton{
 			{Label: "IFACE 0", State: widgets.SoftOn},
 			{Label: "EP 0x01", State: widgets.SoftOn},
 			{Label: xorLabel, State: xorState},
