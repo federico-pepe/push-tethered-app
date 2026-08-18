@@ -59,6 +59,38 @@ the input decoder.
 
 Wails v3 builds on Windows CI. Port picker appears when auto-detect fails.
 
+### Missing DLL errors at runtime
+
+A Windows exe built via MSYS2/mingw dynamically links three DLLs by
+default: `libgcc_s_seh-1.dll`, `libstdc++-6.dll` (mingw runtime), and
+`libusb-1.0.dll` (gousb's `#cgo pkg-config: libusb-1.0`). On the build
+machine they're on PATH via MSYS2, so the build succeeds — but copying just
+the `.exe` to another Windows machine fails to launch with "missing DLL"
+errors for all three.
+
+Fix, applied 2026-08-18 in response to a VM report — not yet re-verified:
+
+- `libgcc_s_seh-1.dll` / `libstdc++-6.dll`: static-link with
+  `CGO_LDFLAGS="-static-libgcc -static-libstdc++"` — no separate static lib
+  needed, safe by default. CI does this for `cmd/pushapp-ui`.
+- `libusb-1.0.dll`: static-linking this needs `libusb-1.0.a` present in
+  MSYS2's `mingw64/lib`, unverified on real hardware — simpler and
+  confirmed-working fix is to ship `mingw64/bin/libusb-1.0.dll` alongside
+  the exe. CI copies it next to `cmd/pushapp-ui/bin/pushapp-ui.exe`.
+
+Locally, in the MSYS2 shell before building:
+
+```bash
+export PATH="/mingw64/bin:$PATH"
+export CGO_LDFLAGS="-static-libgcc -static-libstdc++"
+cd cmd/pushapp-ui && wails3 task build CGO_ENABLED=1
+cp /mingw64/bin/libusb-1.0.dll bin/
+```
+
+This isn't packaging (`wails3 package`, NSIS) — still out of scope per
+[plans/2026-08-17-ci-for-pushapp-ui.md](../../plans/2026-08-17-ci-for-pushapp-ui.md).
+An installer would bundle this automatically; until then, ship the DLL by hand.
+
 ## Related
 
 - [open-questions.md](../open-questions.md) — Windows display untested

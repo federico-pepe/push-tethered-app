@@ -202,13 +202,26 @@ jobs:
       # cgo on the native branch, since OS is already windows there). Same
       # MSYS2 shell as the cgo build above, for the same mingw toolchain +
       # libusb pkg-config reasons.
+      # The resulting .exe dynamically links libgcc_s_seh-1.dll and
+      # libstdc++-6.dll from MSYS2's mingw64 by default — fine on this
+      # runner (they're on PATH) but missing on any machine without MSYS2,
+      # so a plain `wails3 task build` exe fails to launch elsewhere with
+      # "libgcc_s_seh-1.dll not found" etc. CGO_LDFLAGS statically links the
+      # mingw runtime into the binary; libusb-1.0.dll still needs to be
+      # shipped alongside the exe (see docs/platform/windows.md).
       - name: Build UI (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
         working-directory: cmd/pushapp-ui
         run: |
           export PATH="/mingw64/bin:$PATH"
+          export CGO_LDFLAGS="-static-libgcc -static-libstdc++"
           wails3 task build CGO_ENABLED=1
+
+      - name: Copy libusb-1.0.dll next to the Windows exe
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: cp /mingw64/bin/libusb-1.0.dll cmd/pushapp-ui/bin/
 
       # `wails3 build` produces a bare executable on every OS — no .app bundle,
       # no installer. Those come from `wails3 package` instead (macOS .app/.dmg,
