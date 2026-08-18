@@ -16,29 +16,6 @@ frozen.
 
 ---
 
-## Blocking / next up
-
-- **Whether Wails v3 survives the headless requirement.** A Pi running one
-  module in kiosk mode should not need `webkit2gtk`. The plan keeps a
-  `-module <id>` flag that runs with no window at all, but if the UI and the
-  headless path drift apart, Fyne/Gio (already the documented fallback in
-  `docs/archive/open-questions.md`) needs revisiting.
-
-## Needs discovery/exploration
-
-- **Live's host→device configuration is invisible on macOS, and capturing it
-  needs Live running somewhere — there's no way around that.** CoreMIDI can't
-  see host→device SysEx, and those commands only exist while Live is actually
-  sending them. `usbmon` is Linux-only and Live has no native Linux build, so
-  "capture with usbmon" and "run Live" can't happen on the same box. The real
-  next step is a USB-level capture on whichever OS Live actually runs on —
-  Wireshark + USBPcap on Windows is the more realistic path than anything
-  Linux-side. Still not done.
-- **What triggers the MPE on/off split and the User Port mirroring?** Both
-  flip between sessions with nothing deliberately changed between them, and
-  both may share one root cause. Needs a controlled A/B — e.g. power-cycle
-  vs. reconnect-only vs. port-open-order — to isolate the variable.
-
 ## Genuinely unknown / partially theorized
 
 - **`xPort` (interface 6)** — vendor-specific, 2 bulk endpoints, present on
@@ -55,24 +32,13 @@ frozen.
   is presumably off most of the time), but not measured — worth confirming by
   toggling User Mode deliberately and watching which port lights up.
 - **Whether MPE can be disabled via SysEx** — unmeasured on either device.
-- **Whether non-screen button classes (round transport buttons, etc.) use a
-  palette index or are genuinely monochrome/brightness-only.** Confirmed
-  2026-08-18 that screen-adjacent buttons (CC 20-27, 102-109) use the same
-  128-entry palette pads do, not a brightness scale — see
-  [docs/protocol/led-output.md](../docs/protocol/led-output.md#button-leds).
-  Other button classes are unmeasured.
-- **`Host.SetButton(cc, brightness byte)`'s naming and doc comment
-  (`internal/module/module.go`) describe a brightness scale that the
-  2026-08-18 measurement shows is actually a palette index for at least the
-  screen-adjacent buttons.** Worth a rename/doc fix once the scope above is
-  fully measured — not done in this pass, since the measurement came first
-  and a rename now would be premature for whichever button classes turn out
-  to be genuinely monochrome.
-- **Multi-hour endurance** — longest continuous run is 7 minutes. Nothing is
-  known about drift, leaks, or thermal behavior over hours.
-- **Pi 4 specifically untested.** Pi 5 confirmed 2026-08-18 (see
-  `plans/2026-08-17-raspberry-pi-support.md`); Pi 4 expected identical but not
-  measured.
+- **`internal/host/procmod`'s wire JSON field still says `{"brightness": ...}`**
+  even though every Go-level `SetButton` (module, midi, host) is now named
+  `value`, per the 2026-08-18 palette-index finding (see
+  [docs/protocol/led-output.md](../docs/protocol/led-output.md#button-leds)).
+  Renaming the wire field is a breaking protocol change for any existing
+  process-loaded module and needs its own decision (alias old+new field?
+  version bump?) before touching it.
 
 ## Refactors / improvements — this repo and `ableton-push-hack`
 

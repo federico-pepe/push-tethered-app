@@ -428,13 +428,13 @@ func (h *moduleHost) SetPad(note, colour byte) {
 	_ = h.rt.port.SetPad(note, colour)
 }
 
-func (h *moduleHost) SetButton(cc, brightness byte) {
+func (h *moduleHost) SetButton(cc, value byte) {
 	if h.rt.opts.NoLEDs {
 		return
 	}
 	h.rt.portMu.Lock()
 	defer h.rt.portMu.Unlock()
-	_ = h.rt.port.SetButton(cc, brightness)
+	_ = h.rt.port.SetButton(cc, value)
 }
 
 func (h *moduleHost) out() (*midiout.Out, error) { return h.rt.ensureMIDIOut() }
