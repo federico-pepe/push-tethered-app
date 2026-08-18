@@ -23,11 +23,14 @@ type hostManager struct {
 	rootCtx  context.Context // cancelled on app quit/SIGINT/SIGTERM; parent of every run's context
 	baseOpts bootstrap.Options
 
-	mu      sync.Mutex
-	rt      *host.Runtime
-	cleanup func()
-	cancel  context.CancelFunc
-	runDone chan error
+	mu         sync.Mutex
+	rt         *host.Runtime
+	cleanup    func()
+	cancel     context.CancelFunc
+	stopped    chan struct{} // closed by watch once Run has returned and teardown is done
+	deliberate bool          // set by shutdown before cancelling, so watch knows this exit was asked for
+
+	lastErr error // most recent unexpected disconnect, cleared on the next successful connect
 }
 
 func newHostManager(rootCtx context.Context, opts bootstrap.Options) *hostManager {
@@ -72,25 +75,64 @@ func (m *hostManager) connect(name string) error {
 	runDone := make(chan error, 1)
 	go func() { runDone <- rt.Run(ctx) }()
 
-	m.rt, m.cleanup, m.cancel, m.runDone = rt, cleanup, cancel, runDone
+	stopped := make(chan struct{})
+	m.rt, m.cleanup, m.cancel, m.stopped, m.deliberate, m.lastErr = rt, cleanup, cancel, stopped, false, nil
+
+	// watch is the sole reader of runDone. It fires whether Run stopped on its
+	// own (e.g. the device was unplugged) or because shutdown() cancelled its
+	// context; either way it tears the runtime down and clears m.rt so
+	// connected() reflects reality instead of the UI polling a dead runtime.
+	go m.watch(rt, cleanup, runDone, stopped)
 	return nil
 }
 
+// watch waits for one Run call to finish, tears the runtime down, records why
+// for lastError if the exit was not shutdown's doing, then closes stopped so
+// a concurrent shutdown() call can return.
+func (m *hostManager) watch(rt *host.Runtime, cleanup func(), runDone chan error, stopped chan struct{}) {
+	err := <-runDone
+	defer close(stopped)
+
+	m.mu.Lock()
+	if m.rt != rt {
+		m.mu.Unlock()
+		return // a newer session has already replaced this one
+	}
+	m.mu.Unlock()
+
+	rt.Shutdown()
+	cleanup()
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	deliberate := m.deliberate
+	m.rt, m.cleanup, m.cancel, m.stopped = nil, nil, nil, nil
+	if err != nil && !deliberate {
+		m.lastErr = err
+		log.Printf("host: disconnected: %v", err)
+	}
+}
+
+// lastError returns the most recent unexpected disconnect reason, if any.
+func (m *hostManager) lastError() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastErr
+}
+
 // shutdown stops the host loop and releases the hardware, if connected. Safe
-// to call when never connected.
+// to call when never connected. Teardown itself happens in watch, which is
+// the sole reader of runDone; shutdown only signals and waits.
 func (m *hostManager) shutdown() {
 	m.mu.Lock()
-	rt, cleanup, cancel, runDone := m.rt, m.cleanup, m.cancel, m.runDone
+	cancel, stopped := m.cancel, m.stopped
+	m.deliberate = true
 	m.mu.Unlock()
-	if rt == nil {
+	if cancel == nil {
 		return
 	}
 
-	// Mirrors main's old ordering: stop the loop and wait for it before
-	// releasing the hardware, so no frame draws against a module mid-switch.
 	cancel()
-	<-runDone
-	rt.Shutdown()
-	cleanup()
+	<-stopped
 	log.Print("host: shut down")
 }

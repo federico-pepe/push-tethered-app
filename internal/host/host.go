@@ -266,6 +266,9 @@ func (r *Runtime) Run(ctx context.Context) error {
 				if ctx.Err() != nil {
 					return nil
 				}
+				if errors.Is(err, display.ErrDisconnected) {
+					return err
+				}
 				log.Printf("frame %d: %v", r.frames, err)
 				continue
 			}

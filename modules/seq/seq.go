@@ -107,6 +107,7 @@ func (m *Module) Meta() module.Meta {
 		Name:         "Step Sequencer (Test)",
 		Author:       "Federico Pepe",
 		Version:      "1.0.0",
+		Description:  "8-step pad-grid sequencer driving MIDI out on wall-clock time",
 		NeedsMIDIOut: true,
 	}
 }

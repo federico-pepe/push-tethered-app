@@ -197,9 +197,17 @@ and [docs/architecture/stack-and-layout.md](docs/architecture/stack-and-layout.m
   manual port picker, confirmed 2026-08-18 on real Push 3 hardware (Windows
   11 VM + USB passthrough). Detail:
   [docs/platform/windows.md](docs/platform/windows.md).
-- **No disconnect detection** — unplugging Push mid-session leaves
-  `cmd/pushapp-ui` reporting a dead port. See
-  [plans/2026-08-18-open-items.md](plans/2026-08-18-open-items.md).
+- **Disconnect detection.** `cmd/pushapp-ui` now notices when Push is
+  unplugged mid-session (`display.ErrDisconnected` bubbles up through
+  `host.Runtime.Run` to `hostManager`, which flips `IsConnected` and exposes
+  `LastError`) and falls back to the port-picker view instead of showing a
+  stale module list against a dead port.
+- **Don't run `pushapp` with Live open.** Co-existence mode leaves Push's
+  MIDI interface bound to the OS driver even while Live doesn't own the
+  display, so both processes end up driving the same pad LEDs — visible
+  fighting, not just a display conflict. There's no arbitration between the
+  two; the two are simply incompatible while both hold a MIDI connection to
+  the device. See [docs/protocol/led-output.md](docs/protocol/led-output.md).
 - **Channel convention: 1-16 at every API in this repo**, converted to the
   wire's 0-15 inside `midiout`.
 

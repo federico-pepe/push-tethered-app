@@ -54,10 +54,11 @@ func New() *Module {
 
 func (m *Module) Meta() module.Meta {
 	return module.Meta{
-		ID:      "monitor",
-		Name:    "Push MIDI Monitor",
-		Author:  "Federico Pepe",
-		Version: "1.0.0",
+		ID:          "monitor",
+		Name:        "Push MIDI Monitor",
+		Author:      "Federico Pepe",
+		Version:     "1.0.0",
+		Description: "Shows every pad, button, and encoder event as it arrives",
 	}
 }
 

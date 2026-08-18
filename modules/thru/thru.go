@@ -92,10 +92,11 @@ func New() *Module {
 
 func (m *Module) Meta() module.Meta {
 	return module.Meta{
-		ID:      "thru",
-		Name:    "MIDI Thru (Test)",
-		Author:  "Federico Pepe",
-		Version: "1.0.0",
+		ID:          "thru",
+		Name:        "MIDI Thru (Test)",
+		Author:      "Federico Pepe",
+		Version:     "1.0.0",
+		Description: "Forwards pads, buttons, and encoders out as MIDI, unmodified",
 
 		// The host refuses to activate this module when no output port is
 		// available, rather than letting every send fail quietly.

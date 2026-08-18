@@ -24,8 +24,24 @@ top-right.
 | Property | Value |
 |---|---|
 | Message | CC, channel 1 |
-| Value | Brightness 0–127 |
-| Colour | White LEDs ignore colour index |
+| Value | Palette index 0–127, same mechanism as pad LEDs — **not** a brightness scale |
+| Off | value `0` |
+
+**Confirmed 2026-08-18** (screen-top button, CC 102, on real Push 3
+hardware): sweeping the CC value from 0 to 127 in ascending steps produced a
+non-monotonic sequence of distinct hues (white, orange, yellow, blue, green,
+gray, faint yellow, faint blue, faint pink, bright red) rather than a smooth
+brightness ramp on a fixed colour. That is inconsistent with "one white LED
+whose brightness tracks the CC value" and consistent instead with the CC
+value indexing the same 128-entry palette pad LEDs use — non-monotonic hue
+jumps are expected from an unsorted palette, not from a brightness scale.
+This overturns the previous (unverified) claim that button LEDs are
+white-only and ignore colour — see `tools/ledbrightness.swift`, the probe
+used for this measurement.
+
+Only the screen-adjacent buttons (CC 20–27, 102–109 — the ones Live colours
+to match track/clip colour) were tested. Other button classes (e.g. round
+transport buttons) are unconfirmed and may behave differently.
 
 ## Palette
 
@@ -57,14 +73,32 @@ should release any notes they hold in `Close`.
 ## Probes
 
 ```bash
-tools/ledtest.swift    # macOS LED sweep (Swift, not part of build)
+tools/ledtest.swift        # macOS LED sweep (Swift, not part of build)
+tools/ledbrightness.swift  # macOS single-button CC-value sweep (Swift, not part of build)
 ```
+
+## LED contention with Live
+
+`pushapp` and Live cannot both drive Push's pad LEDs safely. Screen
+exclusivity means only one of them holds the display interface at a time, but
+co-existence mode leaves Push's MIDI interface bound to the OS driver
+regardless of which process owns the display — so whichever launched second
+still sends pad-LED MIDI, and both end up driving the same physical LEDs at
+once (confirmed 2026-08-17: `pushapp` launched first keeps the display, but
+its pad-mirror grid started reflecting Live's Session View colouring). There
+is no arbitration between the two. **Guidance: don't run `pushapp` while Live
+is open.**
 
 ## Open questions
 
-- Button-LED brightness fidelity vs sent values
-- LED contention when Live and `pushapp` both drive pads (see
-  [plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md))
+- Whether other button classes (round transport buttons, etc.) also use a
+  palette index or are genuinely brightness-only/monochrome — only the
+  screen-adjacent buttons have been measured.
+- `internal/host`/`internal/midi`'s `SetButton(cc, brightness byte)` naming
+  and doc comment describe a brightness scale; given the finding above, that
+  API should be revisited (naming and/or behaviour) so callers don't reach
+  for a brightness ramp expecting linear output. Not fixed in this pass — the
+  measurement came first.
 
 ## Related
 
