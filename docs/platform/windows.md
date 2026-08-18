@@ -61,28 +61,39 @@ Wails v3 builds on Windows CI. Port picker appears when auto-detect fails.
 
 ### Missing DLL errors at runtime
 
-A Windows exe built via MSYS2/mingw dynamically links three DLLs by
-default: `libgcc_s_seh-1.dll`, `libstdc++-6.dll` (mingw runtime), and
-`libusb-1.0.dll` (gousb's `#cgo pkg-config: libusb-1.0`). On the build
-machine they're on PATH via MSYS2, so the build succeeds — but copying just
-the `.exe` to another Windows machine fails to launch with "missing DLL"
-errors for all three.
+A Windows exe built via MSYS2/mingw dynamically links four DLLs by default:
+`libgcc_s_seh-1.dll`, `libstdc++-6.dll`, `libwinpthread-1.dll` (mingw
+runtime), and `libusb-1.0.dll` (gousb's `#cgo pkg-config: libusb-1.0`). On
+the build machine they're on PATH via MSYS2, so the build succeeds — but
+copying just the `.exe` to another Windows machine fails to launch with
+"missing DLL" errors for all four.
 
-Fix, applied 2026-08-18 in response to a VM report — not yet re-verified:
+**Do not source these DLLs from elsewhere** (a random download, a different
+MSYS2 install, a different mingw build) to paper over a missing-DLL error.
+A runtime DLL built against a different toolchain version than the exe
+produces `0xc000007b` (`STATUS_INVALID_IMAGE_FORMAT`) instead — confirmed
+2026-08-18 against a VM report after manually sourcing
+`libusb-1.dll`/`libwinpthread-1.dll`. The fix is to make the exe not need
+external copies of these DLLs at all.
 
-- `libgcc_s_seh-1.dll` / `libstdc++-6.dll`: static-link with
-  `CGO_LDFLAGS="-static-libgcc -static-libstdc++"` — no separate static lib
-  needed, safe by default. CI does this for `cmd/pushapp-ui`.
+Fix, applied 2026-08-18 in response to that VM report — not yet re-verified:
+
+- `libgcc_s_seh-1.dll` / `libstdc++-6.dll` / `libwinpthread-1.dll`:
+  static-link with `CGO_LDFLAGS="-static"` (a plain `-static-libgcc
+  -static-libstdc++` misses `libwinpthread-1.dll`) — MSYS2's toolchain ships
+  static archives for all three, safe by default. CI does this for
+  `cmd/pushapp-ui`.
 - `libusb-1.0.dll`: static-linking this needs `libusb-1.0.a` present in
   MSYS2's `mingw64/lib`, unverified on real hardware — simpler and
   confirmed-working fix is to ship `mingw64/bin/libusb-1.0.dll` alongside
-  the exe. CI copies it next to `cmd/pushapp-ui/bin/pushapp-ui.exe`.
+  the exe, always from the *same* MSYS2 install the exe was built with. CI
+  copies it next to `cmd/pushapp-ui/bin/pushapp-ui.exe`.
 
 Locally, in the MSYS2 shell before building:
 
 ```bash
 export PATH="/mingw64/bin:$PATH"
-export CGO_LDFLAGS="-static-libgcc -static-libstdc++"
+export CGO_LDFLAGS="-static"
 cd cmd/pushapp-ui && wails3 task build CGO_ENABLED=1
 cp /mingw64/bin/libusb-1.0.dll bin/
 ```
