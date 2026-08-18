@@ -9,13 +9,13 @@
   
   <Identity 
     Name="com.federicopepe.push-tethered-app"
-    Publisher="CN=My Company"
+    Publisher="CN=Federico Pepe"
     Version="0.1.0.0" 
     ProcessorArchitecture="arm64" />
   
   <Properties>
     <DisplayName>Push Tethered App</DisplayName>
-    <PublisherDisplayName>My Company</PublisherDisplayName>
+    <PublisherDisplayName>Federico Pepe</PublisherDisplayName>
     <Description>Module host for Ableton Push 2/3 in tethered mode</Description>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>

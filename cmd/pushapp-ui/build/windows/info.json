@@ -5,11 +5,11 @@
 	"info": {
 		"0000": {
 			"ProductVersion": "0.1.0",
-			"CompanyName": "My Company",
+			"CompanyName": "Federico Pepe",
 			"FileDescription": "Module host for Ableton Push 2/3 in tethered mode",
-			"LegalCopyright": "© 2026, My Company",
+			"LegalCopyright": "© 2026, Federico Pepe",
 			"ProductName": "Push Tethered App",
-			"Comments": "This is a comment"
+			"Comments": "Owns Push's display, pads, buttons, encoders and LEDs, and runs modules on it."
 		}
 	}
 }

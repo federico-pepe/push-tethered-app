@@ -10,13 +10,13 @@
     <Installer
         Path="pushapp-ui"
         Arguments=""
-        InstallLocation="C:\Program Files\My Company\Push Tethered App">
+        InstallLocation="C:\Program Files\Federico Pepe\Push Tethered App">
     </Installer>
     <PackageInformation
         PackageName="Push Tethered App"
         PackageDisplayName="Push Tethered App"
-        PublisherName="CN=My Company"
-        PublisherDisplayName="My Company"
+        PublisherName="CN=Federico Pepe"
+        PublisherDisplayName="Federico Pepe"
         Version="0.1.0.0"
         PackageDescription="Module host for Ableton Push 2/3 in tethered mode">
         <Capabilities>
@@ -42,7 +42,7 @@
         <Properties>
             <Framework>false</Framework>
             <DisplayName>Push Tethered App</DisplayName>
-            <PublisherDisplayName>My Company</PublisherDisplayName>
+            <PublisherDisplayName>Federico Pepe</PublisherDisplayName>
             <Description>Module host for Ableton Push 2/3 in tethered mode</Description>
             <Logo>Assets\AppIcon.png</Logo>
         </Properties>

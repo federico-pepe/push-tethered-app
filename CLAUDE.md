@@ -208,9 +208,20 @@ test ./...` stays untouched by Wails and by webkit2gtk (Linux). Consequences:
 - **Building it needs `wails3` (the CLI) and Node/npm**, on top of everything
   `cmd/pushapp` needs. Install: `go install
   github.com/wailsapp/wails/v3/cmd/wails3@latest`, then `wails3 doctor`.
-- **`go build ./...` inside `cmd/pushapp-ui` fails** on `build/ios` and
-  `build/android` (Wails' mobile stubs). Build the package itself
-  (`go build .`) or use `wails3 build`, never `./...`, from that directory.
+- **Project config is `build/config.yml`, not `wails.json`** — v3 replaced v2's
+  `wails.json`. Its `info:` block generates the assets under `build/darwin`,
+  `build/windows`, `build/linux`; regenerate with `wails3 task
+  common:update:build-assets` after editing, which overwrites hand-edits to
+  those files.
+- **Desktop only.** Wails' `ios/`/`android/` template targets were deleted
+  2026-08-18 (libusb rules mobile out anyway). They used to break `go build
+  ./...` here via their build-tagged `main_ios.go`/`main_android.go`; that
+  now works. `build/ios`/`build/android` are gitignored since
+  `update:build-assets` regenerates iOS assets regardless.
+- **`wails3 build` produces a bare executable on every OS** — no `.app`, no
+  installer. `wails3 package` makes those (.app/.dmg, AppImage/deb/rpm, NSIS);
+  not wired into CI. A `pushapp-ui.dev.app` in `bin/` is `wails3 dev`'s doing,
+  not a build output.
 - It **can** import `internal/*` packages of the root module despite being a
   different module — Go's internal-visibility rule is based on import *path
   text*, and its module path shares the required prefix.

@@ -11,7 +11,7 @@ section: "default"
 priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
 description: "Module host for Ableton Push 2/3 in tethered mode"
-vendor: "My Company"
+vendor: "Federico Pepe"
 homepage: "https://wails.io"
 license: "MIT"
 release: "1"
