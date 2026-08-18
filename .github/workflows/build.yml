@@ -165,8 +165,21 @@ jobs:
         with:
           node-version: "22"
 
+      # Pinned (not @latest): @latest defeats caching, since the cache key
+      # can't know if upstream shipped a new version, and would otherwise let
+      # the CLI drift out from under this workflow between runs.
+      - name: Cache wails3 CLI
+        id: cache-wails3
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin/wails3
+            ~/go/bin/wails3.exe
+          key: wails3-${{ runner.os }}-v3.0.0-beta.9
+
       - name: Install wails3 CLI
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+        if: steps.cache-wails3.outputs.cache-hit != 'true'
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.9
 
       - name: Point cmd/pushapp-ui's core/ replace at the CI checkout
         working-directory: cmd/pushapp-ui
