@@ -33,7 +33,13 @@ async function refresh(): Promise<void> {
         connectViewEl.hidden = false;
         listEl.hidden = true;
         installBtn.hidden = true;
-        statusEl.textContent = "Not connected";
+        let lastError = "";
+        try {
+            lastError = await PushService.LastError();
+        } catch {
+            // Not fatal — just means the status line falls back below.
+        }
+        statusEl.textContent = lastError ? `Disconnected: ${lastError}` : "Not connected";
         await renderPorts();
         return;
     }
@@ -110,14 +116,25 @@ function render(modules: ModuleInfo[]): void {
         const li = document.createElement("li");
         li.className = "module-row" + (m.active ? " is-active" : "");
 
+        const info = document.createElement("span");
+        info.className = "module-info";
+
         const label = document.createElement("span");
         label.className = "module-name";
-        label.textContent = m.name;
+        label.textContent = m.version ? `${m.name} v${m.version}` : m.name;
         if (m.needsMidiOut) {
             label.appendChild(badge("MIDI out"));
         }
         if (m.installed) {
             label.appendChild(badge("installed"));
+        }
+        info.appendChild(label);
+
+        if (m.description) {
+            const desc = document.createElement("span");
+            desc.className = "module-description";
+            desc.textContent = m.description;
+            info.appendChild(desc);
         }
 
         const buttons = document.createElement("span");
@@ -143,7 +160,7 @@ function render(modules: ModuleInfo[]): void {
             buttons.appendChild(uninstallBtn);
         }
 
-        li.append(label, buttons);
+        li.append(info, buttons);
         listEl.appendChild(li);
     }
 }

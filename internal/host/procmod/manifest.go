@@ -25,6 +25,7 @@ type Manifest struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
 	Version      string `json:"version,omitempty"`
+	Description  string `json:"description,omitempty"`
 	Author       string `json:"author,omitempty"`
 	NeedsMIDIOut bool   `json:"needs_midi_out,omitempty"`
 	Exec         string `json:"exec"`
@@ -37,6 +38,7 @@ func (m Manifest) Meta() module.Meta {
 		Name:         m.Name,
 		Author:       m.Author,
 		Version:      m.Version,
+		Description:  m.Description,
 		NeedsMIDIOut: m.NeedsMIDIOut,
 	}
 }

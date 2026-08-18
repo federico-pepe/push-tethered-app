@@ -332,10 +332,12 @@ func (p *Port) SetPad(note, colour byte) error {
 	return p.send(gm.Message([]byte{0x90, note, colour}))
 }
 
-// SetButton sets a button LED's brightness (0-127). White button LEDs ignore
-// colour, so the value is brightness rather than a palette index.
-func (p *Port) SetButton(cc, brightness byte) error {
-	return p.send(gm.Message([]byte{0xB0, cc, brightness}))
+// SetButton lights a button LED. value is a palette index, same mechanism
+// and same palette as SetPad's colour — confirmed 2026-08-18 on the
+// screen-adjacent buttons (see docs/protocol/led-output.md); not a brightness
+// scale, despite this parameter's name in callers that predate that finding.
+func (p *Port) SetButton(cc, value byte) error {
+	return p.send(gm.Message([]byte{0xB0, cc, value}))
 }
 
 // Clear turns off every pad and every mapped button LED. Always call this on

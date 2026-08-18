@@ -49,10 +49,11 @@ type (
 
 // Meta identifies a module to the host and to the user.
 type Meta struct {
-	ID      string `json:"id"`   // stable, filename-safe; used by -module and by config
-	Name    string `json:"name"` // shown to the user
-	Author  string `json:"author,omitempty"`
-	Version string `json:"version,omitempty"`
+	ID          string `json:"id"`   // stable, filename-safe; used by -module and by config
+	Name        string `json:"name"` // shown to the user
+	Author      string `json:"author,omitempty"`
+	Version     string `json:"version,omitempty"`
+	Description string `json:"description,omitempty"` // one line, shown under Name in the module list
 
 	// NeedsMIDIOut declares that this module sends MIDI to other software.
 	// The host refuses to activate it when no output port is available, rather
@@ -99,9 +100,11 @@ type Host interface {
 	// core/push3/colors.go; 0 is off.
 	SetPad(note, colour byte)
 
-	// SetButton sets a button LED brightness, 0-127. Most button LEDs are
-	// white and ignore colour.
-	SetButton(cc, brightness byte)
+	// SetButton lights a button LED. value is a palette index, same mechanism
+	// and same palette as SetPad's colour — confirmed 2026-08-18 on the
+	// screen-adjacent buttons (see docs/protocol/led-output.md); other button
+	// classes are unmeasured and may genuinely be brightness-only. 0 is off.
+	SetButton(cc, value byte)
 
 	// SendCC, SendNote and NoteOff reach other software through the host's
 	// output port. ch is 1-16. All three return an error if the module did not

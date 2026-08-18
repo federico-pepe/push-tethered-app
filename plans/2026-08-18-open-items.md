@@ -18,13 +18,6 @@ frozen.
 
 ## Blocking / next up
 
-- **No disconnect detection.** Unplugging Push mid-session leaves
-  `cmd/pushapp-ui` reporting the last-active module ("Active: ...") against a
-  dead port. `hostManager` has no watchdog on port health, and neither
-  `internal/midi` nor `internal/host` currently notice a failed send or a
-  dead input stream. Needs its own investigation (what actually fails first
-  on unplug, on which OS, and how to detect it without polling every frame)
-  before the UI can be trusted to reflect real connection state.
 - **Whether Wails v3 survives the headless requirement.** A Pi running one
   module in kiosk mode should not need `webkit2gtk`. The plan keeps a
   `-module <id>` flag that runs with no window at all, but if the UI and the
@@ -41,20 +34,6 @@ frozen.
   next step is a USB-level capture on whichever OS Live actually runs on —
   Wireshark + USBPcap on Windows is the more realistic path than anything
   Linux-side. Still not done.
-- **LED contention when Live and `pushapp` both hold the device at once.**
-  Two scenarios tested (2026-08-17):
-  - Live launched first, then `pushapp` run: claim fails cleanly with
-    `ErrBusy`, Live keeps the display. Confirmed working.
-  - `pushapp` run first, then Live launched: `pushapp` keeps the display
-    (first claimant wins, screen exclusivity doesn't depend on launch order)
-    — but `pushapp`'s on-screen pad-mirror grid started reflecting Live's
-    Session View pad colouring. Live is evidently still sending pad-LED MIDI
-    even though it doesn't own the display, and since co-existence mode
-    leaves Push's MIDI interface bound to the OS driver, both processes end
-    up driving the same physical pad LEDs at once. **Unresolved:** does
-    `pushapp`'s own LED writes fight visibly with Live's (flicker,
-    last-writer-wins), and should `pushapp` detect this and back off its own
-    LED output when it notices another client is driving them?
 - **What triggers the MPE on/off split and the User Port mirroring?** Both
   flip between sessions with nothing deliberately changed between them, and
   both may share one root cause. Needs a controlled A/B — e.g. power-cycle
@@ -76,12 +55,19 @@ frozen.
   is presumably off most of the time), but not measured — worth confirming by
   toggling User Mode deliberately and watching which port lights up.
 - **Whether MPE can be disabled via SysEx** — unmeasured on either device.
-- **Button-LED brightness fidelity and exact palette-index-to-colour
-  accuracy** — sent without errors, never visually confirmed. Note: this is a
-  *separate* mechanism from pad LEDs — buttons use a 0-127 brightness scale
-  (`Host.SetButton`, `internal/module/module.go`), not the pad note-colour
-  palette (`core/push3/colors.go`'s `NamedColors`) that the 2026-08-17 pad-LED
-  colour fix (commit `e0fc684`) corrected. That fix does not cover this item.
+- **Whether non-screen button classes (round transport buttons, etc.) use a
+  palette index or are genuinely monochrome/brightness-only.** Confirmed
+  2026-08-18 that screen-adjacent buttons (CC 20-27, 102-109) use the same
+  128-entry palette pads do, not a brightness scale — see
+  [docs/protocol/led-output.md](../docs/protocol/led-output.md#button-leds).
+  Other button classes are unmeasured.
+- **`Host.SetButton(cc, brightness byte)`'s naming and doc comment
+  (`internal/module/module.go`) describe a brightness scale that the
+  2026-08-18 measurement shows is actually a palette index for at least the
+  screen-adjacent buttons.** Worth a rename/doc fix once the scope above is
+  fully measured — not done in this pass, since the measurement came first
+  and a rename now would be premature for whichever button classes turn out
+  to be genuinely monochrome.
 - **Multi-hour endurance** — longest continuous run is 7 minutes. Nothing is
   known about drift, leaks, or thermal behavior over hours.
 - **Pi 4 specifically untested.** Pi 5 confirmed 2026-08-18 (see

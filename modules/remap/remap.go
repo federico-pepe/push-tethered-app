@@ -149,6 +149,7 @@ func (m *Module) Meta() module.Meta {
 		Name:         "MIDI Remap (Test)",
 		Author:       "Federico Pepe",
 		Version:      "1.0.0",
+		Description:  "User-editable overrides on top of thru's default passthrough",
 		NeedsMIDIOut: true,
 	}
 }

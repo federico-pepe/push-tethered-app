@@ -2,6 +2,7 @@
   "id": "hello-js",
   "name": "Hello (Node.js example)",
   "version": "1.0.0",
+  "description": "Minimal process-loaded module in Node.js, draws a static screen",
   "author": "push-tethered-app examples",
   "needs_midi_out": false,
   "exec": "node run.js"

@@ -2,6 +2,7 @@
   "id": "hello-py",
   "name": "Hello (Python example)",
   "version": "1.0.0",
+  "description": "Minimal process-loaded module in Python, draws a static screen",
   "author": "push-tethered-app examples",
   "needs_midi_out": false,
   "exec": "python3 run.py"

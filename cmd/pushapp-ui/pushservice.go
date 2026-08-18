@@ -19,6 +19,8 @@ var errNotConnected = fmt.Errorf("not connected to Push yet")
 type ModuleInfo struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
+	Version      string `json:"version"`
+	Description  string `json:"description"`
 	Active       bool   `json:"active"`
 	NeedsMIDIOut bool   `json:"needsMidiOut"`
 
@@ -51,6 +53,17 @@ func (s *PushService) IsConnected() bool {
 	return ok
 }
 
+// LastError reports why the host stopped on its own since the last successful
+// connect — e.g. the device was unplugged. Empty if there is nothing to
+// report. The frontend reads this once IsConnected turns false unexpectedly,
+// to show why rather than silently reverting to the port-picker.
+func (s *PushService) LastError() string {
+	if err := s.mgr.lastError(); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
 // ListMIDIPorts lists every MIDI input port the OS currently sees, for the
 // port-picker view shown when auto-detect fails (see hostManager.connect).
 func (s *PushService) ListMIDIPorts() []string {
@@ -79,6 +92,8 @@ func (s *PushService) ListModules() ([]ModuleInfo, error) {
 		out = append(out, ModuleInfo{
 			ID:           m.ID,
 			Name:         m.Name,
+			Version:      m.Version,
+			Description:  m.Description,
 			Active:       m.ID == active,
 			NeedsMIDIOut: m.NeedsMIDIOut,
 			Installed:    rt.IsInstalled(m.ID),
@@ -126,7 +141,14 @@ func (s *PushService) InstallModulePrompt() (ModuleInfo, error) {
 	if err != nil {
 		return ModuleInfo{}, err
 	}
-	return ModuleInfo{ID: meta.ID, Name: meta.Name, NeedsMIDIOut: meta.NeedsMIDIOut, Installed: true}, nil
+	return ModuleInfo{
+		ID:           meta.ID,
+		Name:         meta.Name,
+		Version:      meta.Version,
+		Description:  meta.Description,
+		NeedsMIDIOut: meta.NeedsMIDIOut,
+		Installed:    true,
+	}, nil
 }
 
 // UninstallModule removes a process-loaded module. Refuses (via the error

@@ -45,6 +45,11 @@ var ErrBusy = errors.New("display interface is claimed by another process (Live?
 // ErrNotFound reports that no Push was found on USB.
 var ErrNotFound = errors.New("no Push found on USB (connected and in controller mode?)")
 
+// ErrDisconnected reports that the device vanished mid-session — most likely
+// unplugged. Returned from WriteFrame; callers should stop driving the
+// display rather than retry.
+var ErrDisconnected = errors.New("Push disconnected")
+
 // frameHeader precedes every frame: 0xFF 0xCC 0xAA 0x88 then 12 zero bytes.
 var frameHeader = []byte{
 	0xFF, 0xCC, 0xAA, 0x88,
@@ -216,12 +221,29 @@ func (d *Device) WriteFrame(ctx context.Context, img image.Image) error {
 	wctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	if _, err := d.out.WriteContext(wctx, frameHeader); err != nil {
+		if isDisconnectError(err) {
+			return ErrDisconnected
+		}
 		return fmt.Errorf("writing frame header: %w", err)
 	}
 	if _, err := d.out.WriteContext(wctx, d.buf); err != nil {
+		if isDisconnectError(err) {
+			return ErrDisconnected
+		}
 		return fmt.Errorf("writing pixels: %w", err)
 	}
 	return nil
+}
+
+// isDisconnectError reports whether err is libusb reporting the device is
+// gone — either at submit time (LIBUSB_ERROR_NO_DEVICE) or as the outcome of
+// an in-flight transfer (LIBUSB_TRANSFER_NO_DEVICE).
+func isDisconnectError(err error) bool {
+	var ts gousb.TransferStatus
+	if errors.As(err, &ts) {
+		return ts == gousb.TransferNoDevice
+	}
+	return errors.Is(err, gousb.ErrorNoDevice)
 }
 
 // Blank pushes an all-black frame. Worth calling on shutdown: Push redraws its
