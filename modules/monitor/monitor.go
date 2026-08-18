@@ -55,8 +55,8 @@ func New() *Module {
 func (m *Module) Meta() module.Meta {
 	return module.Meta{
 		ID:      "monitor",
-		Name:    "Control Surface Monitor",
-		Author:  "push-tethered-app",
+		Name:    "Push MIDI Monitor",
+		Author:  "Federico Pepe",
 		Version: "1.0.0",
 	}
 }

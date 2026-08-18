@@ -93,8 +93,8 @@ func New() *Module {
 func (m *Module) Meta() module.Meta {
 	return module.Meta{
 		ID:      "thru",
-		Name:    "MIDI Thru",
-		Author:  "push-tethered-app",
+		Name:    "MIDI Thru (Test)",
+		Author:  "Federico Pepe",
 		Version: "1.0.0",
 
 		// The host refuses to activate this module when no output port is
