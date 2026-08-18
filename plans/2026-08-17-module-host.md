@@ -1,6 +1,8 @@
 # Module host — the shape of v1
 
-**Status: decided 2026-08-17, in progress.** Supersedes the open question in
+**Status: decided 2026-08-17, done 2026-08-18.** All five phases complete —
+macOS, Linux, Windows, and Pi 5 confirmed on real hardware. Supersedes the
+open question in
 [2026-08-16-product-shape-decision.md](2026-08-16-product-shape-decision.md).
 
 ## Context
@@ -487,9 +489,12 @@ implicate `ableton-push-hack/core/push3/colors.go` itself, now fixed and
 merged upstream), are in
 [2026-08-17-process-loader.md](2026-08-17-process-loader.md).
 
-**Phase 5 — platform completion.** Windows on real hardware with loopMIDI; Pi
-4/5 per [2026-08-17-raspberry-pi-support.md](2026-08-17-raspberry-pi-support.md)
-(headless path, no webview).
+**Phase 5 — platform completion. DONE 2026-08-18.** Windows confirmed on real
+Push 3 hardware (Win11 VM, `-static` CGO_LDFLAGS + bundled libusb DLL). Pi 5
+confirmed on real Push 3 hardware, native arm64 build via a new CI runner —
+full detail in [2026-08-17-raspberry-pi-support.md](2026-08-17-raspberry-pi-support.md)
+and [docs/platform/linux.md](../docs/platform/linux.md). Pi 4 untested but
+expected identical; not blocking.
 
 ---
 

@@ -45,7 +45,22 @@ stack is not fully standalone.
 If claim fails with `LIBUSB_ERROR_BUSY`, detach interface 0 alone — never use
 `SetAutoDetach(true)` (see [protocol/usb-and-safety.md](../protocol/usb-and-safety.md)).
 
+## Raspberry Pi
+
+Confirmed on a Pi 5 (Debian 13 "trixie", 64-bit arm64) 2026-08-18: `probe`,
+`frametest` (29.9fps), and `pushapp -fps 30` (29.8fps, monitor module) all
+verified against real Push 3 hardware. Same udev rule above applies — Pi OS
+ships with no more permissive default than any other Linux. Built natively
+via `.github/workflows/build.yml`'s `build-pi` job (`ubuntu-24.04-arm`, a real
+aarch64 GitHub-hosted runner) rather than installing a Go toolchain on the Pi
+itself; copy the resulting `pushapp`/`probe`/etc. binaries over and run them
+directly — libusb/ALSA runtime libs are already present on stock Pi OS.
+
+Pi 4 untested but expected identical (same rule, same arm64 target); see
+[plans/2026-08-17-raspberry-pi-support.md](../../plans/2026-08-17-raspberry-pi-support.md)
+for the original unknowns list, mostly closed by this test.
+
 ## Related
 
 - [guides/development-setup.md](../guides/development-setup.md)
-- [open-questions.md](../open-questions.md) — Raspberry Pi untested
+- [open-questions.md](../open-questions.md)
