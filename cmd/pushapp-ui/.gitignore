@@ -11,4 +11,10 @@ build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 build/ios/xcode/overlay.json
 build/ios/xcode/gen/
 build/android/overlay.json
-build/android/gen/
+build/android/gen/# Wails' `update build-assets` regenerates iOS assets unconditionally, even
+# with no ios/ target in Taskfile.yml. Desktop-only project — ignore them
+# rather than let them creep back into the repo. (It does NOT regenerate the
+# build-tagged main_ios.go/app_options_ios.go that used to break
+# `go build ./...` here, so those stay gone.)
+build/ios
+build/android

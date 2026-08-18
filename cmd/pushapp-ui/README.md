@@ -1,59 +1,60 @@
-# Welcome to Your New Wails3 Project!
+# pushapp-ui
 
-Congratulations on generating your Wails3 application! This README will guide you through the next steps to get your project up and running.
+Desktop UI for the module host: lists the available modules, shows which is
+active, switches between them, and installs/uninstalls process-loaded ones.
+It owns the hardware exactly the way `cmd/pushapp` does — both go through
+`internal/bootstrap` — and adds nothing to the module contract.
 
-## Getting Started
+Wails v3. **This is a separate Go module** from the repo root (its own
+`go.mod`, with two `replace` directives of its own); see the root
+[CLAUDE.md](../../CLAUDE.md) for why, and for what that means when building.
 
-1. Navigate to your project directory in the terminal.
+## Commands
 
-2. To run your application in development mode, use the following command:
+```bash
+wails3 dev              # hot-reload window
+wails3 build            # produces bin/pushapp-ui
+```
 
-   ```
-   wails3 dev
-   ```
+Needs the `wails3` CLI and Node/npm on top of everything `cmd/pushapp` needs:
 
-   This will start your application and enable hot-reloading for both frontend and backend changes.
+```bash
+go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+wails3 doctor           # checks the rest of the per-OS toolchain
+```
 
-3. To build your application for production, use:
+`wails3 build` produces a **bare executable**, on every OS — no `.app` bundle,
+no installer. Those come from `wails3 package` instead (macOS `.app`/`.dmg`,
+Linux AppImage/deb/rpm, Windows NSIS), which needs extra per-OS packaging
+tooling and is not currently wired into CI. The icon'd, "Push Tethered App"-named
+bundle that appears in `bin/` is `pushapp-ui.dev.app`, which `wails3 dev`
+creates so macOS treats the dev build as a real app — not a build output.
 
-   ```
-   wails3 build
-   ```
+## Configuration
 
-   This will create a production-ready executable in the `build` directory.
+**Project config is [`build/config.yml`](build/config.yml), not `wails.json`.**
+Wails v3 replaced the v2 `wails.json`; any doc telling you to edit `wails.json`
+is describing v2.
 
-## Exploring Wails3 Features
+`build/config.yml`'s `info:` block feeds the generated build assets under
+`build/darwin`, `build/windows` and `build/linux` (plists, NSIS defines,
+version resources, nfpm metadata). After editing it, regenerate them:
 
-Now that you have your project set up, it's time to explore the features that Wails3 offers:
+```bash
+wails3 task common:update:build-assets
+```
 
-1. **Check out the examples**: The best way to learn is by example. Visit the `examples` directory in the `v3/examples` directory to see various sample applications.
+That **overwrites** hand-edits to those generated files, so make changes in
+`config.yml` and regenerate rather than editing the assets directly.
 
-2. **Run an example**: To run any of the examples, navigate to the example's directory and use:
+## Desktop only
 
-   ```
-   go run .
-   ```
+The Wails template ships `ios/` and `android/` targets. Both were deleted
+(2026-08-18) and their `includes:` removed from `Taskfile.yml`: this app owns
+a USB-attached Push over libusb, which no mobile OS allows.
 
-   Note: Some examples may be under development during the alpha phase.
-
-3. **Explore the documentation**: Visit the [Wails3 documentation](https://v3.wails.io/) for in-depth guides and API references.
-
-4. **Join the community**: Have questions or want to share your progress? Join the [Wails Discord](https://discord.gg/JDdSxwjhGf) or visit the [Wails discussions on GitHub](https://github.com/wailsapp/wails/discussions).
-
-## Project Structure
-
-Take a moment to familiarize yourself with your project structure:
-
-- `frontend/`: Contains your frontend code (HTML, CSS, JavaScript/TypeScript)
-- `main.go`: The entry point of your Go backend
-- `app.go`: Define your application structure and methods here
-- `wails.json`: Configuration file for your Wails project
-
-## Next Steps
-
-1. Modify the frontend in the `frontend/` directory to create your desired UI.
-2. Add backend functionality in `main.go`.
-3. Use `wails3 dev` to see your changes in real-time.
-4. When ready, build your application with `wails3 build`.
-
-Happy coding with Wails3! If you encounter any issues or have questions, don't hesitate to consult the documentation or reach out to the Wails community.
+`wails3 task common:update:build-assets` still regenerates `build/ios` assets
+unconditionally, so `build/ios` and `build/android` are gitignored. It does
+*not* regenerate the build-tagged `main_ios.go` / `main_android.go` that used
+to make `go build ./...` fail in this directory, so that now works — though
+`wails3 build` remains the command that produces a usable binary.

@@ -10,13 +10,15 @@ vars:
   # tasks below dispatch to the matching platform Taskfile via this variable.
   GOOS: '{{.GOOS | default OS}}'
 
+# Desktop only. The Wails template also ships ios/ and android/ targets; both
+# were deleted (2026-08-18) — this app owns a USB-attached Push over libusb,
+# which no mobile OS allows, so they were dead weight that also broke
+# `go build ./...` here via their build-tagged main_ios.go/main_android.go.
 includes:
   common: ./build/Taskfile.yml
   windows: ./build/windows/Taskfile.yml
   darwin: ./build/darwin/Taskfile.yml
   linux: ./build/linux/Taskfile.yml
-  ios: ./build/ios/Taskfile.yml
-  android: ./build/android/Taskfile.yml
 
 tasks:
   build:
