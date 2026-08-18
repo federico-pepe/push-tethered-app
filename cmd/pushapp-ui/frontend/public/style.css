@@ -1,0 +1,254 @@
+:root {
+    color-scheme: dark;
+    --bg: #101014;
+    --panel: #1a1a20;
+    --panel-active: #26303a;
+    --border: #2a2a32;
+    --text: #e8e8ea;
+    --text-dim: #8a8a92;
+    --accent: #4fc3f7;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 36px 24px 20px;
+    gap: 16px;
+}
+
+.brand {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.brand-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.install-btn {
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.install-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.install-btn:disabled {
+    color: var(--text-dim);
+    cursor: default;
+    opacity: 0.6;
+}
+
+.subtitle {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.module-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+}
+
+.module-list[hidden] {
+    display: none;
+}
+
+.module-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.module-row.is-active {
+    background: var(--panel-active);
+    border-color: var(--accent);
+}
+
+.module-name {
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.module-badge {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+
+.module-activate {
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.module-activate:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.module-activate:disabled {
+    color: var(--text-dim);
+    cursor: default;
+    opacity: 0.6;
+}
+
+.module-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.module-uninstall {
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.module-uninstall:hover:not(:disabled) {
+    border-color: #e57373;
+    color: #e57373;
+}
+
+.module-uninstall:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.connect-view {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.connect-view[hidden] {
+    display: none;
+}
+
+.connect-hint {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.port-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+}
+
+.port-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.port-name {
+    font-size: 13px;
+    word-break: break-word;
+}
+
+.port-connect {
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.port-connect:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.port-connect:disabled {
+    color: var(--text-dim);
+    cursor: default;
+    opacity: 0.6;
+}
+
+.retry-btn {
+    align-self: flex-start;
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.retry-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.retry-btn:disabled {
+    color: var(--text-dim);
+    cursor: default;
+    opacity: 0.6;
+}

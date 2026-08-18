@@ -1,0 +1,77 @@
+version: '3'
+
+vars:
+  # APP_NAME is the *binary* name (bin/pushapp-ui, pushapp-ui.exe). Keep it a
+  # plain lowercase slug: it becomes the Linux binary at /usr/local/bin, the
+  # nfpm package name, and the path CI's upload-artifact globs.
+  APP_NAME: "pushapp-ui"
+  # BUNDLE_NAME is the user-facing name, used only for the macOS .app/.dmg.
+  # The Wails template used APP_NAME for both, which is why `wails3 package`
+  # produced "pushapp-ui.app" — the one place the product name wasn't already
+  # showing through (Linux's .desktop Name= and Windows' NSIS DisplayName both
+  # come from config.yml's productName and were already right).
+  # Must match productName in build/config.yml.
+  BUNDLE_NAME: "Push Tethered App"
+  BIN_DIR: "bin"
+  PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+  # Target OS for build/package/run. Defaults to the host OS, and is overridden
+  # by `wails3 build GOOS=...` (or the GOOS env var) for cross-compilation. The
+  # tasks below dispatch to the matching platform Taskfile via this variable.
+  GOOS: '{{.GOOS | default OS}}'
+
+# Desktop only. The Wails template also ships ios/ and android/ targets; both
+# were deleted (2026-08-18) — this app owns a USB-attached Push over libusb,
+# which no mobile OS allows, so they were dead weight that also broke
+# `go build ./...` here via their build-tagged main_ios.go/main_android.go.
+includes:
+  common: ./build/Taskfile.yml
+  windows: ./build/windows/Taskfile.yml
+  darwin: ./build/darwin/Taskfile.yml
+  linux: ./build/linux/Taskfile.yml
+
+tasks:
+  build:
+    summary: Builds the application
+    cmds:
+      - task: "{{.GOOS}}:build"
+
+  package:
+    summary: Packages a production build of the application
+    cmds:
+      - task: "{{.GOOS}}:package"
+
+  run:
+    summary: Runs the application
+    cmds:
+      - task: "{{.GOOS}}:run"
+
+  dev:
+    summary: Runs the application in development mode
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+
+  setup:docker:
+    summary: Builds Docker image for cross-compilation (~800MB download)
+    cmds:
+      - task: common:setup:docker
+
+  build:server:
+    summary: Builds the application in server mode (no GUI, HTTP server only)
+    cmds:
+      - task: common:build:server
+
+  run:server:
+    summary: Runs the application in server mode
+    cmds:
+      - task: common:run:server
+
+  build:docker:
+    summary: Builds a Docker image for server mode deployment
+    cmds:
+      - task: common:build:docker
+
+  run:docker:
+    summary: Builds and runs the Docker image
+    cmds:
+      - task: common:run:docker

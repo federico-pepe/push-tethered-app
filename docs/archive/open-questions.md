@@ -1,31 +1,63 @@
 # Open questions — what's unresolved, unmeasured, and worth refactoring
 
-**Purpose:** `docs/archive/feasibility.md` is now frozen (§ numbers below refer
-to it, but see CLAUDE.md's doc-sync rule — never edit that file). This doc
-tracks **what's still open** since that snapshot, so it doesn't get buried in a
-document that's mostly settled history.
+**Status: frozen 2026-08-18.** This file is a snapshot, not a living
+document — do not edit it (same rule as `feasibility.md`, per CLAUDE.md's
+`docs/archive/` policy). Its still-open items were carried forward into
+[plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md), which
+is where new findings should be tracked from here on — this file's content
+was always intent (what to measure/fix next), which belongs in `plans/`, not
+`docs/`. Kept here for the reasoning trail behind each already-resolved item.
 
-Update this doc, don't let it drift — when an item here gets resolved, fold the
-finding into CLAUDE.md/README (the living reference) and delete the entry here.
-Never fold anything back into `docs/archive/feasibility.md` itself.
+**Original purpose, at time of freezing:** `docs/archive/feasibility.md` is
+frozen (§ numbers below refer to it). This doc tracked **what's still open**
+since that snapshot, so it wouldn't get buried in a document that's mostly
+settled history.
 
 ---
 
 ## 1. Blocking the next phase of work
 
-- **Product shape (A/B/C) is undecided.** `plans/2026-08-16-product-shape-decision.md`
-  is still open. Nothing beyond `cmd/pushapp` should be built until this is
-  settled — mapping, config UI, and Live integration all depend on which of
-  co-existence, full-ownership, or "creative surface" this becomes.
-- **Windows has never touched real hardware.** CI proves the binary compiles on
-  `windows-latest`; nothing is known about the actual WinUSB/Zadig driver
-  conflict (§4.3), whether Push advertises WCID/MS OS descriptors (which would
-  sidestep it), or whether a display-only Windows build is even acceptable to
-  users. This blocks committing to option B (full ownership) for Windows.
-- **Windows virtual MIDI out (§6.2) is unresolved.** Windows MIDI Services'
-  minimum OS build was flagged as "verify, don't trust recalled numbers" and
-  never actually verified. teVirtualMIDI is the fallback but adds cost and an
-  install step.
+- **Resolved 2026-08-18: Windows display path confirmed on real hardware.**
+  `pushapp-ui` run in a Windows 11 VM with a real Push 3 attached via USB
+  passthrough — display, MIDI, and the full app all worked end to end
+  (`-static` `CGO_LDFLAGS` + bundled libusb DLL, per
+  [docs/platform/windows.md](../docs/platform/windows.md)). No WinUSB/Zadig
+  conflict encountered; whether Push advertises WCID/MS OS descriptors
+  specifically was not investigated since the plain path already worked.
+- **Resolved 2026-08-18: Windows MIDI port naming, now confirmed on real
+  hardware.** A real Windows user ran the CI-built `pushapp.exe` and hit `no
+  Push Live Port found among [...]` — WinMM does not expose the USB MIDI jack
+  strings CoreMIDI/ALSA read `"Live Port"`/`"User Port"`/`"External Port"`
+  from at all; it names the first cable after the bare device name and only
+  prefixes the others (`Ableton Push 3 MIDI`, `MIDIIN2 (Ableton Push 3
+  MIDI)`, `MIDIIN3 (...)`). `internal/midi`'s name-based auto-detect can
+  never match there, for Push 2 or Push 3 alike — not a per-device quirk, so
+  no separate Push-2 case was needed. Fixed with a manual escape hatch rather
+  than a naming heuristic: `pmidi.ListInPorts` / `OpenNamed`, wired into
+  `cmd/pushapp-ui` as a port-picker view (`hostmanager.go`, `pushservice.go`,
+  `frontend/src/main.ts`'s `connect-view`) that only appears when auto-detect
+  fails. Confirmed on macOS: auto-detect still succeeds, the picker never
+  shows. **Confirmed 2026-08-18 on the Windows 11 VM above** — MIDI connected
+  successfully as part of the same end-to-end run.
+- **New: no disconnect detection.** Unplugging Push mid-session leaves
+  `cmd/pushapp-ui` reporting the last-active module ("Active: ...") against a
+  dead port — found live while testing the port-picker fix above.
+  `hostManager` has no watchdog on port health, and neither `internal/midi`
+  nor `internal/host` currently notice a failed send or a dead input stream.
+  Needs its own investigation (what actually fails first on unplug, on which
+  OS, and how to detect it without polling every frame) before the UI can be
+  trusted to reflect real connection state.
+- **Whether Wails v3 survives the headless requirement.** A Pi 4/5 running one
+  module in kiosk mode should not need `webkit2gtk`. The plan keeps a
+  `-module <id>` flag that runs with no window at all, but if the UI and the
+  headless path drift apart, Fyne/Gio (already the documented fallback) needs
+  revisiting.
+- **Resolved 2026-08-18: CI now builds `cmd/pushapp-ui` too, confirmed
+  green.** `.github/workflows/build.yml` runs `wails3 build` for it on all
+  three OSes, reusing the same job's core/ checkout and per-OS lib installs
+  (plus `webkit2gtk-4.1-dev`, newly added for Linux, and the `wails3`
+  CLI/Node/npm setup). See `plans/2026-08-17-ci-for-pushapp-ui.md`. Confirmed
+  running and green on a real GitHub Actions run.
 
 ## 2. Needs discovery/exploration
 
@@ -38,10 +70,17 @@ Never fold anything back into `docs/archive/feasibility.md` itself.
   next step is a USB-level capture on whichever OS Live actually runs on —
   Wireshark + USBPcap on Windows is the more realistic path than anything
   Linux-side. Still not done.
-- **Raspberry Pi 4/5 — zero hardware testing.** `plans/2026-08-17-raspberry-pi-support.md`
-  lists five concrete unknowns (Go toolchain version on Pi OS, 64-bit vs
-  32-bit, sustained frame rate on a weaker CPU, USB controller behavior, power
-  margin) and a build recipe, but nothing has been run on an actual Pi yet.
+- **Resolved 2026-08-18: Raspberry Pi 5 confirmed on real hardware.** Native
+  arm64 build (via a new `build-pi` CI job, see below) copied to a Pi 5
+  (Debian 13 "trixie", 64-bit) running `cmd/probe`, `cmd/frametest`, and
+  `cmd/pushapp -fps 30` against a real Push 3. Push 3 enumerated cleanly,
+  `frametest` held a steady 29.9fps test pattern with correct colours, and
+  `pushapp`'s monitor module ran at 29.8fps with pads/log/LEDs all confirmed
+  working by eye — same udev-rule + replug steps as the Linux doc already
+  documented were required (no rule existed yet on this box). `ToBGR565`'s
+  per-pixel cost (§9.3/§3 below) is not a bottleneck on Pi 5's CPU. **Pi 4
+  still untested** — expected to behave the same per
+  `plans/2026-08-17-raspberry-pi-support.md`, but not measured.
 - **LED contention when Live and `pushapp` both hold the device at once —
   newly found 2026-08-17, needs follow-up.** Two scenarios tested:
   - Live launched first, then `pushapp` run: claim fails cleanly with
@@ -115,5 +154,10 @@ Never fold anything back into `docs/archive/feasibility.md` itself.
 - **No `core/push2` package needed, and none is planned.** `ableton-push-hack`
   targets Push 3 standalone only; Push 2 support belongs to this repo, and
   `internal/pushmap/push2.go` is exactly where it should live.
-- **CI arm64 Linux runner** — not added. Worth adding only after a Raspberry Pi
-  build is manually confirmed once (per the Pi plan's own sequencing).
+- **Resolved 2026-08-18: CI arm64 Linux runner added.** `build-pi` job in
+  `.github/workflows/build.yml` runs on `ubuntu-24.04-arm` — a real aarch64
+  GitHub-hosted runner, not emulated, so it satisfies the no-cross-compile
+  rule the same way `ubuntu-latest` does for x86_64. Builds/vets/tests
+  `cmd/pushapp` + friends; does not build `cmd/pushapp-ui` (GTK4/WebKitGTK is
+  out of scope for the Pi's headless kiosk use case). Confirmed available on
+  this repo's plan (private, personal account) — green on first run.

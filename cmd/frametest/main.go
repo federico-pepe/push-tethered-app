@@ -1,7 +1,7 @@
 // Command frametest claims Push's vendor-specific display interface and pushes
 // a single rendered frame to bulk OUT endpoint 0x01.
 //
-// This is the Phase 1 experiment from docs/feasibility.md: does the display
+// This is the Phase 1 experiment from docs/archive/feasibility.md: does the display
 // protocol observed *inside* a standalone Push 3 also work over USB in
 // controller mode? A lit screen is a more definitive answer than a bus capture.
 //
@@ -241,7 +241,7 @@ func renderTestImage(double, noXOR bool, phase int) *image.NRGBA {
 		xorLabel = "XOR OFF"
 	}
 	widgets.DrawBotStrip(img, t, push3.VisH-26, push3.VisW, push3.VisW/4, 24,
-		[4]widgets.SoftButton{
+		[8]widgets.SoftButton{
 			{Label: "IFACE 0", State: widgets.SoftOn},
 			{Label: "EP 0x01", State: widgets.SoftOn},
 			{Label: xorLabel, State: xorState},
