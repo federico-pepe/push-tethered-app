@@ -11,6 +11,61 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Native arm64 build for Raspberry Pi 4/5, per
+  # plans/2026-08-17-raspberry-pi-support.md. GitHub-hosted ubuntu-24.04-arm
+  # runners are real aarch64 hardware, not emulated — satisfies the
+  # no-cross-compile rule the same way the ubuntu-latest job does for x86_64.
+  # Separate job rather than a matrix entry on `build` below: that job also
+  # builds cmd/pushapp-ui (GTK4/WebKitGTK), which is out of scope for the
+  # Pi's headless use case and would slow this down for no reason.
+  build-pi:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Checkout ableton-push-hack (core/ dependency)
+        uses: actions/checkout@v7
+        with:
+          repository: federico-pepe/ableton-push-hack
+          ref: main
+          path: .ableton-push-hack
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Point core/ replace at the CI checkout
+        run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=./.ableton-push-hack/core
+
+      - name: Install libusb + pkg-config
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libusb-1.0-0-dev libasound2-dev pkg-config
+
+      - name: Build
+        run: |
+          go build -o probe     ./cmd/probe
+          go build -o frametest ./cmd/frametest
+          go build -o mapcheck  ./cmd/mapcheck
+          go build -o pushapp   ./cmd/pushapp
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: push-tethered-app-linux-arm64
+          path: |
+            probe
+            frametest
+            mapcheck
+            pushapp
+
   build:
     strategy:
       fail-fast: false
