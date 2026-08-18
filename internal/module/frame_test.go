@@ -27,7 +27,7 @@ func TestOpsRoundTrip(t *testing.T) {
 	f.KVRows(27, 28, 29, 30, 31, []KVRow{{Label: "k", Value: "v", ValueCol: red}})
 	f.List(ListView{Rows: []ListRow{{Text: "row"}}, Cursor: 1, Scroll: 2,
 		Breadcrumb: "crumb", Status: "st", EmptyText: "empty"}, 32, 33, 34, 35)
-	f.BotStrip(36, 37, 38, 39, [4]SoftButton{{Label: "a"}, {Label: "b"}}, "hint")
+	f.BotStrip(36, 37, 38, 39, [8]SoftButton{{Label: "a"}, {Label: "b"}}, "hint")
 
 	if f.Failed() != 0 {
 		t.Fatalf("Failed() = %d, want 0 — an op's params would not marshal", f.Failed())

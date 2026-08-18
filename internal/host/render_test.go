@@ -143,7 +143,7 @@ func TestSanitisedInsideWidgets(t *testing.T) {
 		Rows:       []module.ListRow{{Text: "row—one"}},
 		Breadcrumb: "crumb—bar",
 	}, 0, 960, 14, 140)
-	f.BotStrip(140, 960, 120, 18, [4]module.SoftButton{{Label: "a—b"}}, "hint—")
+	f.BotStrip(140, 960, 120, 18, [8]module.SoftButton{{Label: "a—b"}}, "hint—")
 	f.KVRows(0, 960, 14, 100, 140, []module.KVRow{{Label: "l—", Value: "v—"}})
 	f.Header(0, 960, 18, "head—er")
 
@@ -157,7 +157,7 @@ func TestSanitisedInsideWidgets(t *testing.T) {
 		Rows:       []module.ListRow{{Text: "row?one"}},
 		Breadcrumb: "crumb?bar",
 	}, 0, 960, 14, 140)
-	wf.BotStrip(140, 960, 120, 18, [4]module.SoftButton{{Label: "a?b"}}, "hint?")
+	wf.BotStrip(140, 960, 120, 18, [8]module.SoftButton{{Label: "a?b"}}, "hint?")
 	wf.KVRows(0, 960, 14, 100, 140, []module.KVRow{{Label: "l?", Value: "v?"}})
 	wf.Header(0, 960, 18, "head?er")
 	Render(wf, want, widgets.Default)
@@ -210,7 +210,7 @@ func TestSupportedOpsCoversEveryConstructor(t *testing.T) {
 	f.Header(0, 1, 1, "x")
 	f.KVRows(0, 1, 1, 1, 1, nil)
 	f.List(module.ListView{}, 0, 1, 1, 1)
-	f.BotStrip(0, 1, 1, 1, [4]module.SoftButton{}, "")
+	f.BotStrip(0, 1, 1, 1, [8]module.SoftButton{}, "")
 	f.Image(0, 0, image.NewNRGBA(image.Rect(0, 0, 1, 1)))
 
 	supported := map[string]bool{}

@@ -42,9 +42,11 @@ func TestNoOverridesBehavesLikeThru(t *testing.T) {
 		t.Errorf("passthrough encoder = %+v, want cc %d val %d", got, encoderCCBase, encoderStart+10)
 	}
 
-	m.Handle(module.Button{CC: 20, Name: "Screen Bot 1", Pressed: true})
-	if got := h.MIDI[2]; got.Kind != "cc" || got.Num != 20 || got.Val != 127 {
-		t.Errorf("passthrough button = %+v, want cc 20 val 127", got)
+	// CC 20 (Screen Bot 1) is reserved for the on-device editor's toggle and
+	// is intentionally excluded from passthrough — use a plain button CC.
+	m.Handle(module.Button{CC: 21, Name: "Screen Bot 2", Pressed: true})
+	if got := h.MIDI[2]; got.Kind != "cc" || got.Num != 21 || got.Val != 127 {
+		t.Errorf("passthrough button = %+v, want cc 21 val 127", got)
 	}
 }
 
@@ -92,15 +94,17 @@ func TestNoteOverrideReleaseSendsNoteOff(t *testing.T) {
 }
 
 // TestCCOverrideOnButton covers an absolute (non-relative) CC rule.
+// CC 20 (Screen Bot 1) is reserved for the on-device editor, so this uses
+// CC 21 (Screen Bot 2) — a plain button, not editor chrome.
 func TestCCOverrideOnButton(t *testing.T) {
 	m, h := newTest(t)
-	m.overrides["cc:20"] = MidiMapping{OutType: "cc", OutCh: 2, OutNum: 7, OutMin: 0, OutMax: 127}
+	m.overrides["cc:21"] = MidiMapping{OutType: "cc", OutCh: 2, OutNum: 7, OutMin: 0, OutMax: 127}
 
-	m.Handle(module.Button{CC: 20, Pressed: true})
+	m.Handle(module.Button{CC: 21, Pressed: true})
 	if got := h.MIDI[0]; got.Kind != "cc" || got.Ch != 2 || got.Num != 7 || got.Val != 127 {
 		t.Errorf("mapped button = %+v, want cc ch2 num7 val127", got)
 	}
-	m.Handle(module.Button{CC: 20, Pressed: false})
+	m.Handle(module.Button{CC: 21, Pressed: false})
 	if got := h.MIDI[1]; got.Val != 0 {
 		t.Errorf("release = %+v, want val 0", got)
 	}
@@ -291,5 +295,235 @@ func TestDrawTextIsASCII(t *testing.T) {
 	m.Draw(f2)
 	if bad := moduletest.NonASCIIStrings(f2); len(bad) != 0 {
 		t.Errorf("Draw with an override emitted non-ASCII text: %q", bad)
+	}
+}
+
+// press is a small helper: Screen Bot button CCs are always channel 1,
+// pressed then released, only the press matters for these tests.
+func press(m *Module, cc byte) {
+	m.Handle(module.Button{CC: cc, Pressed: true})
+	m.Handle(module.Button{CC: cc, Pressed: false})
+}
+
+// TestEditToggleEntersArmedAndBackOut covers the plain toggle cycle with no
+// target ever selected: off -> armed -> off.
+func TestEditToggleEntersArmedAndBackOut(t *testing.T) {
+	m, _ := newTest(t)
+	if m.ui != stateOff {
+		t.Fatalf("fresh module ui = %v, want stateOff", m.ui)
+	}
+	press(m, editToggleCC)
+	if m.ui != stateArmed {
+		t.Fatalf("after toggle, ui = %v, want stateArmed", m.ui)
+	}
+	press(m, editToggleCC)
+	if m.ui != stateOff {
+		t.Fatalf("after second toggle, ui = %v, want stateOff", m.ui)
+	}
+}
+
+// TestArmedSwallowsPassthroughAndSelectsOnPress: while armed, a pad/button/
+// encoder is captured as the target instead of being forwarded as MIDI.
+func TestArmedSwallowsPassthroughAndSelectsOnPress(t *testing.T) {
+	m, h := newTest(t)
+	press(m, editToggleCC)
+
+	m.Handle(module.Pad{Note: 40, Channel: 3, Velocity: 100, Pressed: true})
+	if len(h.MIDI) != 0 {
+		t.Errorf("armed pad press sent %d MIDI messages, want 0 (captured as target)", len(h.MIDI))
+	}
+	if m.ui != stateEditing {
+		t.Fatalf("after a pad press while armed, ui = %v, want stateEditing", m.ui)
+	}
+	if m.sel != (target{kind: "note", num: 40}) {
+		t.Errorf("selected target = %+v, want note:40", m.sel)
+	}
+	// Default draft mirrors passthrough: same channel the press arrived on.
+	want := MidiMapping{OutType: "note", OutCh: 3, OutNum: 40, OutMin: 0, OutMax: 127}
+	if m.draft != want {
+		t.Errorf("default draft = %+v, want %+v", m.draft, want)
+	}
+	if m.hasOverride {
+		t.Error("hasOverride = true for a target with no existing rule")
+	}
+}
+
+// TestArmedSelectsByEncoderTurn covers selecting an encoder (not just a pad
+// or button) as the remap target, per the product ask.
+func TestArmedSelectsByEncoderTurn(t *testing.T) {
+	m, _ := newTest(t)
+	press(m, editToggleCC)
+
+	m.Handle(module.Encoder{CC: 71, Index: 0, Delta: 3})
+	if m.ui != stateEditing {
+		t.Fatalf("after an encoder turn while armed, ui = %v, want stateEditing", m.ui)
+	}
+	if m.sel != (target{kind: "cc", num: 71}) {
+		t.Errorf("selected target = %+v, want cc:71", m.sel)
+	}
+	want := MidiMapping{OutType: "cc", OutCh: outChannel, OutNum: 71, OutMin: 0, OutMax: 127}
+	if m.draft != want {
+		t.Errorf("default draft = %+v, want %+v", m.draft, want)
+	}
+}
+
+// TestArmedSelectingExistingOverrideLoadsItForEditing: picking a target that
+// already has a rule opens that rule, not a fresh default.
+func TestArmedSelectingExistingOverrideLoadsItForEditing(t *testing.T) {
+	m, _ := newTest(t)
+	existing := MidiMapping{OutType: "note", OutCh: 5, OutNum: 70, OutMin: 10, OutMax: 90}
+	m.overrides["note:40"] = existing
+	press(m, editToggleCC)
+
+	m.Handle(module.Pad{Note: 40, Channel: 1, Velocity: 100, Pressed: true})
+	if m.draft != existing {
+		t.Errorf("draft = %+v, want the existing rule %+v", m.draft, existing)
+	}
+	if !m.hasOverride {
+		t.Error("hasOverride = false for a target with an existing rule")
+	}
+}
+
+// TestEditFieldEncodersAdjustDraft covers each of the 5 field-editor
+// encoders, index 0-4, and their clamping.
+func TestEditFieldEncodersAdjustDraft(t *testing.T) {
+	m, _ := newTest(t)
+	press(m, editToggleCC)
+	m.Handle(module.Button{CC: 21, Pressed: true}) // select a plain button target
+
+	m.Handle(module.Encoder{Index: 0, Delta: -1}) // Out Type -> cc (already cc, no change)
+	if m.draft.OutType != "cc" {
+		t.Errorf("OutType = %q, want cc", m.draft.OutType)
+	}
+	m.Handle(module.Encoder{Index: 0, Delta: 1}) // Out Type -> note
+	if m.draft.OutType != "note" {
+		t.Errorf("OutType = %q, want note", m.draft.OutType)
+	}
+
+	m.Handle(module.Encoder{Index: 1, Delta: 20}) // Out Channel, clamps at 16
+	if m.draft.OutCh != 16 {
+		t.Errorf("OutCh = %d, want clamped to 16", m.draft.OutCh)
+	}
+	m.Handle(module.Encoder{Index: 1, Delta: -30}) // clamps at 1
+	if m.draft.OutCh != 1 {
+		t.Errorf("OutCh = %d, want clamped to 1", m.draft.OutCh)
+	}
+
+	m.Handle(module.Encoder{Index: 2, Delta: 50}) // Out Value 0-127
+	if m.draft.OutNum != 71 {
+		t.Errorf("OutNum = %d, want 21+50=71", m.draft.OutNum)
+	}
+
+	m.Handle(module.Encoder{Index: 3, Delta: 200}) // Out Min, clamps at 127
+	if m.draft.OutMin != 127 {
+		t.Errorf("OutMin = %d, want clamped to 127", m.draft.OutMin)
+	}
+
+	m.Handle(module.Encoder{Index: 4, Delta: -200}) // Out Max, clamps at 0
+	if m.draft.OutMax != 0 {
+		t.Errorf("OutMax = %d, want clamped to 0", m.draft.OutMax)
+	}
+}
+
+// TestSaveCommitsDraftAndPersists exercises the save action end to end,
+// including the real Store, and confirms it returns to armed for the next
+// target rather than exiting edit mode entirely.
+func TestSaveCommitsDraftAndPersists(t *testing.T) {
+	m, h := newTest(t)
+	press(m, editToggleCC)
+	m.Handle(module.Pad{Note: 40, Channel: 1, Velocity: 100, Pressed: true})
+	m.Handle(module.Encoder{Index: 3, Delta: 20})  // Out Min 0 -> 20
+	m.Handle(module.Encoder{Index: 4, Delta: -37}) // Out Max 127 -> 90
+
+	press(m, editSaveCC)
+	if m.ui != stateArmed {
+		t.Fatalf("after save, ui = %v, want stateArmed", m.ui)
+	}
+	rule, ok := m.overrides["note:40"]
+	if !ok {
+		t.Fatal("save did not create an override for note:40")
+	}
+	if rule.OutMin != 20 || rule.OutMax != 90 {
+		t.Errorf("saved rule = %+v, want OutMin 20 OutMax 90", rule)
+	}
+
+	// Persisted to the real Store, not just the in-memory map.
+	var d doc
+	if err := h.Store().Get(&d); err != nil {
+		t.Fatalf("reading back the store: %v", err)
+	}
+	if d.Overrides["note:40"] != rule {
+		t.Errorf("stored rule = %+v, want %+v", d.Overrides["note:40"], rule)
+	}
+}
+
+// TestCancelDiscardsDraftWithoutSaving: pressing the toggle button while
+// editing drops back to armed without touching overrides.
+func TestCancelDiscardsDraftWithoutSaving(t *testing.T) {
+	m, _ := newTest(t)
+	press(m, editToggleCC)
+	m.Handle(module.Pad{Note: 40, Channel: 1, Velocity: 100, Pressed: true})
+	m.Handle(module.Encoder{Index: 3, Delta: 20})
+
+	press(m, editToggleCC) // cancel, not save
+	if m.ui != stateArmed {
+		t.Fatalf("after cancel, ui = %v, want stateArmed", m.ui)
+	}
+	if _, ok := m.overrides["note:40"]; ok {
+		t.Error("cancel must not create an override")
+	}
+}
+
+// TestClearRemovesExistingOverride covers reverting a mapped control back to
+// passthrough from on-device, without needing to hand-edit the config file.
+func TestClearRemovesExistingOverride(t *testing.T) {
+	m, h := newTest(t)
+	m.overrides["note:40"] = MidiMapping{OutType: "note", OutCh: 1, OutNum: 45, OutMin: 0, OutMax: 127}
+	press(m, editToggleCC)
+	m.Handle(module.Pad{Note: 40, Channel: 1, Velocity: 100, Pressed: true})
+	if !m.hasOverride {
+		t.Fatal("hasOverride = false, want true before clearing")
+	}
+
+	press(m, editClearCC)
+	if m.ui != stateArmed {
+		t.Fatalf("after clear, ui = %v, want stateArmed", m.ui)
+	}
+	if _, ok := m.overrides["note:40"]; ok {
+		t.Error("clear did not remove the override")
+	}
+
+	// The control is now plain passthrough again.
+	h.Reset()
+	press(m, editToggleCC) // back to stateOff
+	m.Handle(module.Pad{Note: 40, Channel: 1, Velocity: 100, Pressed: true})
+	if got := h.MIDI[0]; got.Kind != "note" || got.Num != 40 {
+		t.Errorf("after clear, pad 40 = %+v, want plain passthrough note 40", got)
+	}
+}
+
+// TestClearIsNoopWithoutAnExistingOverride: Clear must not do anything (and
+// must not persist an empty write) for a target that was never mapped.
+func TestClearIsNoopWithoutAnExistingOverride(t *testing.T) {
+	m, _ := newTest(t)
+	press(m, editToggleCC)
+	m.Handle(module.Pad{Note: 40, Channel: 1, Velocity: 100, Pressed: true})
+
+	press(m, editClearCC)
+	if m.ui != stateEditing {
+		t.Errorf("Clear on an unmapped target changed ui to %v, want it to stay stateEditing (no-op)", m.ui)
+	}
+}
+
+// TestEditorChromeCCsNeverPassThrough: Screen Bot 1/7/8 are reserved for the
+// editor in every ui state, even stateOff, so they never leak out as mapped
+// MIDI the way any other button would.
+func TestEditorChromeCCsNeverPassThrough(t *testing.T) {
+	m, h := newTest(t)
+	press(m, editToggleCC)
+	press(m, editClearCC)
+	press(m, editSaveCC)
+	if len(h.MIDI) != 0 {
+		t.Errorf("editor chrome buttons sent %d MIDI messages, want 0", len(h.MIDI))
 	}
 }

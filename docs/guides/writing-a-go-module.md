@@ -62,6 +62,18 @@ _ = store.Set(&cfg)
 One JSON file per module ID. The host logs the path on activation (handy for
 hand-editing — see `modules/remap`).
 
+### Module-internal UI modes
+
+A module can have more than one on-screen "mode" — e.g. a normal view plus an
+editor — by keeping a small state enum on the module and switching both
+`Handle` and `Draw` on it. `modules/remap` is the first (and so far only)
+example: a bottom-screen button arms an edit mode, the next pad/button/
+encoder event is captured as a target instead of being passed through, and a
+handful of top-row encoders become field editors until Save/Clear/Cancel.
+There's no shared framework for this yet — one module isn't enough to
+justify extracting one — so read `modules/remap/remap.go`'s `uiState`
+handling directly if you need the same shape.
+
 ## Testing without hardware
 
 ```go
@@ -83,7 +95,7 @@ moduletest.NonASCIIStrings(&f)  // catch non-ASCII in Draw tests
 | [monitor/](../../modules/monitor/) | Full UI, all event types, reference Draw |
 | [thru/](../../modules/thru/) | MIDI out, held-note tracking |
 | [seq/](../../modules/seq/) | Store, wall-clock timing, MIDI out |
-| [remap/](../../modules/remap/) | Store + user-editable overrides |
+| [remap/](../../modules/remap/) | Store + on-device rule editor, module-internal UI modes |
 
 ## Not Go?
 
