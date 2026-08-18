@@ -4,7 +4,7 @@
 // to the OS class driver — that binding is exactly why the CoreMIDI/ALSA ports
 // exist. Claiming it over libusb would take Push's MIDI away from the DAW,
 // which is full-ownership mode. In co-existence mode we must go through the OS.
-// See docs/feasibility.md §6.1a.
+// See docs/archive/feasibility.md §6.1a.
 //
 // Decoding rule that matters: **branch on channel before CC**. Push 2 assigns
 // CC 71-79 to the nine encoders, and CC 71/74 are also MPE timbre controllers.

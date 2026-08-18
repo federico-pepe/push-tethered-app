@@ -1,7 +1,7 @@
 // Command frametest claims Push's vendor-specific display interface and pushes
 // a single rendered frame to bulk OUT endpoint 0x01.
 //
-// This is the Phase 1 experiment from docs/feasibility.md: does the display
+// This is the Phase 1 experiment from docs/archive/feasibility.md: does the display
 // protocol observed *inside* a standalone Push 3 also work over USB in
 // controller mode? A lit screen is a more definitive answer than a bus capture.
 //

@@ -13,7 +13,7 @@ scratch later.
 
 ## Why this isn't just "already covered by the Linux build"
 
-The existing Linux confirmation (`docs/feasibility.md` §Linux, Mint x86_64) does
+The existing Linux confirmation (`docs/archive/feasibility.md` §Linux, Mint x86_64) does
 not extend to Pi automatically, for the same reason nothing cross-compiles in
 this project: `gousb` and `rtmididrv` are both cgo, and the CI matrix's
 `ubuntu-latest` artifact is `x86_64` — a different architecture, won't run on a
@@ -52,7 +52,7 @@ the two gotchas already hit once on Mint:
    arm64 is the better-supported, more likely to just work target.
 3. **Sustained frame rate under Pi's weaker CPU.** `core/display.ToBGR565`
    encodes via per-pixel `image.At()` — 153,600 interface calls per frame.
-   Flagged back in `docs/feasibility.md` §9.3 as the first likely bottleneck
+   Flagged back in `docs/archive/feasibility.md` §9.3 as the first likely bottleneck
    even on a laptop; unknown whether Pi 4/5 holds 30fps or needs a lower `-fps`
    value. Measure, don't assume.
 4. **USB behaviour specific to the Pi 4/5 controller.** Should be fine — proper
@@ -87,5 +87,5 @@ by hand.
    already established for this project).
 5. If 30fps struggles, try lower `-fps` before concluding anything about the
    architecture generally.
-6. Record results in `docs/feasibility.md`, following the same "measured, not
+6. Record results in `docs/archive/feasibility.md`, following the same "measured, not
    inferred" standard as the macOS/Linux sections.
