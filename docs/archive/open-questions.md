@@ -1,38 +1,44 @@
 # Open questions — what's unresolved, unmeasured, and worth refactoring
 
-**Purpose:** `docs/archive/feasibility.md` is now frozen (§ numbers below refer
-to it, but see CLAUDE.md's doc-sync rule — never edit that file). This doc
-tracks **what's still open** since that snapshot, so it doesn't get buried in a
-document that's mostly settled history.
+**Status: frozen 2026-08-18.** This file is a snapshot, not a living
+document — do not edit it (same rule as `feasibility.md`, per CLAUDE.md's
+`docs/archive/` policy). Its still-open items were carried forward into
+[plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md), which
+is where new findings should be tracked from here on — this file's content
+was always intent (what to measure/fix next), which belongs in `plans/`, not
+`docs/`. Kept here for the reasoning trail behind each already-resolved item.
 
-Update this doc, don't let it drift — when an item here gets resolved, fold the
-finding into CLAUDE.md/README (the living reference) and delete the entry here.
-Never fold anything back into `docs/archive/feasibility.md` itself.
+**Original purpose, at time of freezing:** `docs/archive/feasibility.md` is
+frozen (§ numbers below refer to it). This doc tracked **what's still open**
+since that snapshot, so it wouldn't get buried in a document that's mostly
+settled history.
 
 ---
 
 ## 1. Blocking the next phase of work
 
-- **Windows display path still untested on real hardware.** CI proves the
-  binary compiles on `windows-latest`; nothing is known about the actual
-  WinUSB/Zadig driver conflict (§4.3), or whether Push advertises WCID/MS OS
-  descriptors (which would sidestep it). MIDI *has* now touched real Windows
-  hardware (below) — this is the remaining untested half.
-- **Resolved 2026-08-18: Windows MIDI port naming.** A real Windows user ran
-  the CI-built `pushapp.exe` and hit `no Push Live Port found among [...]` —
-  WinMM does not expose the USB MIDI jack strings CoreMIDI/ALSA read `"Live
-  Port"`/`"User Port"`/`"External Port"` from at all; it names the first cable
-  after the bare device name and only prefixes the others (`Ableton Push 3
-  MIDI`, `MIDIIN2 (Ableton Push 3 MIDI)`, `MIDIIN3 (...)`). `internal/midi`'s
-  name-based auto-detect can never match there, for Push 2 or Push 3 alike —
-  not a per-device quirk, so no separate Push-2 case was needed. Fixed with a
-  manual escape hatch rather than a naming heuristic: `pmidi.ListInPorts` /
-  `OpenNamed`, wired into `cmd/pushapp-ui` as a port-picker view
-  (`hostmanager.go`, `pushservice.go`, `frontend/src/main.ts`'s
-  `connect-view`) that only appears when auto-detect fails. Confirmed on
-  macOS: auto-detect still succeeds, the picker never shows. **Not yet
-  confirmed on real Windows hardware** — the reporting user hasn't retested
-  with this fix.
+- **Resolved 2026-08-18: Windows display path confirmed on real hardware.**
+  `pushapp-ui` run in a Windows 11 VM with a real Push 3 attached via USB
+  passthrough — display, MIDI, and the full app all worked end to end
+  (`-static` `CGO_LDFLAGS` + bundled libusb DLL, per
+  [docs/platform/windows.md](../docs/platform/windows.md)). No WinUSB/Zadig
+  conflict encountered; whether Push advertises WCID/MS OS descriptors
+  specifically was not investigated since the plain path already worked.
+- **Resolved 2026-08-18: Windows MIDI port naming, now confirmed on real
+  hardware.** A real Windows user ran the CI-built `pushapp.exe` and hit `no
+  Push Live Port found among [...]` — WinMM does not expose the USB MIDI jack
+  strings CoreMIDI/ALSA read `"Live Port"`/`"User Port"`/`"External Port"`
+  from at all; it names the first cable after the bare device name and only
+  prefixes the others (`Ableton Push 3 MIDI`, `MIDIIN2 (Ableton Push 3
+  MIDI)`, `MIDIIN3 (...)`). `internal/midi`'s name-based auto-detect can
+  never match there, for Push 2 or Push 3 alike — not a per-device quirk, so
+  no separate Push-2 case was needed. Fixed with a manual escape hatch rather
+  than a naming heuristic: `pmidi.ListInPorts` / `OpenNamed`, wired into
+  `cmd/pushapp-ui` as a port-picker view (`hostmanager.go`, `pushservice.go`,
+  `frontend/src/main.ts`'s `connect-view`) that only appears when auto-detect
+  fails. Confirmed on macOS: auto-detect still succeeds, the picker never
+  shows. **Confirmed 2026-08-18 on the Windows 11 VM above** — MIDI connected
+  successfully as part of the same end-to-end run.
 - **New: no disconnect detection.** Unplugging Push mid-session leaves
   `cmd/pushapp-ui` reporting the last-active module ("Active: ...") against a
   dead port — found live while testing the port-picker fix above.
@@ -46,13 +52,12 @@ Never fold anything back into `docs/archive/feasibility.md` itself.
   `-module <id>` flag that runs with no window at all, but if the UI and the
   headless path drift apart, Fyne/Gio (already the documented fallback) needs
   revisiting.
-- **Resolved 2026-08-18: CI now builds `cmd/pushapp-ui` too.**
-  `.github/workflows/build.yml` runs `wails3 build` for it on all three OSes,
-  reusing the same job's core/ checkout and per-OS lib installs (plus
-  `webkit2gtk-4.1-dev`, newly added for Linux, and the `wails3`
-  CLI/Node/npm setup). See `plans/2026-08-17-ci-for-pushapp-ui.md`. **Not yet
-  confirmed green on an actual GitHub Actions run** — written and sanity
-  checked locally, not pushed through real CI yet.
+- **Resolved 2026-08-18: CI now builds `cmd/pushapp-ui` too, confirmed
+  green.** `.github/workflows/build.yml` runs `wails3 build` for it on all
+  three OSes, reusing the same job's core/ checkout and per-OS lib installs
+  (plus `webkit2gtk-4.1-dev`, newly added for Linux, and the `wails3`
+  CLI/Node/npm setup). See `plans/2026-08-17-ci-for-pushapp-ui.md`. Confirmed
+  running and green on a real GitHub Actions run.
 
 ## 2. Needs discovery/exploration
 

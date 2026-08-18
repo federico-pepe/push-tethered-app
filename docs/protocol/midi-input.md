@@ -112,4 +112,4 @@ Full map: [hardware-reference.md](../hardware-reference.md).
 - User Port / External Port roles
 - Push 2 arrow down/right CCs (expected 46/47/44/45)
 
-See [open-questions.md](../open-questions.md).
+See [plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md).

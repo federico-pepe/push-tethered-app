@@ -10,7 +10,7 @@ first for anything beyond the safety rules and pointers below.
 > update; skip internal refactors and trivial edits. When you do update, keep
 > it in the same commit as the change. New protocol fact → `docs/protocol/`;
 > resolved open question → fold into docs and delete from
-> [docs/open-questions.md](docs/open-questions.md).
+> [plans/2026-08-18-open-items.md](plans/2026-08-18-open-items.md).
 >
 > **Plans live in `plans/`**, one file per plan, named
 > `YYYY-MM-DD-name-of-the-plan.md`. `docs/` holds durable reference (protocol
@@ -46,7 +46,7 @@ is **closed** — reasoning trail only, don't plan against it.
   build/contribute, protocol facts)
 - [docs/protocol/usb-and-safety.md](docs/protocol/usb-and-safety.md) — before
   any hardware interaction
-- [docs/open-questions.md](docs/open-questions.md) — what's still unresolved
+- [plans/2026-08-18-open-items.md](plans/2026-08-18-open-items.md) — what's still unresolved
 - [docs/archive/feasibility.md](docs/archive/feasibility.md) — frozen, the
   original protocol evidence and stack rationale (don't edit)
 
@@ -194,14 +194,15 @@ and [docs/architecture/stack-and-layout.md](docs/architecture/stack-and-layout.m
   explicitly: report "Live owns the display" and degrade, don't crash.
 - **Windows MIDI input port naming** doesn't expose jack strings the way
   CoreMIDI/ALSA do — name-based auto-detect can't work there. Fixed with a
-  manual port picker, not yet confirmed on real Windows hardware. Detail:
+  manual port picker, confirmed 2026-08-18 on real Push 3 hardware (Windows
+  11 VM + USB passthrough). Detail:
   [docs/platform/windows.md](docs/platform/windows.md).
 - **No disconnect detection** — unplugging Push mid-session leaves
   `cmd/pushapp-ui` reporting a dead port. See
-  [docs/open-questions.md](docs/open-questions.md).
+  [plans/2026-08-18-open-items.md](plans/2026-08-18-open-items.md).
 - **Channel convention: 1-16 at every API in this repo**, converted to the
   wire's 0-15 inside `midiout`.
 
 Full list, including Push 2/3 deltas and unmeasured items:
-[docs/open-questions.md](docs/open-questions.md),
+[plans/2026-08-18-open-items.md](plans/2026-08-18-open-items.md),
 [docs/protocol/push2-vs-push3.md](docs/protocol/push2-vs-push3.md).
