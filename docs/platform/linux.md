@@ -63,4 +63,4 @@ for the original unknowns list, mostly closed by this test.
 ## Related
 
 - [guides/development-setup.md](../guides/development-setup.md)
-- [open-questions.md](../open-questions.md)
+- [plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md)

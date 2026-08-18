@@ -43,7 +43,7 @@ Platform-specific notes: [platform/macos.md](platform/macos.md),
 Historical measurements and stack rationale:
 [archive/feasibility.md](archive/feasibility.md) (frozen — do not edit).
 
-What's still unresolved: [open-questions.md](open-questions.md).
+What's still unresolved: [plans/2026-08-18-open-items.md](../plans/2026-08-18-open-items.md).
 
 ## Doc tiers
 

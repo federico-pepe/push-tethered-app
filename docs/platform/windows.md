@@ -1,6 +1,6 @@
 # Windows
 
-**Status:** partially verified  
+**Status:** verified on real hardware (VM + USB passthrough)  
 **Last verified:** 2026-08-18  
 
 ## Setup
@@ -13,9 +13,11 @@ See [guides/development-setup.md](../guides/development-setup.md).
 
 ## Display / USB
 
-**Still untested on real Windows hardware.** CI compiles the binary; WinUSB/Zadig
-driver conflicts and WCID descriptors are unknown. MIDI has been exercised on
-real hardware; display has not.
+**Confirmed 2026-08-18** in a Windows 11 VM with a real Push 3 attached via
+USB passthrough: `pushapp-ui` ran end to end, display and MIDI both working.
+No WinUSB/Zadig driver conflict encountered; whether Push advertises WCID/MS
+OS descriptors specifically was not investigated since the plain path already
+worked.
 
 ## MIDI input — port naming
 
@@ -34,8 +36,9 @@ name — manual picking failed with `can't find MIDI output port for ...`.
 Fixed 2026-08-18: `OpenNamed` now falls back to matching the output cable by
 *position* among Push-named ports (same index as the chosen input among
 Push-named inputs), since both lists enumerate in the device's own cable
-order. Confirmed against a real Windows report; not yet re-verified by that
-user after the fix.
+order. Confirmed against a real Windows report, and re-verified 2026-08-18
+against real Push 3 hardware (VM + USB passthrough) — MIDI connected
+successfully as part of that end-to-end run.
 
 ## MIDI output
 
@@ -76,7 +79,8 @@ produces `0xc000007b` (`STATUS_INVALID_IMAGE_FORMAT`) instead — confirmed
 `libusb-1.dll`/`libwinpthread-1.dll`. The fix is to make the exe not need
 external copies of these DLLs at all.
 
-Fix, applied 2026-08-18 in response to that VM report — not yet re-verified:
+Fix, applied 2026-08-18 in response to that VM report and confirmed working
+the same day against real Push 3 hardware (same VM + USB passthrough):
 
 - `libgcc_s_seh-1.dll` / `libstdc++-6.dll` / `libwinpthread-1.dll`:
   static-link with `CGO_LDFLAGS="-static"` (a plain `-static-libgcc
@@ -104,5 +108,5 @@ An installer would bundle this automatically; until then, ship the DLL by hand.
 
 ## Related
 
-- [open-questions.md](../open-questions.md) — Windows display untested
+- [plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md) — remaining open items
 - [architecture/module-host.md](../architecture/module-host.md) — MIDI out model

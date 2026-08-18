@@ -64,7 +64,7 @@ tools/ledtest.swift    # macOS LED sweep (Swift, not part of build)
 
 - Button-LED brightness fidelity vs sent values
 - LED contention when Live and `pushapp` both drive pads (see
-  [open-questions.md](../open-questions.md))
+  [plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md))
 
 ## Related
 
