@@ -1,7 +1,17 @@
 version: '3'
 
 vars:
+  # APP_NAME is the *binary* name (bin/pushapp-ui, pushapp-ui.exe). Keep it a
+  # plain lowercase slug: it becomes the Linux binary at /usr/local/bin, the
+  # nfpm package name, and the path CI's upload-artifact globs.
   APP_NAME: "pushapp-ui"
+  # BUNDLE_NAME is the user-facing name, used only for the macOS .app/.dmg.
+  # The Wails template used APP_NAME for both, which is why `wails3 package`
+  # produced "pushapp-ui.app" — the one place the product name wasn't already
+  # showing through (Linux's .desktop Name= and Windows' NSIS DisplayName both
+  # come from config.yml's productName and were already right).
+  # Must match productName in build/config.yml.
+  BUNDLE_NAME: "Push Tethered App"
   BIN_DIR: "bin"
   PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
