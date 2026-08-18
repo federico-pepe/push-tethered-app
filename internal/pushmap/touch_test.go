@@ -7,7 +7,7 @@ import (
 )
 
 // TestMeasuredTouchNotes pins the values measured on tethered hardware
-// (docs/feasibility.md §8.8, §12). These now come from core/push3, which was
+// (docs/archive/feasibility.md §8.8, §12). These now come from core/push3, which was
 // corrected upstream on 2026-08-16 — this test guards against a regression
 // there, since a silent revert would be hard to spot from this side.
 func TestMeasuredTouchNotes(t *testing.T) {

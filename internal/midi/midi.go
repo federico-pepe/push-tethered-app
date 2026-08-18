@@ -4,7 +4,7 @@
 // to the OS class driver — that binding is exactly why the CoreMIDI/ALSA ports
 // exist. Claiming it over libusb would take Push's MIDI away from the DAW,
 // which is full-ownership mode. In co-existence mode we must go through the OS.
-// See docs/feasibility.md §6.1a.
+// See docs/archive/feasibility.md §6.1a.
 //
 // Decoding rule that matters: **branch on channel before CC**. Push 2 assigns
 // CC 71-79 to the nine encoders, and CC 71/74 are also MPE timbre controllers.
@@ -212,22 +212,55 @@ func (p *Port) Device() pushmap.Device { return p.dev }
 // Name returns the MIDI port this connection uses.
 func (p *Port) Name() string { return p.name }
 
-// Open connects to Push's Live Port for both input and LED output.
-func Open() (*Port, error) {
-	var inNames []string
+// ListInPorts returns the name of every MIDI input port the OS currently
+// sees, Push or not. Exists so a caller that can't auto-detect the Live port
+// (§ Windows naming below) can offer the user a manual pick.
+func ListInPorts() []string {
+	var names []string
 	for _, p := range gm.GetInPorts() {
-		inNames = append(inNames, p.String())
+		names = append(names, p.String())
 	}
-	name, err := findPortName(inNames)
+	return names
+}
+
+// Open connects to Push's Live Port for both input and LED output, guessing
+// which port that is by name.
+//
+// The guess is unreliable on Windows: CoreMIDI and ALSA read the "Live
+// Port"/"User Port"/"External Port" strings straight from the device's own
+// USB MIDI jack descriptors, but WinMM does not expose jack strings at all —
+// it names the first cable after the bare device name and prefixes only the
+// others ("Ableton Push 3 MIDI", "MIDIIN2 (Ableton Push 3 MIDI)", "MIDIIN3
+// (...)"), so livePortSuffix never matches there. Found 2026-08-18 from a
+// real Windows report. OpenNamed exists as the escape hatch — a caller with
+// no better guess should list ListInPorts() and let the user pick.
+func Open() (*Port, error) {
+	name, err := findPortName(ListInPorts())
 	if err != nil {
 		return nil, err
 	}
+	return OpenNamed(name)
+}
 
+// OpenNamed connects to the given MIDI port by name for input, and to the
+// matching output cable for LED output, skipping the Live-port guess Open
+// makes. Use when the caller already knows which port is Push's Live port —
+// typically because the user picked it, after Open's heuristic failed.
+//
+// The output lookup is NOT a literal name match: on Windows (WinMM), in and
+// out cables of the same device are numbered independently and never share a
+// string — "MIDIIN2 (Ableton Push 3 MIDI)" has no output port named that.
+// Instead we find name's position among Push-named input ports and take the
+// Push-named output port at that same position, since both lists are
+// enumerated in the device's own cable order. On CoreMIDI/ALSA, where in/out
+// names do match exactly, this still picks the right port — it's just also
+// position-consistent there.
+func OpenNamed(name string) (*Port, error) {
 	in, err := gm.FindInPort(name)
 	if err != nil {
 		return nil, fmt.Errorf("opening MIDI in %q: %w", name, err)
 	}
-	out, err := gm.FindOutPort(name)
+	out, err := findMatchingOutPort(name)
 	if err != nil {
 		return nil, fmt.Errorf("opening MIDI out %q: %w", name, err)
 	}
@@ -237,6 +270,46 @@ func Open() (*Port, error) {
 	}
 	return &Port{in: in, out: out, send: send, name: name,
 		dev: pushmap.DeviceFromPortName(name)}, nil
+}
+
+// findMatchingOutPort finds the output cable that corresponds to the named
+// input cable. Tries an exact name match first (the common case on
+// CoreMIDI/ALSA, and cheap to confirm), then falls back to matching by
+// position among Push-named ports — see OpenNamed's WinMM note.
+func findMatchingOutPort(inName string) (drivers.Out, error) {
+	if out, err := gm.FindOutPort(inName); err == nil {
+		return out, nil
+	}
+
+	ins := gm.GetInPorts()
+	idx := -1
+	pos := 0
+	for _, p := range ins {
+		if !strings.Contains(p.String(), "Push") {
+			continue
+		}
+		if p.String() == inName {
+			idx = pos
+			break
+		}
+		pos++
+	}
+	if idx == -1 {
+		return nil, fmt.Errorf("no Push output port matches %q", inName)
+	}
+
+	outs := gm.GetOutPorts()
+	pos = 0
+	for _, p := range outs {
+		if !strings.Contains(p.String(), "Push") {
+			continue
+		}
+		if pos == idx {
+			return p, nil
+		}
+		pos++
+	}
+	return nil, fmt.Errorf("no Push output port matches %q", inName)
 }
 
 // Listen starts delivering decoded events to fn until Close.

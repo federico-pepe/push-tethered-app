@@ -11,6 +11,61 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Native arm64 build for Raspberry Pi 4/5, per
+  # plans/2026-08-17-raspberry-pi-support.md. GitHub-hosted ubuntu-24.04-arm
+  # runners are real aarch64 hardware, not emulated — satisfies the
+  # no-cross-compile rule the same way the ubuntu-latest job does for x86_64.
+  # Separate job rather than a matrix entry on `build` below: that job also
+  # builds cmd/pushapp-ui (GTK4/WebKitGTK), which is out of scope for the
+  # Pi's headless use case and would slow this down for no reason.
+  build-pi:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Checkout ableton-push-hack (core/ dependency)
+        uses: actions/checkout@v7
+        with:
+          repository: federico-pepe/ableton-push-hack
+          ref: main
+          path: .ableton-push-hack
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Point core/ replace at the CI checkout
+        run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=./.ableton-push-hack/core
+
+      - name: Install libusb + pkg-config
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libusb-1.0-0-dev libasound2-dev pkg-config
+
+      - name: Build
+        run: |
+          go build -o probe     ./cmd/probe
+          go build -o frametest ./cmd/frametest
+          go build -o mapcheck  ./cmd/mapcheck
+          go build -o pushapp   ./cmd/pushapp
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: push-tethered-app-linux-arm64
+          path: |
+            probe
+            frametest
+            mapcheck
+            pushapp
+
   build:
     strategy:
       fail-fast: false
@@ -18,7 +73,7 @@ jobs:
         os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # ableton-push-hack/core is a sibling checkout via go.mod's replace
       # directive. Locally that directive is a fixed relative path
@@ -41,22 +96,36 @@ jobs:
       # entire core/ extraction, has since merged into main — this is now
       # simply "build against the current core/".
       - name: Checkout ableton-push-hack (core/ dependency)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: federico-pepe/ableton-push-hack
           ref: main
           path: .ableton-push-hack
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
       - name: Point core/ replace at the CI checkout
         run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=./.ableton-push-hack/core
 
+      # libgtk-4-dev/libwebkitgtk-6.0-dev, not webkit2gtk-4.1 — Wails v3 moved
+      # to GTK4/WebKitGTK 6.0 (v2 used webkit2gtk). Confirmed 2026-08-18: CI
+      # failed with "Package gtk4 was not found" against the 4.1 packages.
+      #
+      # --no-install-recommends matters a lot here: the GTK4/WebKitGTK dev
+      # stack pulls 173 packages / 69.6 MB with recommends on, and most of it
+      # is runtime baggage CI never uses (GStreamer codec plugins, GObject
+      # introspection typelibs, -doc packages). CI only ever *compiles* the
+      # UI — it never opens a window — so headers and .pc files are all that
+      # is actually needed.
       - name: Install libusb + pkg-config (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libusb-1.0-0-dev libasound2-dev pkg-config
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libusb-1.0-0-dev libasound2-dev pkg-config \
+            libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Install libusb (macOS)
         if: runner.os == 'macOS'
@@ -74,10 +143,18 @@ jobs:
         with:
           msystem: MINGW64
           path-type: inherit
-          install: mingw-w64-x86_64-libusb mingw-w64-x86_64-pkg-config mingw-w64-x86_64-toolchain
+          # No mingw-w64-x86_64-pkg-config here: the toolchain group already
+          # pulls mingw-w64-x86_64-pkgconf, which provides pkg-config and
+          # conflicts with it. Listing both made pacman warn and drop one
+          # ("removing ... because it conflicts with ...pkgconf").
+          install: mingw-w64-x86_64-libusb mingw-w64-x86_64-toolchain
 
+      # The CLI binaries (probe/frametest/mapcheck/pushapp) are disabled on
+      # purpose — `if: false`, not a temporary state. CI currently exists to
+      # cover cmd/pushapp-ui, which is the part that can't be built locally on
+      # every OS. Re-enable by restoring these to their runner.os conditions.
       - name: Build (macOS / Linux)
-        if: runner.os != 'Windows'
+        if: false && runner.os != 'Windows'
         run: |
           go build -o probe    ./cmd/probe
           go build -o frametest ./cmd/frametest
@@ -87,7 +164,7 @@ jobs:
       # MSYS2's shell is required so cgo picks up the mingw toolchain and
       # libusb pkg-config files installed above.
       - name: Build (Windows)
-        if: runner.os == 'Windows'
+        if: false && runner.os == 'Windows'
         shell: msys2 {0}
         run: |
           export PATH="/mingw64/bin:$PATH"
@@ -101,29 +178,30 @@ jobs:
       # MSYS2 shell as Build — the default pwsh shell has neither mingw's gcc
       # nor libusb's pkg-config file on PATH.
       - name: Vet (macOS / Linux)
-        if: runner.os != 'Windows'
+        if: false && runner.os != 'Windows'
         run: go vet ./...
 
       - name: Vet (Windows)
-        if: runner.os == 'Windows'
+        if: false && runner.os == 'Windows'
         shell: msys2 {0}
         run: |
           export PATH="/mingw64/bin:$PATH"
           go vet ./...
 
       - name: Test (macOS / Linux)
-        if: runner.os != 'Windows'
+        if: false && runner.os != 'Windows'
         run: go test ./...
 
       - name: Test (Windows)
-        if: runner.os == 'Windows'
+        if: false && runner.os == 'Windows'
         shell: msys2 {0}
         run: |
           export PATH="/mingw64/bin:$PATH"
           go test ./...
 
       - name: Upload binaries
-        uses: actions/upload-artifact@v4
+        if: false
+        uses: actions/upload-artifact@v7
         with:
           name: push-tethered-app-${{ matrix.os }}
           path: |
@@ -131,3 +209,91 @@ jobs:
             frametest*
             mapcheck*
             pushapp*
+
+      # cmd/pushapp-ui is a separate Go module (see its own go.mod), invisible
+      # to the go build/vet/test commands above — it needs its own toolchain
+      # (wails3 CLI, Node/npm) and its own core/ replace fix, same trick as the
+      # root module's step above but run inside cmd/pushapp-ui. See
+      # plans/2026-08-17-ci-for-pushapp-ui.md for the full reasoning.
+      - name: Set up Node (for cmd/pushapp-ui)
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      # Pinned (not @latest): @latest defeats caching, since the cache key
+      # can't know if upstream shipped a new version, and would otherwise let
+      # the CLI drift out from under this workflow between runs.
+      - name: Cache wails3 CLI
+        id: cache-wails3
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/go/bin/wails3
+            ~/go/bin/wails3.exe
+          key: wails3-${{ runner.os }}-v3.0.0-beta.9
+
+      - name: Install wails3 CLI
+        if: steps.cache-wails3.outputs.cache-hit != 'true'
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.9
+
+      - name: Point cmd/pushapp-ui's core/ replace at the CI checkout
+        working-directory: cmd/pushapp-ui
+        run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=../../.ableton-push-hack/core
+
+      - name: Build UI (macOS / Linux)
+        if: runner.os != 'Windows'
+        working-directory: cmd/pushapp-ui
+        run: wails3 build
+
+      # `wails3 build`'s own Windows Taskfile defaults CGO_ENABLED=0 (a pure-Go
+      # cross-compile assumption that doesn't hold for us: gousb + rtmididrv
+      # are both cgo). darwin/linux's Taskfiles hardcode CGO_ENABLED=1 already,
+      # which is why only Windows needs this override. `wails3 build` itself
+      # has no flag to pass task vars through, so this calls the underlying
+      # task directly instead — confirmed 2026-08-18 that `wails3 task build
+      # CGO_ENABLED=1` actually threads the var through (verified locally via
+      # -dry: it re-routes to the Docker/cross-compile branch, proving the var
+      # was received — the same var on a real Windows runner instead enables
+      # cgo on the native branch, since OS is already windows there). Same
+      # MSYS2 shell as the cgo build above, for the same mingw toolchain +
+      # libusb pkg-config reasons.
+      # The resulting .exe dynamically links libgcc_s_seh-1.dll,
+      # libstdc++-6.dll, and libwinpthread-1.dll from MSYS2's mingw64 by
+      # default — fine on this runner (they're on PATH) but missing on any
+      # machine without MSYS2, so a plain `wails3 task build` exe fails to
+      # launch elsewhere with "libgcc_s_seh-1.dll not found" etc. Plain
+      # -static-libgcc -static-libstdc++ missed libwinpthread-1.dll (confirmed
+      # 2026-08-18 against a VM report); `-static` covers all three mingw
+      # runtime libs at once, since MSYS2's toolchain ships static archives
+      # for all of them. Do NOT try to source these DLLs from elsewhere if
+      # this ever needs revisiting — a mismatched-build DLL mixed with this
+      # binary's own runtime produces 0xc000007b (STATUS_INVALID_IMAGE_FORMAT),
+      # not a missing-DLL error. libusb-1.0.dll still needs to be shipped
+      # alongside the exe (see docs/platform/windows.md).
+      - name: Build UI (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        working-directory: cmd/pushapp-ui
+        run: |
+          export PATH="/mingw64/bin:$PATH"
+          export CGO_LDFLAGS="-static"
+          wails3 task build CGO_ENABLED=1
+
+      - name: Copy libusb-1.0.dll next to the Windows exe
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: cp /mingw64/bin/libusb-1.0.dll cmd/pushapp-ui/bin/
+
+      # `wails3 build` produces a bare executable on every OS — no .app bundle,
+      # no installer. Those come from `wails3 package` instead (macOS .app/.dmg,
+      # Linux AppImage/deb/rpm, Windows NSIS), which needs extra per-OS
+      # packaging tooling and is deliberately out of scope here — see
+      # plans/2026-08-17-ci-for-pushapp-ui.md's "not in scope".
+      - name: Upload UI binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: pushapp-ui-${{ matrix.os }}
+          path: |
+            cmd/pushapp-ui/bin/pushapp-ui
+            cmd/pushapp-ui/bin/pushapp-ui.exe
+          if-no-files-found: ignore

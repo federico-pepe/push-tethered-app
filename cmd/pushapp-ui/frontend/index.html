@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+    <link rel="stylesheet" href="/style.css"/>
+    <title>Push Tethered App</title>
+</head>
+<body>
+<main class="container">
+    <header class="brand">
+        <div class="brand-row">
+            <h1 class="title">Push Tethered App</h1>
+            <button id="install-btn" class="install-btn">Install&hellip;</button>
+        </div>
+        <p class="subtitle" id="status">Loading modules&hellip;</p>
+    </header>
+
+    <section class="connect-view" id="connect-view" hidden>
+        <p class="connect-hint">
+            Couldn't find Push's Live MIDI port automatically. Pick it from the
+            list below — it's usually the one whose name mentions "Push".
+        </p>
+        <ul class="port-list" id="port-list" aria-label="MIDI input ports"></ul>
+        <button id="retry-btn" class="retry-btn">Retry auto-detect</button>
+    </section>
+
+    <ul class="module-list" id="module-list" aria-label="Modules"></ul>
+</main>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

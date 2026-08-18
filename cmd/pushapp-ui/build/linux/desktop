@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=Push Tethered App
+Comment=Module host for Ableton Push 2/3 in tethered mode
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/pushapp-ui %u
+Terminal=false
+Type=Application
+Icon=pushapp-ui
+Categories=Utility;
+StartupWMClass=pushapp-ui
+
+ 
