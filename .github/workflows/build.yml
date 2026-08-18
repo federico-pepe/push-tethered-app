@@ -18,7 +18,7 @@ jobs:
         os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # ableton-push-hack/core is a sibling checkout via go.mod's replace
       # directive. Locally that directive is a fixed relative path
@@ -41,13 +41,13 @@ jobs:
       # entire core/ extraction, has since merged into main — this is now
       # simply "build against the current core/".
       - name: Checkout ableton-push-hack (core/ dependency)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: federico-pepe/ableton-push-hack
           ref: main
           path: .ableton-push-hack
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
@@ -88,12 +88,16 @@ jobs:
         with:
           msystem: MINGW64
           path-type: inherit
-          install: mingw-w64-x86_64-libusb mingw-w64-x86_64-pkg-config mingw-w64-x86_64-toolchain
+          # No mingw-w64-x86_64-pkg-config here: the toolchain group already
+          # pulls mingw-w64-x86_64-pkgconf, which provides pkg-config and
+          # conflicts with it. Listing both made pacman warn and drop one
+          # ("removing ... because it conflicts with ...pkgconf").
+          install: mingw-w64-x86_64-libusb mingw-w64-x86_64-toolchain
 
-      # Temporarily disabled (if: false) to isolate the new pushapp-ui CI job
-      # below on a real run without waiting on the CLI build/vet/test too.
-      # Flip these back to their runner.os conditions once the UI job is
-      # confirmed green.
+      # The CLI binaries (probe/frametest/mapcheck/pushapp) are disabled on
+      # purpose — `if: false`, not a temporary state. CI currently exists to
+      # cover cmd/pushapp-ui, which is the part that can't be built locally on
+      # every OS. Re-enable by restoring these to their runner.os conditions.
       - name: Build (macOS / Linux)
         if: false && runner.os != 'Windows'
         run: |
@@ -142,7 +146,7 @@ jobs:
 
       - name: Upload binaries
         if: false
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: push-tethered-app-${{ matrix.os }}
           path: |
@@ -157,9 +161,9 @@ jobs:
       # root module's step above but run inside cmd/pushapp-ui. See
       # plans/2026-08-17-ci-for-pushapp-ui.md for the full reasoning.
       - name: Set up Node (for cmd/pushapp-ui)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install wails3 CLI
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
@@ -199,7 +203,7 @@ jobs:
       # packaging tooling and is deliberately out of scope here — see
       # plans/2026-08-17-ci-for-pushapp-ui.md's "not in scope".
       - name: Upload UI binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pushapp-ui-${{ matrix.os }}
           path: |
