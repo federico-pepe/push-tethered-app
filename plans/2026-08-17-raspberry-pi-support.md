@@ -1,6 +1,8 @@
 # Raspberry Pi support
 
-**Status: open, parked for later.** No hardware tried yet.
+**Status: closed 2026-08-18, confirmed on Pi 5 hardware.** Full detail in
+[docs/platform/linux.md](../docs/platform/linux.md)'s Raspberry Pi section.
+Kept here as reasoning trail — see that doc for the current facts.
 
 ## Context
 
@@ -89,3 +91,35 @@ by hand.
    architecture generally.
 6. Record results in `docs/archive/feasibility.md`, following the same "measured, not
    inferred" standard as the macOS/Linux sections.
+
+## Results, 2026-08-18
+
+Tested on a **Pi 5** (Debian 13 "trixie", 64-bit arm64), not Pi 4. Answers to
+the five "known unknowns" above:
+
+1. **Go toolchain.** Sidestepped rather than answered — no Go installed on
+   the Pi at all. Built natively on GitHub's `ubuntu-24.04-arm` hosted runner
+   instead (a new `build-pi` CI job) and copied the resulting binaries over.
+   Real aarch64 hardware, not emulated, so this satisfies the same
+   no-cross-compile rule the per-OS CI matrix already relies on — and means
+   Pi OS's `apt` Go version never matters.
+2. **64-bit confirmed.** Already running Pi OS 64-bit; not tested on 32-bit,
+   still not recommended.
+3. **Frame rate: not a problem.** `frametest` held 29.9fps, `pushapp`'s
+   monitor module held 29.8fps — both effectively identical to the confirmed
+   macOS/Windows numbers. `ToBGR565`'s per-pixel cost was the suspected
+   bottleneck and did not materialize as one on Pi 5's CPU.
+4. **USB behaviour: clean.** `probe` enumerated Push 3 with all 7 interfaces
+   correctly; `frametest` and `pushapp` both claimed interface 0 without
+   incident once the udev rule existed. One thing *not* pre-existing on a
+   fresh Pi OS install: the udev rule from
+   [docs/platform/linux.md](../docs/platform/linux.md) had to be created by
+   hand — first `frametest` run failed `LIBUSB_ERROR_ACCESS`, exactly the
+   failure mode that doc predicts, and needed a physical replug afterward
+   (the doc's other documented gotcha) before it took effect.
+5. **Power margin.** Not an issue in this test — no flakiness observed. Still
+   unmeasured under heavier peripheral load.
+
+Not tested: Pi 4 specifically, multi-hour endurance, headless kiosk `-module`
+flag under real use, Wails/webkit2gtk on Pi (deliberately out of scope — see
+`docs/platform/linux.md`'s note that `build-pi` skips `cmd/pushapp-ui`).

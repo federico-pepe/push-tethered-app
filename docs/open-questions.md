@@ -65,10 +65,17 @@ Never fold anything back into `docs/archive/feasibility.md` itself.
   next step is a USB-level capture on whichever OS Live actually runs on —
   Wireshark + USBPcap on Windows is the more realistic path than anything
   Linux-side. Still not done.
-- **Raspberry Pi 4/5 — zero hardware testing.** `plans/2026-08-17-raspberry-pi-support.md`
-  lists five concrete unknowns (Go toolchain version on Pi OS, 64-bit vs
-  32-bit, sustained frame rate on a weaker CPU, USB controller behavior, power
-  margin) and a build recipe, but nothing has been run on an actual Pi yet.
+- **Resolved 2026-08-18: Raspberry Pi 5 confirmed on real hardware.** Native
+  arm64 build (via a new `build-pi` CI job, see below) copied to a Pi 5
+  (Debian 13 "trixie", 64-bit) running `cmd/probe`, `cmd/frametest`, and
+  `cmd/pushapp -fps 30` against a real Push 3. Push 3 enumerated cleanly,
+  `frametest` held a steady 29.9fps test pattern with correct colours, and
+  `pushapp`'s monitor module ran at 29.8fps with pads/log/LEDs all confirmed
+  working by eye — same udev-rule + replug steps as the Linux doc already
+  documented were required (no rule existed yet on this box). `ToBGR565`'s
+  per-pixel cost (§9.3/§3 below) is not a bottleneck on Pi 5's CPU. **Pi 4
+  still untested** — expected to behave the same per
+  `plans/2026-08-17-raspberry-pi-support.md`, but not measured.
 - **LED contention when Live and `pushapp` both hold the device at once —
   newly found 2026-08-17, needs follow-up.** Two scenarios tested:
   - Live launched first, then `pushapp` run: claim fails cleanly with
@@ -142,5 +149,10 @@ Never fold anything back into `docs/archive/feasibility.md` itself.
 - **No `core/push2` package needed, and none is planned.** `ableton-push-hack`
   targets Push 3 standalone only; Push 2 support belongs to this repo, and
   `internal/pushmap/push2.go` is exactly where it should live.
-- **CI arm64 Linux runner** — not added. Worth adding only after a Raspberry Pi
-  build is manually confirmed once (per the Pi plan's own sequencing).
+- **Resolved 2026-08-18: CI arm64 Linux runner added.** `build-pi` job in
+  `.github/workflows/build.yml` runs on `ubuntu-24.04-arm` — a real aarch64
+  GitHub-hosted runner, not emulated, so it satisfies the no-cross-compile
+  rule the same way `ubuntu-latest` does for x86_64. Builds/vets/tests
+  `cmd/pushapp` + friends; does not build `cmd/pushapp-ui` (GTK4/WebKitGTK is
+  out of scope for the Pi's headless kiosk use case). Confirmed available on
+  this repo's plan (private, personal account) — green on first run.
