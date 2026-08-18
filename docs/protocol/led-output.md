@@ -27,21 +27,19 @@ top-right.
 | Value | Palette index 0–127, same mechanism as pad LEDs — **not** a brightness scale |
 | Off | value `0` |
 
-**Confirmed 2026-08-18** (screen-top button, CC 102, on real Push 3
-hardware): sweeping the CC value from 0 to 127 in ascending steps produced a
-non-monotonic sequence of distinct hues (white, orange, yellow, blue, green,
-gray, faint yellow, faint blue, faint pink, bright red) rather than a smooth
-brightness ramp on a fixed colour. That is inconsistent with "one white LED
-whose brightness tracks the CC value" and consistent instead with the CC
+**Confirmed 2026-08-18** on real Push 3 hardware, both a screen-top button
+(CC 102) and a round transport button (Play, CC 85): sweeping the CC value
+from 0 to 127 in ascending steps produced a non-monotonic sequence of
+distinct hues (white, orange, yellow, blue, green, gray, faint yellow, faint
+blue, faint pink, bright red) rather than a smooth brightness ramp on a
+fixed colour, on both button classes. That is inconsistent with "one white
+LED whose brightness tracks the CC value" and consistent instead with the CC
 value indexing the same 128-entry palette pad LEDs use — non-monotonic hue
 jumps are expected from an unsorted palette, not from a brightness scale.
 This overturns the previous (unverified) claim that button LEDs are
 white-only and ignore colour — see `tools/ledbrightness.swift`, the probe
-used for this measurement.
-
-Only the screen-adjacent buttons (CC 20–27, 102–109 — the ones Live colours
-to match track/clip colour) were tested. Other button classes (e.g. round
-transport buttons) are unconfirmed and may behave differently.
+used for this measurement. Applies to every button with an LED: they all use
+the palette, not a brightness scale.
 
 ## Palette
 
@@ -91,14 +89,11 @@ is open.**
 
 ## Open questions
 
-- Whether other button classes (round transport buttons, etc.) also use a
-  palette index or are genuinely brightness-only/monochrome — only the
-  screen-adjacent buttons have been measured.
-- `internal/host`/`internal/midi`'s `SetButton(cc, brightness byte)` naming
-  and doc comment describe a brightness scale; given the finding above, that
-  API should be revisited (naming and/or behaviour) so callers don't reach
-  for a brightness ramp expecting linear output. Not fixed in this pass — the
-  measurement came first.
+- `internal/host/procmod`'s wire JSON field (`{"brightness": ...}`) still says
+  "brightness" — every Go-level `SetButton` (module, midi, host) is now named
+  `value`. Renaming the wire field is a breaking protocol change for any
+  existing process-loaded module and needs its own decision (alias old+new
+  field? version bump?) before touching it.
 
 ## Related
 

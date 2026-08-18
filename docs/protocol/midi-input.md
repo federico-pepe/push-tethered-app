@@ -26,16 +26,19 @@ Windows names ports differently from CoreMIDI/ALSA — see
 
 ## MPE
 
-MPE is on by default on Push 3 — **but not always consistently**:
+**Assume MPE is always on by default on Push 3.** Pad note-ons arrive on
+per-note channels 2–16, round-robining across them. Channel 1 all-pads
+behavior has been observed in the past on this same hardware with nothing
+deliberately changed, but a 2026-08-18 A/B (fresh session, reconnect-only,
+full power-cycle) never reproduced it — MPE stayed on and round-robining
+through all three. Given that, "always on" is the working assumption rather
+than something the decoder needs to detect and branch on.
 
-- Pad note-ons have been observed on channels 2–16 (per-note channels)
-- Separately, all pads on channel 1 have been observed
-- No identified trigger for the switch
+The decoder still handles channel 1 pads too (Push 2 has no MPE and always
+uses it), so nothing breaks if a Push 3 session ever does show up on channel
+1 — it's just not expected.
 
-**Handle both.** Channel 1 is always the control surface. Per-note pressure,
-CC 74 slide, and pitch bend arrive on the note's own channel.
-
-Still unmeasured: whether MPE can be disabled via SysEx.
+Not measured: whether MPE can be disabled via SysEx.
 
 ## Decode order
 
@@ -49,7 +52,7 @@ Still unmeasured: whether MPE can be disabled via SysEx.
 
 - 8×8 grid, notes **36** (bottom-left) to **99** (top-right)
 - Push 2: pads on channel 1 (no MPE)
-- Push 3: usually MPE (see above)
+- Push 3: MPE, assumed always on (see above)
 
 ## Encoders
 
@@ -108,7 +111,6 @@ Full map: [hardware-reference.md](../hardware-reference.md).
 
 ## Open questions
 
-- What triggers MPE on/off between sessions
 - User Port / External Port roles
 - Push 2 arrow down/right CCs (expected 46/47/44/45)
 

@@ -56,7 +56,9 @@ aarch64 GitHub-hosted runner) rather than installing a Go toolchain on the Pi
 itself; copy the resulting `pushapp`/`probe`/etc. binaries over and run them
 directly — libusb/ALSA runtime libs are already present on stock Pi OS.
 
-Pi 4 untested but expected identical (same rule, same arm64 target); see
+**Pi 4 is assumed to work identically (same rule, same arm64 target) and is
+not separately tested.** If it doesn't, that'll surface from real users
+rather than a dedicated test pass — see
 [plans/2026-08-17-raspberry-pi-support.md](../../plans/2026-08-17-raspberry-pi-support.md)
 for the original unknowns list, mostly closed by this test.
 
