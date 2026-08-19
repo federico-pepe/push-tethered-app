@@ -133,13 +133,19 @@ jobs:
       # introspection typelibs, -doc packages). CI only ever *compiles* the
       # UI — it never opens a window — so headers and .pc files are all that
       # is actually needed.
+      # GTK4/WebKitGTK alone pull ~157 packages / 61 MB (see the
+      # --no-install-recommends comment below) — that's the slow step in
+      # this job. Cached by this action: it snapshots the installed .debs
+      # keyed on the package list, so a cache hit restores + `dpkg -i`s them
+      # instead of re-downloading from the Ubuntu mirror every run. First
+      # run after this was added, or after the package list changes, still
+      # pays the full download.
       - name: Install libusb + pkg-config (Linux)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libusb-1.0-0-dev libasound2-dev pkg-config \
-            libgtk-4-dev libwebkitgtk-6.0-dev
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libusb-1.0-0-dev libasound2-dev pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+          version: 1.0
 
       - name: Install libusb (macOS)
         if: runner.os == 'macOS'
