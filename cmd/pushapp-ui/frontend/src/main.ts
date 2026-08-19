@@ -112,26 +112,38 @@ function renderPairing(
     const pairedDisplaySels = new Set(sessions.map((s) => s.displaySel).filter(Boolean));
     const pairedInNums = new Set(sessions.map((s) => s.midiIn.inNum));
 
-    usbListEl.innerHTML = "";
+    // Built off-DOM and swapped in with one replaceChildren call each, rather
+    // than clearing the list and repopulating it in place — the latter left
+    // both lists visibly empty for a frame on every 2s poll, a flicker the
+    // operator could see even though nothing had changed.
+    const usbRows: HTMLLIElement[] = [];
     for (const unit of units) {
         if (pairedDisplaySels.has(unit.id)) continue;
-        usbListEl.appendChild(renderUSBRow(unit, unitErrors[unit.id]));
+        usbRows.push(renderUSBRow(unit, unitErrors[unit.id]));
     }
-    if (usbListEl.children.length === 0) {
-        usbListEl.innerHTML = "<li class=\"pairing-detail\">No unpaired screens found.</li>";
+    if (usbRows.length === 0) {
+        const empty = document.createElement("li");
+        empty.className = "pairing-detail";
+        empty.textContent = "No unpaired screens found.";
+        usbRows.push(empty);
     }
+    usbListEl.replaceChildren(...usbRows);
 
-    midiListEl.innerHTML = "";
+    const midiRows: HTMLLIElement[] = [];
     for (const unit of midiUnits) {
         for (const port of (unit.ports ?? [])) {
             if (!port.isLive) continue; // only the Live cable identifies a connectable unit
             if (pairedInNums.has(port.inNum)) continue;
-            midiListEl.appendChild(renderMIDIRow(unit, port, unitErrors[unit.key]));
+            midiRows.push(renderMIDIRow(unit, port, unitErrors[unit.key]));
         }
     }
-    if (midiListEl.children.length === 0) {
-        midiListEl.innerHTML = "<li class=\"pairing-detail\">No unpaired MIDI ports found.</li>";
+    if (midiRows.length === 0) {
+        const empty = document.createElement("li");
+        empty.className = "pairing-detail";
+        empty.textContent = "No unpaired MIDI ports found.";
+        midiRows.push(empty);
     }
+    midiListEl.replaceChildren(...midiRows);
 
     pairBtn.disabled = globalBusy || selectedUSB === null || selectedMIDI === null;
     autoBtn.disabled = globalBusy;
@@ -291,10 +303,14 @@ async function autoConnect(): Promise<void> {
 }
 
 async function renderSessions(sessions: SessionInfo[]): Promise<void> {
-    sessionListEl.innerHTML = "";
-    for (const session of sessions) {
-        sessionListEl.appendChild(await renderSessionCard(session));
-    }
+    // Every card needs an awaited ListModules call, so clearing the list up
+    // front (as this used to) left it visibly empty for as long as those
+    // calls took — on every 2s poll, not just the first render. Build every
+    // card first, in parallel, and only then replace the list's contents in
+    // one atomic swap; the old cards stay on screen until the new ones are
+    // ready.
+    const cards = await Promise.all(sessions.map(renderSessionCard));
+    sessionListEl.replaceChildren(...cards);
 }
 
 async function renderSessionCard(session: SessionInfo): Promise<HTMLLIElement> {
