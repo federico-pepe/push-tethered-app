@@ -372,6 +372,17 @@ jobs:
       # Each actions/upload-artifact name becomes its own artifacts/<name>/
       # directory; zip each one so the release page offers one clean download
       # per platform instead of a pile of loose files.
+      # actions/download-artifact does not reliably preserve the executable
+      # bit an upload had — a known GitHub Actions limitation, not something
+      # this workflow's own zip step gets wrong. Confirmed live 2026-08-19:
+      # a Linux release download needed a manual `chmod +x` before pushapp-ui
+      # would run at all. Restore it on every non-Windows binary before
+      # re-zipping for the release page, so the shipped asset just works.
+      - name: Restore executable bit lost by download-artifact
+        working-directory: artifacts
+        run: |
+          find . -type f \( -name "pushapp-ui" -o -name "pushapp" -o -name "probe" -o -name "frametest" -o -name "mapcheck" \) -exec chmod +x {} +
+
       - name: Package artifacts
         working-directory: artifacts
         run: |
