@@ -1,7 +1,7 @@
 # Debugging
 
 **Status:** living guide  
-**Last verified:** 2026-08-18  
+**Last verified:** 2026-08-19  
 
 ## Golden rule
 
@@ -32,7 +32,27 @@ Protocol: [protocol/display.md](../protocol/display.md).
 go run ./cmd/midiouttest -list
 go run ./cmd/midiouttest -port "PushApp" -listen "PushApp"  # loopback test
 go run ./cmd/mapcheck      # cross-reference capture vs button map
+go run ./cmd/pushapp -devices   # every attached Push unit + MIDI cable, claims nothing
 ```
+
+## `pushapp-ui` log file
+
+`pushapp-ui` has no terminal of its own once launched by double-clicking the
+app — `log.Printf` output (including every line `internal/bootstrap` logs)
+goes to `<UserConfigDir>/push-tethered-app/logs/pushapp-ui.log` in addition
+to stderr, truncated fresh on each launch. Ask for this file, or its
+contents, when debugging a report from someone who isn't running the app
+from a terminal.
+
+## No local toolchain for a platform
+
+`.github/workflows/diagnostics.yml` (`gh workflow run diagnostics.yml`, or
+the Actions tab, `workflow_dispatch` only) builds
+`probe`/`frametest`/`mapcheck`/`pushapp`/`identifytest` natively per OS in
+about two minutes — no release tag needed. Used to get a raw `-devices` dump
+from a Windows machine and a Pi with no Go toolchain of its own; download
+the artifact for the OS in question and copy it over (`scp` to a Pi, a zip
+download for Windows/macOS/Linux).
 
 macOS-only Swift tools (not part of Go build):
 

@@ -1,7 +1,7 @@
 # Windows
 
 **Status:** verified on real hardware (VM + USB passthrough)  
-**Last verified:** 2026-08-18  
+**Last verified:** 2026-08-19  
 
 ## Setup
 
@@ -19,6 +19,22 @@ No WinUSB/Zadig driver conflict encountered; whether Push advertises WCID/MS
 OS descriptors specifically was not investigated since the plain path already
 worked.
 
+**Claiming one unit's display can make USB enumeration fail for that same
+unit** on real Windows hardware — confirmed 2026-08-19 by a real symptom:
+with two Push units attached, pairing one made the *other, completely
+unclaimed* unit disappear from `pushapp-ui`'s pairing view too. Root cause
+was a bug in `internal/display.enumerateUSB`, not the platform: it looped
+Push 3 then Push 2 and aborted the *entire* enumeration if one product
+model's every device failed to open — which happens once that device's
+display interface is claimed — losing the other, unrelated model's units
+along with it. Fixed by letting one model's failure skip ahead to the next
+rather than aborting; a caller only sees an error when nothing was found at
+all. Whether opening a *second* device-level handle to an
+interface-claimed device is what actually fails on Windows (as opposed to
+some other OS-specific enumeration behavior) was not independently
+confirmed — the loop bug was the reproducible, code-provable part, and
+fixing it resolved the live symptom regardless of the deeper cause.
+
 ## MIDI input — port naming
 
 WinMM does **not** expose USB jack strings like CoreMIDI/ALSA. Push ports appear as:
@@ -29,16 +45,44 @@ WinMM does **not** expose USB jack strings like CoreMIDI/ALSA. Push ports appear
 Name-based auto-detect cannot match `"Live Port"`. **Escape hatch:** manual port
 selection in `pushapp-ui` when auto-detect fails (`ListInPorts` / `OpenNamed`).
 
-This broke `OpenNamed` too, not just auto-detect: it opened MIDI in and out by
-the *same literal string*, but WinMM numbers in/out cables independently, so
-an input like `MIDIIN2 (Ableton Push 3 MIDI)` has no output port sharing that
-name — manual picking failed with `can't find MIDI output port for ...`.
-Fixed 2026-08-18: `OpenNamed` now falls back to matching the output cable by
-*position* among Push-named ports (same index as the chosen input among
-Push-named inputs), since both lists enumerate in the device's own cable
-order. Confirmed against a real Windows report, and re-verified 2026-08-18
-against real Push 3 hardware (VM + USB passthrough) — MIDI connected
-successfully as part of that end-to-end run.
+**This driver's Windows backend appends an undocumented `" <n>"` to every
+MIDI port name it reports** — not just Push's, and confirmed to match each
+port's own driver number (`PortRef.InNum`/`OutNum`), incrementing globally
+across every Push-named port on the system rather than resetting per unit.
+Measured live 2026-08-19 on real Windows hardware:
+
+```
+Ableton Push 3 MIDI 0
+MIDIIN2 (Ableton Push 3 MIDI) 1
+MIDIIN3 (Ableton Push 3 MIDI) 2
+```
+
+(a second Push attached at the same time continued the same global counter —
+`Ableton Push 2 0`, `MIDIIN2 (Ableton Push 2) 1` became `... 2`, `... 3` once
+a Push 3 was also present). This is not decoration a caller can ignore: it
+broke role detection outright (every cable showed as an unnamed "cable 1,
+Live" since the name no longer ended in a recognisable shape) and broke
+cable-2-and-up detection too (the wrapped-name regex anchors to the closing
+paren, and the trailing index sits after it). `internal/midi.unitKeyOf`
+strips this suffix (`winmmIndex`) before classifying a name, the same way it
+already stripped ALSA's `<client>:<port>` suffix on Linux.
+
+Separately, and independent of the suffix above: WinMM numbers MIDI in and
+out cables in namespaces that are **entirely independent of each other** —
+another MIDI-out device already on the system (a synth, a loopMIDI port) can
+shift Push's own outputs to different absolute cable numbers than its
+inputs, so even a cable whose input and output *should* share a name no
+longer do once decorated. `internal/midi.groupPorts` pairs cables by
+**position within the unit** (the Nth remaining input against the Nth
+remaining output of that same physical unit, each ordered by its own cable
+number) rather than by matching an absolute cable number between sides —
+this survives both the suffix and the independent-numbering problem at once.
+Confirmed live 2026-08-19 on real Windows hardware, one Push 3 and one Push
+2, together and separately: every cable paired correctly and the pairing UI
+worked end to end. (A same-shaped 2026-08-18 fix, keyed on the absolute
+cable number rather than relative position, is what this superseded — it
+worked for the simpler cases that fix was measured against, but not this
+one.)
 
 ## MIDI output
 

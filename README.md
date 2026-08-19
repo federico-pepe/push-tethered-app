@@ -45,7 +45,9 @@ that can speak a small JSON protocol over stdin/stdout.
    hardware and exposes a simple API (set a pad colour, send a CC, draw some
    text, and so on).
 4. **Optional extras:** modules can send MIDI out to other software; a desktop
-   UI (`pushapp-ui`) lists and switches modules without using the terminal.
+   UI (`pushapp-ui`) lists and switches modules without using the terminal,
+   and can pair and drive **several Push units at once** — each gets its own
+   session and its own module, independently.
 
 ```
   You write a module          pushapp owns the hardware

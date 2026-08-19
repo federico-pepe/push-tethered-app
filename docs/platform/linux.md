@@ -1,7 +1,7 @@
 # Linux
 
 **Status:** living reference  
-**Last verified:** 2026-08-18  
+**Last verified:** 2026-08-19  
 
 ## Setup
 
@@ -31,9 +31,27 @@ Replug Push after adding the rule.
 
 ## MIDI
 
-- Port names follow ALSA jack strings: **Live Port**, **User Port**, etc.
 - Auto-detect works on measured setups
 - MIDI out: host **creates** a virtual ALSA seq port
+
+**Port names carry role strings, but also an ALSA client:port address
+rtmididrv appends to every name** — not the clean `"... Live Port"` a naive
+suffix match expects. Measured live on real Raspberry Pi 5 hardware
+2026-08-19, a Push 2:
+
+```
+Ableton Push 2:Ableton Push 2 Live Port 28:0
+Ableton Push 2:Ableton Push 2 User Port 28:1
+```
+
+Without stripping the trailing `" 28:0"`/`" 28:1"` first, neither name ends
+in `"Live Port"`/`"User Port"` any more, so role detection missed both
+cables entirely — each became its own fake single-cable "unit", and both
+were wrongly marked Live. `internal/midi.unitKeyOf` strips this
+(`alsaClientPort`) before classifying a name. Pairing itself was never
+broken by this — ALSA gives the in and out sides of one cable the identical
+string, so exact-name matching still found it — only the role/unit grouping
+was.
 
 ## pushapp-ui
 
@@ -61,6 +79,16 @@ not separately tested.** If it doesn't, that'll surface from real users
 rather than a dedicated test pass — see
 [plans/2026-08-17-raspberry-pi-support.md](../../plans/2026-08-17-raspberry-pi-support.md)
 for the original unknowns list, mostly closed by this test.
+
+**Re-confirmed 2026-08-19** on the same Pi 5, this time with a Push 2 and
+the ALSA port-naming fix above: `pushapp -devices` correctly grouped its
+two cables into one unit with the right roles, `pushapp -module monitor`
+claimed the display and rendered correctly (916 frames at 29.9fps over
+30s, clean SIGINT shutdown, LEDs cleared). The binaries were built via
+[`.github/workflows/diagnostics.yml`](../../.github/workflows/diagnostics.yml)
+(`workflow_dispatch`) and copied over with `scp` — no Go toolchain or
+libusb/ALSA dev headers needed on the Pi itself, since it's only running
+the resulting binary, not building it.
 
 ## Related
 
