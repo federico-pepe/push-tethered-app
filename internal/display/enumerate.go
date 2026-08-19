@@ -76,6 +76,7 @@ func enumerateUSB() ([]Info, error) {
 	defer releaseCtx()
 
 	var found []Info
+	var firstErr error
 	for _, pm := range productModels {
 		devs, err := ctx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
 			return desc.Vendor == gousb.ID(VendorAbleton) && desc.Product == gousb.ID(pm.product)
@@ -100,12 +101,24 @@ func enumerateUSB() ([]Info, error) {
 			found = append(found, info)
 			dev.Close()
 		}
-		if err != nil && len(devs) == 0 {
-			return nil, fmt.Errorf("enumerating %s: %w", pm.model, err)
+		// A real bug found live 2026-08-19: this used to return here on the
+		// first product model that failed to open every device of its kind
+		// (err != nil && len(devs) == 0), aborting the whole function before
+		// ever trying the other model — so pairing one Push 3 (claiming its
+		// display) made a completely unrelated, unclaimed Push 2 vanish from
+		// the pairing view too, because the Push 3 iteration (tried first,
+		// see productModels) errored out with zero opens and the Push 2
+		// iteration never ran. One model failing must not stop the others
+		// from being tried; only report an error if nothing was found at all.
+		if err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("enumerating %s: %w", pm.model, err)
 		}
 	}
 
 	sortUnits(found)
+	if len(found) == 0 && firstErr != nil {
+		return nil, firstErr
+	}
 	return found, nil
 }
 
