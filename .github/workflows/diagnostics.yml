@@ -68,11 +68,22 @@ jobs:
           go build -o pushapp      ./cmd/pushapp
           go build -o identifytest ./cmd/identifytest
 
+      # CGO_LDFLAGS=-static: without it these link dynamically against
+      # libgcc_s_seh-1.dll, libstdc++-6.dll and libwinpthread-1.dll from
+      # MSYS2's mingw64, which are on PATH here but missing on any machine
+      # without MSYS2 — confirmed live 2026-08-19 by a "libstdc++-6.dll not
+      # found" launch failure. `-static` covers all three mingw runtime libs
+      # at once (MSYS2's toolchain ships static archives for them); libusb
+      # itself is not covered by this, hence the separate DLL copy below.
+      # Same fix build.yml's pushapp-ui Windows build already applies — see
+      # its own comment for the fuller story (plain -static-libgcc
+      # -static-libstdc++ alone missed libwinpthread-1.dll).
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
           export PATH="/mingw64/bin:$PATH"
+          export CGO_LDFLAGS="-static"
           go build -o probe.exe        ./cmd/probe
           go build -o frametest.exe    ./cmd/frametest
           go build -o mapcheck.exe     ./cmd/mapcheck
