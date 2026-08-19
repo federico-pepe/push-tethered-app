@@ -127,19 +127,27 @@ jobs:
       # to GTK4/WebKitGTK 6.0 (v2 used webkit2gtk). Confirmed 2026-08-18: CI
       # failed with "Package gtk4 was not found" against the 4.1 packages.
       #
-      # --no-install-recommends matters a lot here: the GTK4/WebKitGTK dev
-      # stack pulls 173 packages / 69.6 MB with recommends on, and most of it
-      # is runtime baggage CI never uses (GStreamer codec plugins, GObject
-      # introspection typelibs, -doc packages). CI only ever *compiles* the
-      # UI — it never opens a window — so headers and .pc files are all that
-      # is actually needed.
-      # GTK4/WebKitGTK alone pull ~157 packages / 61 MB (see the
-      # --no-install-recommends comment below) — that's the slow step in
-      # this job. Cached by this action: it snapshots the installed .debs
-      # keyed on the package list, so a cache hit restores + `dpkg -i`s them
-      # instead of re-downloading from the Ubuntu mirror every run. First
-      # run after this was added, or after the package list changes, still
-      # pays the full download.
+      # Recommends matter a lot here: the GTK4/WebKitGTK dev stack pulls 173
+      # packages / 69.6 MB with recommends on, and most of it is runtime
+      # baggage CI never uses (GStreamer codec plugins, GObject introspection
+      # typelibs, -doc packages). CI only ever *compiles* the UI — it never
+      # opens a window — so headers and .pc files are all that's needed.
+      # cache-apt-pkgs-action always runs a plain `apt install` with no
+      # --no-install-recommends knob of its own, so the trim has to happen
+      # via apt's own config instead — confirmed 2026-08-19 by reading the
+      # action's install script.
+      #
+      # That trim gets the initial install down to ~157 packages / 61 MB —
+      # still the slow part of this job on a cache miss. Cached by the
+      # action below: it snapshots the installed .debs keyed on the package
+      # list, so a cache hit restores + `dpkg -i`s them instead of
+      # re-downloading from the Ubuntu mirror every run. Only a cache miss
+      # (first run after this was added, or the package list changing) pays
+      # the full download.
+      - name: Disable apt recommends (Linux)
+        if: runner.os == 'Linux'
+        run: echo 'APT::Install-Recommends "false";' | sudo tee /etc/apt/apt.conf.d/99no-recommends
+
       - name: Install libusb + pkg-config (Linux)
         if: runner.os == 'Linux'
         uses: awalsh128/cache-apt-pkgs-action@v1
