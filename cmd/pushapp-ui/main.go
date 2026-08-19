@@ -13,6 +13,7 @@ package main
 import (
 	"context"
 	"embed"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -47,6 +48,19 @@ func availableModules() []module.Module {
 
 func main() {
 	log.SetFlags(0)
+
+	// Every log.Printf in this binary and in internal/bootstrap goes through
+	// the standard logger, so redirecting it here covers both — see
+	// logfile.go's doc comment for why this exists. A failure to open the
+	// log file is not fatal to the app; it just means diagnosing this run
+	// falls back to whatever terminal happened to launch it, same as before.
+	if path, f, err := openLogFile(); err != nil {
+		log.Printf("log file: %v (continuing without one)", err)
+	} else {
+		defer f.Close()
+		log.SetOutput(io.MultiWriter(os.Stderr, f))
+		log.Printf("logging to %s", path)
+	}
 
 	// A context the host loop runs under, cancelled once the window closes or
 	// the app is asked to quit (see the end of main), plus SIGINT/SIGTERM for
