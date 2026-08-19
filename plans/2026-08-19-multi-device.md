@@ -1,7 +1,14 @@
 # Driving two or more Push units at once
 
-Status: in progress. Phase 0 (device identity + MIDI pairing) started
-2026-08-19.
+Status: **D1–D7 done and hardware-verified.** All phases below are built,
+tested, and confirmed against real Push hardware (including the identical-pair
+case, see the verification log). Two small deviations from the original plan
+text: install/uninstall stayed session-scoped on `PushService` rather than
+moving process-global (documented staleness caveat in the doc comment
+instead), and `cmd/frametest` was not migrated onto `display.OpenID` (marked
+optional in D7). Neither is a functional gap. Untested: Linux/ALSA and
+Windows/WinMM behaviour for the identical-name-collision case — this rig only
+ever had macOS to test on.
 
 ## Hardware verification log
 
@@ -180,6 +187,57 @@ OnShutdown fix has no meaningful Go-level unit test (it is a wiring fact
 about the Wails framework's lifecycle, not app logic) and stays verified by
 the live retest alone — worth remembering if `main.go`'s window/lifecycle
 setup is ever refactored, since nothing will fail red if this regresses.
+
+**Two more real bugs, found auditing the plan against what shipped —
+2026-08-19, same session.**
+
+5. **"Auto-detect and connect" could never work with two units attached.**
+   `bootstrap.Open`'s empty-selector path refuses outright once
+   `pmidi.Open()` sees more than one MIDI unit, regardless of how many are
+   already paired — so the button just failed every time with 2+ units
+   present. Fixed by hiding it in `main.ts` whenever `midiUnits.length > 1`.
+6. **An auto-connected session never recognized its own unit as paired.**
+   `hostManager.connect` stored `req.DisplaySel`/`req.MIDIIn` verbatim in the
+   session — both empty for an auto-detect request — so the pairing view's
+   "is this unit already paired" check, which compares against
+   `session.displaySel`, never matched the real unit and kept showing its
+   screen as unpaired forever, even though it was genuinely connected and
+   working. Fixed by adding `host.Runtime.DisplayInfo()`/`MIDIRef()` to
+   expose what was *actually* claimed, and having `connect` resolve the
+   session's real identity from the Runtime after opening rather than
+   echoing back the request. Both confirmed live.
+
+**Audit findings against the plan text itself, same session — three real
+gaps, all now closed:**
+
+- The plan called for a CI `go test` step for `cmd/pushapp-ui` ("or the D5
+  tests rot") — never added; `.github/workflows/build.yml` only had build
+  steps. Added, split by OS (Windows needs the same mingw64/cgo environment
+  as its build step) and placed *after* the frontend build — confirmed
+  locally that placing it earlier breaks, since `main.go`'s
+  `//go:embed all:frontend/dist` cannot compile before `npm run build` has
+  produced that gitignored directory.
+- The plan's D5 called for `shutdownAll` to cancel every in-flight `Identify`
+  call and wait for it to finish, "the one way this phase can break the
+  clear-LEDs-on-every-exit-path rule" — never implemented; `identifyUnit`/
+  `identifyMIDIPort` used `m.rootCtx` directly with no tracking at all.
+  Fixed with `hostManager.beginIdentify`, a per-call context plus a
+  `WaitGroup`; `shutdownAll` now cancels all of them and waits (bounded at
+  5s) before returning. Confirmed live: quitting mid-flash now blanks the
+  screen and clears the pads before the process exits.
+- The plan's D3 called for a `CapturePath` collision guard across sessions —
+  never implemented. Added to `connect`: since `CapturePath` comes from
+  `baseOpts` (uniform across every session, no per-request field for it — an
+  asymmetry with `MIDIIn`/`DisplaySel`), a second session refuses outright
+  whenever it's set and any session is already live. Currently unreachable
+  from `pushapp-ui`'s own UI (only `cmd/pushapp`'s CLI sets `CapturePath`,
+  and that binary is single-session), so this is a real guard against a path
+  nothing exercises today rather than a fix to an observed failure.
+
+All five are covered by new tests
+(`TestConnectRefusesSecondSessionWhenCapturePathSet` +
+`TestConnectAllowsCapturePathWithNoLiveSession`,
+`TestShutdownAllWaitsForInFlightIdentify`) and/or the live retests above.
 
 ## Why
 
