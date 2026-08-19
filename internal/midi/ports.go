@@ -3,6 +3,7 @@ package midi
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/federico-pepe/push-tethered-app/internal/midilock"
@@ -122,43 +123,116 @@ func groupPorts(ins, outs []portName) []PortRef {
 		seenOut[k] = true
 	}
 
+	// A unit with any ambiguous cable never gets the positional fallback
+	// below, even on its non-ambiguous cables: outsByUnit pools every output
+	// sharing that unit's name string, which for two indistinguishable units
+	// means pooling cables from two different physical boxes. Cross-pairing
+	// one unit's input with the other unit's output there would be worse
+	// than leaving it unpaired.
+	ambiguousUnits := map[string]bool{}
+	for k := range ambiguousKeys {
+		ambiguousUnits[k.unit] = true
+	}
+
 	outByExactName := map[string]portName{}
-	outByKey := map[cableKey]portName{}
 	for _, out := range outs {
 		outByExactName[out.Name] = out
-		unit, _, cable := unitKeyOf(out.Name)
-		outByKey[cableKey{unit, cable}] = out
+	}
+
+	// outsByUnit groups outputs by unit NAME only (not the (unit, cable) key
+	// exact matching uses), ordered by each output's own embedded cable
+	// number. This is what the positional fallback below pairs against.
+	outsByUnit := map[string][]portName{}
+	for _, out := range outs {
+		unit, _, _ := unitKeyOf(out.Name)
+		outsByUnit[unit] = append(outsByUnit[unit], out)
+	}
+	for _, group := range outsByUnit {
+		sort.Slice(group, func(i, j int) bool {
+			_, _, ci := unitKeyOf(group[i].Name)
+			_, _, cj := unitKeyOf(group[j].Name)
+			return ci < cj
+		})
+	}
+
+	type resolved struct {
+		unit, role, outName string
+		cable, outNum       int
+	}
+	consumedOut := map[string]bool{}
+	byIn := make(map[string]*resolved, len(ins))
+	var pending []portName
+
+	// First pass: exact name matches. This is the reliable case —
+	// CoreMIDI/ALSA, where a unit's in and out cables share a literal name,
+	// and WinMM's cable 1 when it happens to. Claimed before the positional
+	// fallback runs, so that fallback only ever fills in what this could not.
+	for _, in := range ins {
+		unit, role, cable := unitKeyOf(in.Name)
+		r := &resolved{unit: unit, role: role, cable: cable, outNum: -1}
+		byIn[in.Name] = r
+		if out, ok := outByExactName[in.Name]; ok && !consumedOut[out.Name] {
+			r.outName, r.outNum = out.Name, out.Num
+			consumedOut[out.Name] = true
+		} else {
+			pending = append(pending, in)
+		}
+	}
+
+	// Second pass: pair what is left by POSITION within the unit — the Nth
+	// remaining input of a unit against the Nth remaining output of that
+	// same unit, ordered by each side's own cable number — rather than by
+	// matching the absolute embedded cable number between sides. WinMM
+	// numbers MIDIOUT ports in a namespace entirely independent of MIDIIN's
+	// (other MIDI-out devices on the system shift Push's own outputs to
+	// different numbers than its inputs), so the previous "same absolute
+	// cable number" key-based pairing left every cable but the exact-name
+	// match unpaired on a real single-unit Windows machine — confirmed live
+	// 2026-08-19: no Identify button ever appeared for the MIDI side, and a
+	// forced connect failed with "no output cable paired with ...". This
+	// fallback is scoped to one unit's own already-grouped outputs, so it
+	// can never cross to a different physical unit's cable, and it is
+	// skipped entirely for a unit with any ambiguous cable (see
+	// ambiguousUnits) since pooling by name alone would mean pooling two
+	// indistinguishable units' cables together.
+	outPos := map[string]int{}
+	for _, in := range pending {
+		r := byIn[in.Name]
+		if ambiguousUnits[r.unit] {
+			continue
+		}
+		candidates := outsByUnit[r.unit]
+		for outPos[r.unit] < len(candidates) && consumedOut[candidates[outPos[r.unit]].Name] {
+			outPos[r.unit]++
+		}
+		if outPos[r.unit] < len(candidates) {
+			out := candidates[outPos[r.unit]]
+			r.outName, r.outNum = out.Name, out.Num
+			consumedOut[out.Name] = true
+			outPos[r.unit]++
+		}
 	}
 
 	refs := make([]PortRef, 0, len(ins))
 	for _, in := range ins {
-		unit, role, cable := unitKeyOf(in.Name)
-		k := cableKey{unit, cable}
+		r := byIn[in.Name]
+		k := cableKey{r.unit, r.cable}
 		dev := pushmap.DeviceFromPortName(in.Name)
-		isLive := role == "Live" || (role == "" && cable == 1)
+		isLive := r.role == "Live" || (r.role == "" && r.cable == 1)
 
 		if ambiguousKeys[k] {
 			refs = append(refs, PortRef{
 				InName: in.Name, InNum: in.Num, OutNum: -1,
-				Unit: unit, Cable: cable, Role: role, Device: dev,
+				Unit: r.unit, Cable: r.cable, Role: r.role, Device: dev,
 				IsLive: isLive, Ambiguous: true,
 			})
 			continue
 		}
 
-		ref := PortRef{
-			InName: in.Name, InNum: in.Num, OutNum: -1,
-			Unit: unit, Cable: cable, Role: role, Device: dev, IsLive: isLive,
-		}
-		// Prefer an exact name match — the common case on CoreMIDI/ALSA,
-		// where in and out cables of one unit share a literal name — over the
-		// key-based pairing WinMM needs.
-		if out, ok := outByExactName[in.Name]; ok {
-			ref.OutName, ref.OutNum = out.Name, out.Num
-		} else if out, ok := outByKey[k]; ok {
-			ref.OutName, ref.OutNum = out.Name, out.Num
-		}
-		refs = append(refs, ref)
+		refs = append(refs, PortRef{
+			InName: in.Name, InNum: in.Num, OutName: r.outName, OutNum: r.outNum,
+			Unit: r.unit, Cable: r.cable, Role: r.role, Device: dev, IsLive: isLive,
+		})
 	}
 	return refs
 }

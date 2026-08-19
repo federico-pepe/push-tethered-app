@@ -111,6 +111,65 @@ func TestGroupPortsWinMMSingleUnit(t *testing.T) {
 	}
 }
 
+// Reproduces a real bug found on Windows hardware 2026-08-19: a single Push 3
+// showed no Identify button for its MIDI side at all, and a forced connect
+// failed with "no output cable paired with ...". WinMM numbers MIDIOUT ports
+// in a namespace entirely independent of MIDIIN's — another MIDI-out device
+// already on the system (a synth, a loopMIDI port) can push Push's own
+// outputs to different absolute numbers than its inputs, even though they are
+// still unambiguously the same physical unit's cables in relative order. The
+// old key-based-on-absolute-cable-number pairing missed every cable but
+// cable 1 (which happened to share a literal name) whenever this happened.
+func TestGroupPortsWinMMOffsetOutputNumbering(t *testing.T) {
+	ins := []portName{
+		in("Ableton Push 3 MIDI", 0),
+		in("MIDIIN2 (Ableton Push 3 MIDI)", 1),
+		in("MIDIIN3 (Ableton Push 3 MIDI)", 2),
+	}
+	// Some other MIDI-out device occupies MIDIOUT1/2 on this system, so
+	// Push's own outputs start at MIDIOUT3 instead of lining up with its
+	// inputs' MIDIIN1/2/3 numbering.
+	outs := []portName{
+		out("Some Other Synth", 0),
+		out("MIDIOUT2 (Some Other Synth)", 1),
+		out("Ableton Push 3 MIDI", 2),
+		out("MIDIOUT4 (Ableton Push 3 MIDI)", 3),
+		out("MIDIOUT5 (Ableton Push 3 MIDI)", 4),
+	}
+	refs := groupPorts(ins, outs)
+	if len(refs) != 3 {
+		t.Fatalf("got %d refs, want 3", len(refs))
+	}
+	for _, r := range refs {
+		if r.Ambiguous {
+			t.Errorf("ref %+v wrongly marked Ambiguous — this is a single real unit", r)
+		}
+		if r.OutNum < 0 {
+			t.Errorf("ref %+v got no output cable at all — this is the reported bug", r)
+		}
+	}
+
+	live := findRef(t, refs, "Ableton Push 3 MIDI")
+	if !live.IsLive || live.OutName != "Ableton Push 3 MIDI" {
+		t.Errorf("cable 1 = %+v, want paired with the exact-name match", live)
+	}
+	cable2 := findRef(t, refs, "MIDIIN2 (Ableton Push 3 MIDI)")
+	if cable2.OutName != "MIDIOUT4 (Ableton Push 3 MIDI)" {
+		t.Errorf("cable 2 = %+v, want paired positionally with MIDIOUT4 (the unit's 2nd output in relative order), not by absolute number", cable2)
+	}
+	cable3 := findRef(t, refs, "MIDIIN3 (Ableton Push 3 MIDI)")
+	if cable3.OutName != "MIDIOUT5 (Ableton Push 3 MIDI)" {
+		t.Errorf("cable 3 = %+v, want paired positionally with MIDIOUT5", cable3)
+	}
+
+	// The unrelated synth's own ports must never be touched or counted.
+	for _, r := range refs {
+		if r.OutName == "Some Other Synth" || r.OutName == "MIDIOUT2 (Some Other Synth)" {
+			t.Errorf("ref %+v paired with an unrelated device's port", r)
+		}
+	}
+}
+
 // --- Two-unit cases: HYPOTHESES, not measurements.
 //
 // Nobody has attached two identical Push units and recorded what CoreMIDI,
