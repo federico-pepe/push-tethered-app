@@ -1,0 +1,91 @@
+name: diagnostics
+
+# Manual-only build of the standalone CLI tools (probe, frametest, mapcheck,
+# pushapp, identifytest) for all three desktop OSes. build.yml's own copy of
+# this build is deliberately disabled (`if: false`, see the comment there) —
+# that decision stands; this is a separate workflow precisely so getting a
+# diagnostic binary onto a platform we can't otherwise reach (no local
+# Windows/Pi toolchain here) doesn't mean re-litigating that decision or
+# waiting on a tagged release. Run it from the Actions tab or via
+# `gh workflow run diagnostics.yml` whenever a real bug report needs a raw
+# `-devices`/`-list`/identify dump from a specific OS.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Same sibling-checkout-plus-replace-override dance as build.yml — see
+      # that file's own comment for why the naive relative path doesn't work
+      # on a CI runner.
+      - name: Checkout ableton-push-hack (core/ dependency)
+        uses: actions/checkout@v7
+        with:
+          repository: federico-pepe/ableton-push-hack
+          ref: main
+          path: .ableton-push-hack
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Point core/ replace at the CI checkout
+        run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=./.ableton-push-hack/core
+
+      - name: Install libusb + pkg-config (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libusb-1.0-0-dev libasound2-dev pkg-config
+
+      - name: Install libusb (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libusb
+          echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+
+      - name: Install libusb via MSYS2 (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          path-type: inherit
+          install: mingw-w64-x86_64-libusb mingw-w64-x86_64-toolchain
+
+      - name: Build (macOS / Linux)
+        if: runner.os != 'Windows'
+        run: |
+          go build -o probe        ./cmd/probe
+          go build -o frametest    ./cmd/frametest
+          go build -o mapcheck     ./cmd/mapcheck
+          go build -o pushapp      ./cmd/pushapp
+          go build -o identifytest ./cmd/identifytest
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          export PATH="/mingw64/bin:$PATH"
+          go build -o probe.exe        ./cmd/probe
+          go build -o frametest.exe    ./cmd/frametest
+          go build -o mapcheck.exe     ./cmd/mapcheck
+          go build -o pushapp.exe      ./cmd/pushapp
+          go build -o identifytest.exe ./cmd/identifytest
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: diagnostics-${{ matrix.os }}
+          path: |
+            probe*
+            frametest*
+            mapcheck*
+            pushapp*
+            identifytest*
