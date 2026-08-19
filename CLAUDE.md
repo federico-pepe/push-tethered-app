@@ -31,7 +31,10 @@ Push 3 in tethered (controller) mode**: display, pads, buttons, encoders, LEDs.
 small programs anyone can write in Go or any other language, that draw the
 screen and handle the controls. No DAW is involved at any layer.
 
-**Status: pre-alpha, running, confirmed on Push 2 and Push 3 hardware.** Full
+**Status: pre-alpha, running, confirmed on Push 2 and Push 3 hardware,
+including pairing and driving two units at once from `pushapp-ui`** (macOS,
+Windows, and Linux/Raspberry Pi — see
+[plans/2026-08-19-multi-device.md](plans/2026-08-19-multi-device.md)). Full
 picture (built-in modules, process-loaded modules, `pushapp-ui`): root
 [README.md](README.md) and [docs/README.md](docs/README.md).
 
@@ -157,7 +160,13 @@ go build ./... && go vet ./... && go test ./...
 `-no-leds`, `-midi-out <name>`, `-no-midi-out`, `-capture`, `-capture-raw`,
 `-install <dir>`, `-uninstall <id>` (filesystem-only, no Push needed),
 `-version` (prints `internal/version.Version`, "dev" unless built with the
-release workflow's `-ldflags`).
+release workflow's `-ldflags`), `-devices` (lists every attached Push unit
+and MIDI cable, claims nothing, safe with Live open — paste this into a bug
+report), `-device <serial:XXXX|usb:BUS.ADDR>` and `-midi-in <name>` (pick a
+specific unit/cable when more than one Push is attached; `pushapp` itself
+stays single-device — see
+[plans/2026-08-19-multi-device.md](plans/2026-08-19-multi-device.md) for
+`pushapp-ui`'s multi-session pairing instead).
 
 ```bash
 cd cmd/pushapp-ui
@@ -197,7 +206,21 @@ RtMidi C++) are both cgo — **build natively on each target OS**.
 `.github/workflows/build.yml` does this on real macOS/Linux/Windows runners.
 Per-OS setup: [docs/platform/macos.md](docs/platform/macos.md),
 [docs/platform/linux.md](docs/platform/linux.md),
-[docs/platform/windows.md](docs/platform/windows.md).
+[docs/platform/windows.md](docs/platform/windows.md). Wails' own
+[cross-platform build guide](https://v3.wails.io/guides/build/cross-platform/)
+does not change this — its Docker cross-toolchain covers apps with no extra
+C dependencies (or only what its image bundles); this app's libusb and
+per-OS RtMidi backend (CoreMIDI/ALSA/WinMM) would need a custom image
+carrying those for every target, and would still leave the runtime DLL
+story (`docs/platform/windows.md`'s missing-DLL section) unsolved, since
+that's a shipping problem independent of where the binary was compiled.
+
+For a one-off diagnostic build on a platform with no local toolchain (no
+release cut needed), use `.github/workflows/diagnostics.yml`
+(`gh workflow run diagnostics.yml` or the Actions tab) — builds
+`probe`/`frametest`/`mapcheck`/`pushapp`/`identifytest` natively per OS in
+about two minutes. Deliberately separate from `build.yml`'s own disabled
+copy of that build (see the comment there) rather than re-enabling it.
 
 ## Architecture decisions already made
 
@@ -220,13 +243,27 @@ and [docs/architecture/stack-and-layout.md](docs/architecture/stack-and-layout.m
 - **Windows MIDI input port naming** doesn't expose jack strings the way
   CoreMIDI/ALSA do — name-based auto-detect can't work there. Fixed with a
   manual port picker, confirmed 2026-08-18 on real Push 3 hardware (Windows
-  11 VM + USB passthrough). Detail:
+  11 VM + USB passthrough). This driver's Windows backend also appends an
+  undocumented `" <n>"` to every MIDI port name (not just Push's, and
+  independently numbered for in vs out), which broke role and cable-number
+  detection outright until stripped — confirmed live 2026-08-19 on real
+  Windows hardware. Detail:
   [docs/platform/windows.md](docs/platform/windows.md).
-- **Disconnect detection.** `cmd/pushapp-ui` now notices when Push is
-  unplugged mid-session (`display.ErrDisconnected` bubbles up through
-  `host.Runtime.Run` to `hostManager`, which flips `IsConnected` and exposes
-  `LastError`) and falls back to the port-picker view instead of showing a
-  stale module list against a dead port.
+- **Multi-device pairing.** `pushapp-ui` can claim and drive several Push
+  units at once — `internal/display`/`internal/midi` identify units by USB
+  serial (or bus/address when a unit reports none) and group MIDI cables by
+  physical unit rather than by name alone, since two identical units can
+  report byte-identical MIDI port names (confirmed on macOS). `internal/identify`
+  flashes a unit's screen or pads so two visually identical units can be told
+  apart when pairing manually. `cmd/pushapp` itself stays single-device; use
+  `-devices`/`-device`/`-midi-in`. Detail:
+  [plans/2026-08-19-multi-device.md](plans/2026-08-19-multi-device.md).
+- **Disconnect detection.** `cmd/pushapp-ui` notices when a Push is unplugged
+  mid-session (`display.ErrDisconnected` bubbles up through
+  `host.Runtime.Run` to `hostManager`, which tears that session down and
+  records the reason, keyed by unit, in `PushService.Overview()`'s
+  `unitErrors`) rather than showing a stale module list against a dead port.
+  Other sessions are unaffected.
 - **Don't run `pushapp` with Live open.** Co-existence mode leaves Push's
   MIDI interface bound to the OS driver even while Live doesn't own the
   display, so both processes end up driving the same pad LEDs — visible
