@@ -79,6 +79,15 @@ jobs:
           go build -o pushapp.exe      ./cmd/pushapp
           go build -o identifytest.exe ./cmd/identifytest
 
+      # gousb needs libusb-1.0.dll at runtime, on PATH or next to the exe —
+      # it isn't statically linked. build.yml's pushapp-ui job does the same
+      # copy; missed here the first time, confirmed live 2026-08-19 by a
+      # "missing DLL" launch failure.
+      - name: Copy libusb-1.0.dll next to the Windows exes
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: cp /mingw64/bin/libusb-1.0.dll .
+
       - name: Upload binaries
         uses: actions/upload-artifact@v7
         with:
@@ -89,3 +98,5 @@ jobs:
             mapcheck*
             pushapp*
             identifytest*
+            libusb-1.0.dll
+          if-no-files-found: ignore
