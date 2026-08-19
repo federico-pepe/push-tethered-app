@@ -56,30 +56,42 @@ var roleSuffixes = []string{"Live Port", "User Port", "External Port"}
 // identity available — see docs/platform/windows.md.
 var winmmWrapped = regexp.MustCompile(`^MIDI(?:IN|OUT)(\d+) \((.+)\)$`)
 
+// alsaClientPort strips the trailing "<client>:<port>" ALSA sequencer
+// address rtmididrv appends to every port name on Linux, e.g.
+// "Ableton Push 2:Ableton Push 2 Live Port 28:0" — confirmed live on real
+// Raspberry Pi 5 hardware 2026-08-19. Without stripping it, the name no
+// longer ends in "Live Port"/"User Port", so the role-suffix check below
+// missed every cable: both Live and User fell through to the unnamed-cable-1
+// default, making each its own fake single-cable "unit" and both wrongly
+// marked Live.
+var alsaClientPort = regexp.MustCompile(`\s+\d+:\d+$`)
+
 // unitKeyOf splits a port name into the unit it belongs to, the cable's named
 // role if it has one, and its 1-based position among that unit's cables.
 //
-// Three shapes are handled, in order: CoreMIDI/ALSA role-suffixed names (which
-// carry the true role), WinMM's wrapped names for cable 2 and up, and WinMM's
-// bare device name for cable 1. Anything else is treated as a single
+// Three shapes are handled, in order: CoreMIDI/ALSA role-suffixed names
+// (which carry the true role — the ALSA client:port address is stripped
+// first, see alsaClientPort), WinMM's wrapped names for cable 2 and up, and
+// WinMM's bare device name for cable 1. Anything else is treated as a single
 // unnamed-role cable 1, which keeps today's single-unit behaviour rather than
 // failing outright on a naming convention this code has not seen yet.
 func unitKeyOf(name string) (unit, role string, cable int) {
+	trimmed := alsaClientPort.ReplaceAllString(name, "")
 	for _, suffix := range roleSuffixes {
-		if strings.HasSuffix(name, suffix) {
-			unit = strings.TrimSpace(strings.TrimSuffix(name, suffix))
+		if strings.HasSuffix(trimmed, suffix) {
+			unit = strings.TrimSpace(strings.TrimSuffix(trimmed, suffix))
 			role = strings.TrimSuffix(suffix, " Port")
 			return unit, role, roleOrder[role]
 		}
 	}
 
-	if m := winmmWrapped.FindStringSubmatch(name); m != nil {
+	if m := winmmWrapped.FindStringSubmatch(trimmed); m != nil {
 		var n int
 		fmt.Sscanf(m[1], "%d", &n)
 		return m[2], "", n
 	}
 
-	return name, "", 1
+	return trimmed, "", 1
 }
 
 // portName pairs a driver-reported name with its stable port number.

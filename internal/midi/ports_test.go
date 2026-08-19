@@ -16,6 +16,14 @@ func TestUnitKeyOf(t *testing.T) {
 		{"Ableton Push 2 Live Port", "Ableton Push 2", "Live", 1},
 		{"Ableton Push 2 User Port", "Ableton Push 2", "User", 2},
 
+		// Linux/ALSA: rtmididrv appends " <client>:<port>" to every name —
+		// confirmed live on real Raspberry Pi 5 hardware 2026-08-19. Without
+		// stripping it first, neither ends in "Live Port"/"User Port", so
+		// both fell through to the unnamed-cable-1 default and each became
+		// its own single-cable "unit", both wrongly marked Live.
+		{"Ableton Push 2:Ableton Push 2 Live Port 28:0", "Ableton Push 2:Ableton Push 2", "Live", 1},
+		{"Ableton Push 2:Ableton Push 2 User Port 28:1", "Ableton Push 2:Ableton Push 2", "User", 2},
+
 		// WinMM: no jack strings at all. First cable is bare; the rest are
 		// wrapped with a MIDIIN/MIDIOUT prefix and a number that is NOT the
 		// same as the role — see docs/platform/windows.md.
@@ -108,6 +116,36 @@ func TestGroupPortsWinMMSingleUnit(t *testing.T) {
 	cable1 := findRef(t, refs, "Ableton Push 3 MIDI")
 	if !cable1.IsLive {
 		t.Errorf("cable 1 must be treated as Live on WinMM, where role strings do not exist")
+	}
+}
+
+// Reproduces a real bug found on Raspberry Pi 5 hardware 2026-08-19: a
+// single Push 2 showed up as two separate one-cable "units" in -devices, both
+// wrongly marked Live, instead of one unit with a Live and a User cable —
+// see TestUnitKeyOf's ALSA cases for why. Pairing itself was never broken
+// (ALSA gives the in and out sides of one cable the identical string), only
+// the role/unit grouping was.
+func TestGroupPortsALSAWithClientPortSuffix(t *testing.T) {
+	live := "Ableton Push 2:Ableton Push 2 Live Port 28:0"
+	user := "Ableton Push 2:Ableton Push 2 User Port 28:1"
+	ins := []portName{in(live, 1), in(user, 2)}
+	outs := []portName{out(live, 1), out(user, 2)}
+
+	refs := groupPorts(ins, outs)
+	if len(refs) != 2 {
+		t.Fatalf("got %d refs, want 2", len(refs))
+	}
+
+	liveRef := findRef(t, refs, live)
+	if liveRef.Unit != "Ableton Push 2:Ableton Push 2" || !liveRef.IsLive || liveRef.Ambiguous {
+		t.Errorf("Live ref = %+v", liveRef)
+	}
+	userRef := findRef(t, refs, user)
+	if userRef.Unit != liveRef.Unit {
+		t.Errorf("User ref unit %q != Live ref unit %q — should be one physical unit", userRef.Unit, liveRef.Unit)
+	}
+	if userRef.IsLive {
+		t.Errorf("User ref wrongly marked Live: %+v", userRef)
 	}
 }
 
