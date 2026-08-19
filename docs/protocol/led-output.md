@@ -19,6 +19,15 @@ Works without claiming USB interface 5.
 Pad geometry confirmed from output: note 36 = bottom-left, ascending to 99
 top-right.
 
+**Only the Live Port cable carries pad LED writes.** Confirmed 2026-08-19 on
+Push 2 hardware: sending the identical Note On sequence to the User Port's
+output cable lit nothing, while the same sequence to the Live Port's output
+cable lit all 64 pads correctly. Not yet re-confirmed on Push 3's third
+(External) port. Anything that opens a Push output cable to drive LEDs — see
+`internal/midi.OpenOutCable`, used by `internal/identify.FlashLEDs` — must
+target the cable `internal/midi.PortRef.IsLive` reports true, never merely
+"the first output cable found".
+
 ## Button LEDs
 
 | Property | Value |

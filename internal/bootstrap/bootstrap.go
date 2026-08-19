@@ -28,10 +28,26 @@ import (
 // (display, LEDs and MIDI-out all enabled; 30fps; no capture) except for
 // Modules, which has no sensible default and must be set.
 type Options struct {
-	FPS         int
-	NoDisplay   bool
-	NoLEDs      bool
-	MIDIInName  string // exact port name; empty auto-detects the Live port (see pmidi.Open)
+	FPS       int
+	NoDisplay bool
+	NoLEDs    bool
+
+	// MIDIIn selects the input cable by driver port number — the only way to
+	// address a specific unit when two Push units present identical port
+	// names (see pmidi.OpenRef). Takes precedence over MIDIInName when set
+	// (InName != "").
+	MIDIIn pmidi.PortRef
+	// MIDIInName is a MIDI port name, used only when MIDIIn is unset. Kept for
+	// existing callers; empty auto-detects the Live port (see pmidi.Open),
+	// which now refuses when more than one Push is attached rather than
+	// guessing.
+	MIDIInName string
+
+	// DisplaySel selects the USB unit by display.Info.ID ("serial:..." or
+	// "usb:BUS.ADDR", see display.List). Empty means display.Open's default:
+	// the first unit found, Push 3 preferred.
+	DisplaySel string
+
 	MIDIOutName string
 	NoMIDIOut   bool
 	CapturePath string
@@ -52,9 +68,12 @@ func Open(opts Options) (rt *host.Runtime, cleanup func(), err error) {
 	}
 
 	var port *pmidi.Port
-	if opts.MIDIInName != "" {
+	switch {
+	case opts.MIDIIn.InName != "":
+		port, err = pmidi.OpenRef(opts.MIDIIn)
+	case opts.MIDIInName != "":
 		port, err = pmidi.OpenNamed(opts.MIDIInName)
-	} else {
+	default:
 		port, err = pmidi.Open()
 	}
 	if err != nil {
@@ -64,18 +83,24 @@ func Open(opts Options) (rt *host.Runtime, cleanup func(), err error) {
 
 	var dev *display.Device
 	if !opts.NoDisplay {
-		dev, err = display.Open()
+		dev, err = display.OpenID(opts.DisplaySel)
 		switch {
 		case errors.Is(err, display.ErrBusy):
 			// The documented degrade path: something else owns the screen
 			// (usually Live with Push as a control surface). Keep the session.
 			log.Printf("display: %v", err)
 			log.Printf("display: continuing MIDI-only — quit Live to get the screen")
+		case errors.Is(err, display.ErrAlreadyClaimed):
+			// Not a degrade path: the caller asked for a unit this process
+			// already drives, which is a bug in the caller, not a condition
+			// to work around.
+			port.Close()
+			return nil, nil, fmt.Errorf("display: %w", err)
 		case err != nil:
 			port.Close()
 			return nil, nil, fmt.Errorf("display: %w", err)
 		default:
-			log.Printf("display: claimed %s", dev.Model())
+			log.Printf("display: claimed %s (%s)", dev.Model(), dev.Info().ID)
 		}
 	}
 

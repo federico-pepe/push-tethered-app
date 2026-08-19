@@ -26,7 +26,9 @@ import (
 	"syscall"
 
 	"github.com/federico-pepe/push-tethered-app/internal/bootstrap"
+	"github.com/federico-pepe/push-tethered-app/internal/display"
 	"github.com/federico-pepe/push-tethered-app/internal/host/procmod"
+	"github.com/federico-pepe/push-tethered-app/internal/midi"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/modules/monitor"
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
@@ -61,6 +63,9 @@ func main() {
 	captureRaw := flag.Bool("capture-raw", false, "record the source image instead of panel-accurate BGR565 colour")
 	installDir := flag.String("install", "", "install the module directory at this path (manifest.json + executable), then exit")
 	uninstallID := flag.String("uninstall", "", "uninstall the process-loaded module with this id, then exit")
+	listDevices := flag.Bool("devices", false, "list connected Push units and their MIDI ports, then exit")
+	deviceSel := flag.String("device", "", "USB unit to drive: serial:XXXX or usb:BUS.ADDR (default: the first one, see -devices)")
+	midiInName := flag.String("midi-in", "", "MIDI input port name to use (default: auto-detect the Live port; required if more than one Push is attached)")
 	flag.Parse()
 
 	log.SetFlags(0)
@@ -81,6 +86,54 @@ func main() {
 			log.Fatalf("%v", err)
 		}
 		fmt.Printf("uninstalled %q\n", *uninstallID)
+		return
+	}
+
+	// Read-only: opens a handle per USB unit just long enough to read its
+	// serial, and lists MIDI ports without opening any of them. Claims
+	// nothing, so this is safe to run with Live open and with another
+	// pushapp session already driving a unit — this is what a user should
+	// paste into a bug report.
+	if *listDevices {
+		units, err := display.List()
+		if err != nil {
+			log.Fatalf("listing USB units: %v", err)
+		}
+		if len(units) == 0 {
+			fmt.Println("no Push units found on USB")
+		}
+		for _, u := range units {
+			fmt.Println(u)
+		}
+
+		fmt.Println()
+		midiUnits := midi.ListUnits()
+		if len(midiUnits) == 0 {
+			fmt.Println("no Push MIDI ports found")
+		}
+		for _, mu := range midiUnits {
+			fmt.Printf("%s (%s)\n", mu.Key, mu.Device)
+			for _, p := range mu.Ports {
+				role := p.Role
+				if role == "" {
+					role = "unknown role"
+				}
+				status := fmt.Sprintf("in #%d -> out #%d", p.InNum, p.OutNum)
+				if p.Ambiguous {
+					status = "AMBIGUOUS — matches another unit's cable; cannot pair automatically"
+				} else if p.OutNum < 0 {
+					status = fmt.Sprintf("in #%d -> no output cable found", p.InNum)
+				}
+				// IsLive is only worth calling out separately when the role
+				// string didn't already say so — the WinMM case, where Role
+				// is always "" and cable position is the only signal.
+				live := ""
+				if p.IsLive && p.Role != "Live" {
+					live = ", Live"
+				}
+				fmt.Printf("  cable %d (%s%s): %q  %s\n", p.Cable, role, live, p.InName, status)
+			}
+		}
 		return
 	}
 
@@ -110,6 +163,8 @@ func main() {
 		FPS:         *fps,
 		NoDisplay:   *noDisplay,
 		NoLEDs:      *noLEDs,
+		MIDIInName:  *midiInName,
+		DisplaySel:  *deviceSel,
 		MIDIOutName: *midiOutName,
 		NoMIDIOut:   *noMIDIOut,
 		CapturePath: *capturePath,

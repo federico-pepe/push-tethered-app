@@ -56,19 +56,20 @@ func main() {
 	defer stopSignals()
 	defer cancel()
 
-	mgr := newHostManager(sigCtx, bootstrap.Options{
-		FPS:     30,
-		Modules: availableModules(),
-	})
+	// availableModules is passed as a factory, not called once here — each
+	// session needs its own fresh module instances (see hostManager's
+	// newModules doc). bootstrap.Options.Modules is filled in per-connect.
+	mgr := newHostManager(sigCtx, bootstrap.Options{FPS: 30}, availableModules)
 
-	// Auto-detect attempt. Most setups find the Live port by name and are
-	// running before the window even paints. When it fails — mostly on
-	// Windows, where WinMM doesn't expose the port name this relies on, see
-	// internal/midi's OpenNamed doc — the window still opens and the frontend
-	// falls back to PushService.ListMIDIPorts/ConnectMIDIPort so the user can
-	// pick the right one by hand.
-	if err := mgr.connect(""); err != nil {
-		log.Printf("MIDI: auto-detect failed, waiting for a manual port pick: %v", err)
+	// Auto-detect attempt. Most single-Push setups find the Live port by name
+	// and are running before the window even paints. When it fails — because
+	// more than one Push is attached and there is no right guess (see
+	// internal/midi's Open doc), or on Windows where WinMM doesn't expose the
+	// port name auto-detect relies on (OpenNamed's doc) — the window still
+	// opens and the frontend falls back to the pairing view so the user can
+	// pick explicitly.
+	if _, err := mgr.connect(ConnectRequest{}); err != nil {
+		log.Printf("MIDI: auto-detect failed, waiting for manual pairing: %v", err)
 	}
 
 	app := application.New(application.Options{
@@ -83,12 +84,25 @@ func main() {
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
+		// With ApplicationShouldTerminateAfterLastWindowClosed set, macOS's
+		// own termination sequence tears the process down without app.Run()
+		// ever returning — the mgr.shutdownAll() call after app.Run() below
+		// never ran, confirmed live 2026-08-19 (no LEDs went dark on quit,
+		// and the log never reached "host: all sessions shut down"). Wails
+		// guarantees OnShutdown runs, synchronously, as part of the real
+		// shutdown sequence regardless of platform or how termination was
+		// triggered, which is why the LED-clearing call belongs here and not
+		// only after Run().
+		OnShutdown: mgr.shutdownAll,
 	})
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:  "Push Tethered App",
-		Width:  480,
-		Height: 420,
+		Title: "Push Tethered App",
+		// Wide and tall enough for the two-column pairing view (screens next
+		// to MIDI ports) plus several session cards to be visible without
+		// scrolling immediately.
+		Width:  900,
+		Height: 700,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 28,
 			Backdrop:                application.MacBackdropTranslucent,
@@ -101,7 +115,10 @@ func main() {
 	// Blocks until the window closes or the app is asked to quit.
 	appErr := app.Run()
 
-	mgr.shutdown()
+	// Idempotent fallback for whatever path reaches here with sessions still
+	// open — normal quit is handled by OnShutdown above, which is what
+	// actually runs on the platforms tested so far.
+	mgr.shutdownAll()
 
 	if appErr != nil {
 		log.Fatalf("ui: %v", appErr)

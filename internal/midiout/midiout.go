@@ -33,6 +33,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/federico-pepe/push-tethered-app/internal/midilock"
 	gm "gitlab.com/gomidi/midi/v2"
 	"gitlab.com/gomidi/midi/v2/drivers"
 	_ "gitlab.com/gomidi/midi/v2/drivers/rtmididrv" // RtMidi C++ is vendored; no system package needed
@@ -88,6 +89,12 @@ func Open(name string) (*Out, error) {
 	if name == "" {
 		name = DefaultName
 	}
+
+	// rtmididrv's opened-ports list has no locking of its own — see
+	// internal/midilock — so every entry into the driver from this process
+	// (here and in internal/midi) has to go through this lock.
+	midilock.Lock()
+	defer midilock.Unlock()
 
 	if drv, ok := drivers.Get().(virtualOpener); ok {
 		if port, err := drv.OpenVirtualOut(name); err == nil {

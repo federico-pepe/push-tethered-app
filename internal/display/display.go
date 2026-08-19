@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"log"
 	"sort"
 	"strings"
 	"time"
@@ -61,12 +62,11 @@ var xorPattern = [4]byte{0xE7, 0xF3, 0xE7, 0xFF}
 
 // Device is a claimed Push display.
 type Device struct {
-	ctx   *gousb.Context
-	dev   *gousb.Device
-	cfg   *gousb.Config
-	intf  *gousb.Interface
-	out   *gousb.OutEndpoint
-	model string
+	dev  *gousb.Device
+	cfg  *gousb.Config
+	intf *gousb.Interface
+	out  *gousb.OutEndpoint
+	info Info
 
 	// buf is reused across frames so the refresh loop does not allocate
 	// 320KB per frame at 30fps.
@@ -74,27 +74,50 @@ type Device struct {
 }
 
 // Model returns "Push 2" or "Push 3".
-func (d *Device) Model() string { return d.model }
+func (d *Device) Model() string { return d.info.Model }
+
+// Info returns the identity of the unit this Device drives, including the
+// selector that reopens it.
+func (d *Device) Info() Info { return d.info }
 
 // Open finds a Push and claims ONLY the display interface. Audio (1-3) and
 // MIDI (4-5) stay bound to the OS class drivers, which is what allows a DAW to
 // keep using them — see docs/archive/feasibility.md §6.3.
+//
+// With more than one Push attached this picks one of them, preferring Push 3,
+// and logs which — the choice is libusb's enumeration order and is not
+// meaningfully predictable. Callers that care must pass a selector to OpenID.
 func Open() (*Device, error) {
-	ctx := gousb.NewContext()
+	if units, err := List(); err == nil && len(units) > 1 {
+		log.Printf("display: %d Push units attached, driving %s — pass a selector to choose",
+			len(units), units[0].ID)
+	}
+	return OpenID("")
+}
 
-	dev, err := ctx.OpenDeviceWithVIDPID(VendorAbleton, ProductPush3)
-	model := "Push 3"
-	if err == nil && dev == nil {
-		dev, err = ctx.OpenDeviceWithVIDPID(VendorAbleton, ProductPush2)
-		model = "Push 2"
-	}
+// OpenID claims the display of the unit sel addresses — "serial:XXXX" or
+// "usb:BUS.ADDR", as reported by List. An empty sel means Open's behaviour.
+//
+// Returns ErrBusy when another process holds the interface (degrade), and
+// ErrAlreadyClaimed when this process already drives that unit (a caller bug).
+func OpenID(sel string) (*Device, error) {
+	dev, info, err := openMatch(sel)
 	if err != nil {
-		ctx.Close()
-		return nil, fmt.Errorf("opening Push: %w", err)
+		return nil, err
 	}
-	if dev == nil {
-		ctx.Close()
-		return nil, ErrNotFound
+	// Key the claim on the resolved unit, not on the caller's selector, so
+	// asking for the same screen by serial and by bus address still collides.
+	if err := markClaimed(info.ID); err != nil {
+		dev.Close()
+		releaseCtx()
+		return nil, err
+	}
+
+	fail := func(err error) (*Device, error) {
+		dev.Close()
+		releaseClaim(info.ID)
+		releaseCtx()
+		return nil, err
 	}
 
 	// NOTE: deliberately no dev.SetAutoDetach(true). It is config-wide, so it
@@ -105,43 +128,35 @@ func Open() (*Device, error) {
 
 	cfg, err := dev.Config(configNum)
 	if err != nil {
-		dev.Close()
-		ctx.Close()
-		return nil, fmt.Errorf("selecting configuration %d: %w", configNum, err)
+		return fail(fmt.Errorf("selecting configuration %d: %w", configNum, err))
 	}
 
 	ifaceNum, err := findDisplayInterface(dev, cfg)
 	if err != nil {
 		cfg.Close()
-		dev.Close()
-		ctx.Close()
-		return nil, err
+		return fail(err)
 	}
 
 	intf, err := cfg.Interface(ifaceNum, 0)
 	if err != nil {
 		cfg.Close()
-		dev.Close()
-		ctx.Close()
 		if isAccessError(err) {
-			return nil, ErrBusy
+			return fail(ErrBusy)
 		}
-		return nil, fmt.Errorf("claiming interface %d: %w", ifaceNum, err)
+		return fail(fmt.Errorf("claiming interface %d: %w", ifaceNum, err))
 	}
 
 	out, err := intf.OutEndpoint(epDisplayOut)
 	if err != nil {
 		intf.Close()
 		cfg.Close()
-		dev.Close()
-		ctx.Close()
-		return nil, fmt.Errorf("opening OUT endpoint %#02x: %w", epDisplayOut, err)
+		return fail(fmt.Errorf("opening OUT endpoint %#02x: %w", epDisplayOut, err))
 	}
 
 	return &Device{
-		ctx: ctx, dev: dev, cfg: cfg, intf: intf, out: out,
-		model: model,
-		buf:   make([]byte, push3.FrameBytes),
+		dev: dev, cfg: cfg, intf: intf, out: out,
+		info: info,
+		buf:  make([]byte, push3.FrameBytes),
 	}, nil
 }
 
@@ -158,13 +173,22 @@ func Open() (*Device, error) {
 // xPort is undocumented and CLAUDE.md forbids writing to it, so this selects
 // by name and refuses to fall back onto it.
 func findDisplayInterface(dev *gousb.Device, cfg *gousb.Config) (int, error) {
+	return pickDisplayInterface(cfg.Desc.Interfaces, func(iface, alt int) (string, error) {
+		return dev.InterfaceDescription(cfg.Desc.Number, iface, alt)
+	})
+}
+
+// pickDisplayInterface is findDisplayInterface's decision, separated from the
+// USB handle so the refusal branches can be tested without hardware. describe
+// returns the interface string for one (interface, alt setting) pair.
+func pickDisplayInterface(ifaces []gousb.InterfaceDesc, describe func(iface, alt int) (string, error)) (int, error) {
 	var vendorIfaces []int
-	for _, iface := range cfg.Desc.Interfaces {
+	for _, iface := range ifaces {
 		for _, alt := range iface.AltSettings {
 			if alt.Class != classVendorSpecific {
 				continue
 			}
-			name, err := dev.InterfaceDescription(cfg.Desc.Number, iface.Number, alt.Alternate)
+			name, err := describe(iface.Number, alt.Alternate)
 			if err == nil {
 				if strings.Contains(strings.ToLower(name), "display") {
 					return iface.Number, nil
@@ -253,7 +277,10 @@ func (d *Device) Blank(ctx context.Context) error {
 	return d.WriteFrame(ctx, image.NewNRGBA(image.Rect(0, 0, push3.VisW, push3.VisH)))
 }
 
-// Close releases the interface and the device, in reverse order of claiming.
+// Close releases the interface and the device, in reverse order of claiming,
+// then drops this Device's reference to the shared libusb context. The context
+// itself is only closed once no Device holds one, which is why the release
+// happens after the device is closed rather than before.
 func (d *Device) Close() error {
 	if d.intf != nil {
 		d.intf.Close()
@@ -263,9 +290,9 @@ func (d *Device) Close() error {
 	}
 	if d.dev != nil {
 		d.dev.Close()
-	}
-	if d.ctx != nil {
-		return d.ctx.Close()
+		releaseClaim(d.info.ID)
+		releaseCtx()
+		d.dev = nil
 	}
 	return nil
 }
