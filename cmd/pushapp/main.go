@@ -30,6 +30,7 @@ import (
 	"github.com/federico-pepe/push-tethered-app/internal/host/procmod"
 	"github.com/federico-pepe/push-tethered-app/internal/midi"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
+	"github.com/federico-pepe/push-tethered-app/internal/version"
 	"github.com/federico-pepe/push-tethered-app/modules/monitor"
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
 	"github.com/federico-pepe/push-tethered-app/modules/seq"
@@ -66,9 +67,15 @@ func main() {
 	listDevices := flag.Bool("devices", false, "list connected Push units and their MIDI ports, then exit")
 	deviceSel := flag.String("device", "", "USB unit to drive: serial:XXXX or usb:BUS.ADDR (default: the first one, see -devices)")
 	midiInName := flag.String("midi-in", "", "MIDI input port name to use (default: auto-detect the Live port; required if more than one Push is attached)")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
 
 	log.SetFlags(0)
+
+	if *showVersion {
+		fmt.Println(version.Version)
+		return
+	}
 
 	// Both are pure filesystem operations — no hardware touched, no Push
 	// needed connected, so they run before bootstrap.Open ever claims MIDI
