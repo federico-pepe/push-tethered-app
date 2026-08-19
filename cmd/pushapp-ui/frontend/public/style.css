@@ -185,7 +185,7 @@ html, body {
     opacity: 0.4;
 }
 
-.connect-view {
+.pairing-view {
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -193,7 +193,7 @@ html, body {
     min-height: 0;
 }
 
-.connect-view[hidden] {
+.pairing-view[hidden] {
     display: none;
 }
 
@@ -203,7 +203,30 @@ html, body {
     color: var(--text-dim);
 }
 
-.port-list {
+.pairing-columns {
+    display: flex;
+    gap: 12px;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.pairing-column {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.pairing-heading {
+    margin: 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+}
+
+.pairing-list {
     list-style: none;
     margin: 0;
     padding: 0;
@@ -215,24 +238,58 @@ html, body {
     min-height: 0;
 }
 
-.port-row {
+.pairing-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 12px 14px;
+    gap: 10px;
+    padding: 10px 12px;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 8px;
+    cursor: pointer;
 }
 
-.port-name {
-    font-size: 13px;
-    word-break: break-word;
+.pairing-row.is-selected {
+    border-color: var(--accent);
+    background: var(--panel-active);
 }
 
-.port-connect {
+.pairing-row.is-disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.pairing-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.pairing-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.pairing-name {
     font-size: 13px;
-    padding: 6px 14px;
+}
+
+.pairing-detail {
+    font-size: 11px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pairing-identify {
+    font-size: 12px;
+    padding: 5px 10px;
     border-radius: 6px;
     border: 1px solid var(--border);
     background: transparent;
@@ -241,21 +298,45 @@ html, body {
     white-space: nowrap;
 }
 
-.port-connect:hover:not(:disabled) {
+.pairing-identify:hover:not(:disabled) {
     border-color: var(--accent);
     color: var(--accent);
 }
 
-.port-connect:disabled {
+.pairing-identify:disabled {
     color: var(--text-dim);
+    cursor: default;
+    opacity: 0.5;
+}
+
+.pairing-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pair-btn {
+    font-size: 13px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #0a0a0c;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pair-btn:disabled {
+    background: transparent;
+    color: var(--text-dim);
+    border-color: var(--border);
     cursor: default;
     opacity: 0.6;
 }
 
 .retry-btn {
-    align-self: flex-start;
     font-size: 13px;
-    padding: 6px 14px;
+    padding: 8px 16px;
     border-radius: 6px;
     border: 1px solid var(--border);
     background: transparent;
@@ -272,4 +353,86 @@ html, body {
     color: var(--text-dim);
     cursor: default;
     opacity: 0.6;
+}
+
+.session-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.session-list[hidden] {
+    display: none;
+}
+
+.session-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.session-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.session-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 0;
+}
+
+.session-title .session-unit {
+    color: var(--text-dim);
+    font-weight: 400;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.session-header-buttons {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.session-disconnect {
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.session-disconnect:hover:not(:disabled) {
+    border-color: #e57373;
+    color: #e57373;
+}
+
+.session-disconnect:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.session-error {
+    font-size: 12px;
+    color: #e57373;
+    margin: 0;
 }

@@ -11,21 +11,37 @@
     <header class="brand">
         <div class="brand-row">
             <h1 class="title">Push Tethered App</h1>
-            <button id="install-btn" class="install-btn">Install&hellip;</button>
+            <button id="install-btn" class="install-btn" hidden>Install&hellip;</button>
         </div>
-        <p class="subtitle" id="status">Loading modules&hellip;</p>
+        <p class="subtitle" id="status">Loading&hellip;</p>
     </header>
 
-    <section class="connect-view" id="connect-view" hidden>
+    <section class="pairing-view" id="pairing-view" hidden>
         <p class="connect-hint">
-            Couldn't find Push's Live MIDI port automatically. Pick it from the
-            list below — it's usually the one whose name mentions "Push".
+            Pick a screen and a MIDI port that belong to the same physical
+            Push, then pair them. Use Identify if you can't tell two units
+            apart by looking — it blinks the picked unit's screen or lights
+            its pads.
         </p>
-        <ul class="port-list" id="port-list" aria-label="MIDI input ports"></ul>
-        <button id="retry-btn" class="retry-btn">Retry auto-detect</button>
+
+        <div class="pairing-columns">
+            <div class="pairing-column">
+                <h2 class="pairing-heading">Screens</h2>
+                <ul class="pairing-list" id="usb-unit-list" aria-label="USB units"></ul>
+            </div>
+            <div class="pairing-column">
+                <h2 class="pairing-heading">MIDI ports</h2>
+                <ul class="pairing-list" id="midi-unit-list" aria-label="MIDI units"></ul>
+            </div>
+        </div>
+
+        <div class="pairing-actions">
+            <button id="pair-btn" class="pair-btn" disabled>Pair and connect</button>
+            <button id="auto-btn" class="retry-btn">Auto-detect and connect</button>
+        </div>
     </section>
 
-    <ul class="module-list" id="module-list" aria-label="Modules"></ul>
+    <ul class="session-list" id="session-list" aria-label="Connected sessions" hidden></ul>
 </main>
 
 <script type="module" src="/src/main.js"></script>

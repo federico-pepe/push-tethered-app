@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/federico-pepe/ableton-push-hack/core/push3"
+	"github.com/federico-pepe/push-tethered-app/internal/midilock"
 	"github.com/federico-pepe/push-tethered-app/internal/pushmap"
 	gm "gitlab.com/gomidi/midi/v2"
 	"gitlab.com/gomidi/midi/v2/drivers"
@@ -31,10 +32,27 @@ import (
 // "Ableton Push 2 Live Port" and "Ableton Push 3 Live Port".
 const livePortSuffix = "Live Port"
 
+// hardwareNameMarker is what every real Push port name starts with, on every
+// OS this repo has seen a capture from — "Ableton Push 2 Live Port",
+// "Ableton Push 3 MIDI", "MIDIIN2 (Ableton Push 3 MIDI)". A bare "Push"
+// substring is not enough: this app's own virtual MIDI-out port is named
+// "Push Tethered App" (internal/midiout.DefaultName), and every "contains
+// Push" filter in this package would otherwise mistake it for a hardware
+// unit's own cable — confirmed live 2026-08-19, where pairing a real unit
+// while a session with a MIDI-out module active caused "Push Tethered App"
+// to show up in the pairing view as if it were a Push.
+const hardwareNameMarker = "Ableton Push"
+
+// isPushHardwareName reports whether name looks like a real Push port, not
+// merely a port that happens to mention "Push" — see hardwareNameMarker.
+func isPushHardwareName(name string) bool {
+	return strings.Contains(name, hardwareNameMarker)
+}
+
 // findPort returns the first port whose name mentions Push and the Live port.
 func findPortName(names []string) (string, error) {
 	for _, n := range names {
-		if strings.Contains(n, "Push") && strings.Contains(n, livePortSuffix) {
+		if isPushHardwareName(n) && strings.Contains(n, livePortSuffix) {
 			return n, nil
 		}
 	}
@@ -203,6 +221,7 @@ type Port struct {
 	send func(gm.Message) error
 	stop func()
 	name string
+	ref  PortRef
 	dev  pushmap.Device
 }
 
@@ -212,10 +231,18 @@ func (p *Port) Device() pushmap.Device { return p.dev }
 // Name returns the MIDI port this connection uses.
 func (p *Port) Name() string { return p.name }
 
+// Ref returns the PortRef this connection was opened from. Zero-valued for a
+// Port opened before PortRef existed in this process's history — none is,
+// since every open path now goes through OpenRef.
+func (p *Port) Ref() PortRef { return p.ref }
+
 // ListInPorts returns the name of every MIDI input port the OS currently
 // sees, Push or not. Exists so a caller that can't auto-detect the Live port
 // (§ Windows naming below) can offer the user a manual pick.
 func ListInPorts() []string {
+	midilock.Lock()
+	defer midilock.Unlock()
+
 	var names []string
 	for _, p := range gm.GetInPorts() {
 		names = append(names, p.String())
@@ -234,7 +261,16 @@ func ListInPorts() []string {
 // (...)"), so livePortSuffix never matches there. Found 2026-08-18 from a
 // real Windows report. OpenNamed exists as the escape hatch — a caller with
 // no better guess should list ListInPorts() and let the user pick.
+//
+// Refuses when more than one Push is attached: with two units there is no
+// name-based way to tell which one's Live Port this would open, and guessing
+// risks silently driving the wrong physical unit. Callers that need to pick
+// among several units should use ListUnits and OpenRef instead.
 func Open() (*Port, error) {
+	units := ListUnits()
+	if len(units) > 1 {
+		return nil, fmt.Errorf("%d Push units attached — pass a PortRef from ListUnits instead of auto-detecting", len(units))
+	}
 	name, err := findPortName(ListInPorts())
 	if err != nil {
 		return nil, err
@@ -247,69 +283,68 @@ func Open() (*Port, error) {
 // makes. Use when the caller already knows which port is Push's Live port —
 // typically because the user picked it, after Open's heuristic failed.
 //
-// The output lookup is NOT a literal name match: on Windows (WinMM), in and
-// out cables of the same device are numbered independently and never share a
-// string — "MIDIIN2 (Ableton Push 3 MIDI)" has no output port named that.
-// Instead we find name's position among Push-named input ports and take the
-// Push-named output port at that same position, since both lists are
-// enumerated in the device's own cable order. On CoreMIDI/ALSA, where in/out
-// names do match exactly, this still picks the right port — it's just also
-// position-consistent there.
+// Refuses when name matches more than one unit's cables rather than silently
+// opening whichever the driver lists first — see ListPortRefs.
 func OpenNamed(name string) (*Port, error) {
-	in, err := gm.FindInPort(name)
-	if err != nil {
-		return nil, fmt.Errorf("opening MIDI in %q: %w", name, err)
+	var matches []PortRef
+	for _, ref := range ListPortRefs() {
+		if ref.InName == name {
+			matches = append(matches, ref)
+		}
 	}
-	out, err := findMatchingOutPort(name)
+	switch len(matches) {
+	case 0:
+		return nil, fmt.Errorf("no Push input port named %q", name)
+	case 1:
+		return OpenRef(matches[0])
+	default:
+		return nil, fmt.Errorf("%q matches %d units — ambiguous, use OpenRef with a specific PortRef", name, len(matches))
+	}
+}
+
+// OpenRef opens exactly the cable ref names, by driver port number rather than
+// by name. Opening by number is what makes the second of two identically
+// named units reachable at all: gomidi's name-based lookup does a substring
+// match and returns whichever port it finds first (drivers/port.go), so two
+// Push units sharing a name are otherwise indistinguishable through it.
+//
+// Re-validates that the port at ref.InNum still carries ref.InName before
+// opening — if it does not, the port list changed since ref was produced (a
+// unit was unplugged, most likely), and opening by number alone would risk
+// opening whatever now sits at that slot instead of the unit the caller meant.
+func OpenRef(ref PortRef) (*Port, error) {
+	if ref.Ambiguous {
+		return nil, fmt.Errorf("port %q is ambiguous — two units produced indistinguishable names; identify the out cable by its LEDs first", ref.InName)
+	}
+	if ref.OutNum < 0 {
+		return nil, fmt.Errorf("no output cable paired with %q", ref.InName)
+	}
+
+	midilock.Lock()
+	defer midilock.Unlock()
+
+	current := map[int]string{}
+	for _, p := range gm.GetInPorts() {
+		current[p.Number()] = p.String()
+	}
+	if got := current[ref.InNum]; got != ref.InName {
+		return nil, fmt.Errorf("MIDI port list changed: port %d is now %q, expected %q — re-enumerate and retry",
+			ref.InNum, got, ref.InName)
+	}
+
+	in, err := gm.InPort(ref.InNum)
 	if err != nil {
-		return nil, fmt.Errorf("opening MIDI out %q: %w", name, err)
+		return nil, fmt.Errorf("opening MIDI in %q (port %d): %w", ref.InName, ref.InNum, err)
+	}
+	out, err := gm.OutPort(ref.OutNum)
+	if err != nil {
+		return nil, fmt.Errorf("opening MIDI out %q (port %d): %w", ref.OutName, ref.OutNum, err)
 	}
 	send, err := gm.SendTo(out)
 	if err != nil {
 		return nil, fmt.Errorf("opening MIDI out: %w", err)
 	}
-	return &Port{in: in, out: out, send: send, name: name,
-		dev: pushmap.DeviceFromPortName(name)}, nil
-}
-
-// findMatchingOutPort finds the output cable that corresponds to the named
-// input cable. Tries an exact name match first (the common case on
-// CoreMIDI/ALSA, and cheap to confirm), then falls back to matching by
-// position among Push-named ports — see OpenNamed's WinMM note.
-func findMatchingOutPort(inName string) (drivers.Out, error) {
-	if out, err := gm.FindOutPort(inName); err == nil {
-		return out, nil
-	}
-
-	ins := gm.GetInPorts()
-	idx := -1
-	pos := 0
-	for _, p := range ins {
-		if !strings.Contains(p.String(), "Push") {
-			continue
-		}
-		if p.String() == inName {
-			idx = pos
-			break
-		}
-		pos++
-	}
-	if idx == -1 {
-		return nil, fmt.Errorf("no Push output port matches %q", inName)
-	}
-
-	outs := gm.GetOutPorts()
-	pos = 0
-	for _, p := range outs {
-		if !strings.Contains(p.String(), "Push") {
-			continue
-		}
-		if pos == idx {
-			return p, nil
-		}
-		pos++
-	}
-	return nil, fmt.Errorf("no Push output port matches %q", inName)
+	return &Port{in: in, out: out, send: send, name: ref.InName, ref: ref, dev: ref.Device}, nil
 }
 
 // Listen starts delivering decoded events to fn until Close.
@@ -348,6 +383,57 @@ func (p *Port) Clear() {
 	}
 	for _, cc := range pushmap.LitButtons() {
 		_ = p.SetButton(cc, 0)
+	}
+}
+
+// OutCable is a bare LED-writing connection to a single MIDI out cable, with
+// no paired input. It exists for internal/identify's FlashLEDs: identifying a
+// candidate out cable is exactly the operation needed to resolve a PortRef
+// the pairing logic marked Ambiguous, so it must not require — or refuse
+// because of — the same pairing OpenRef enforces for a full bidirectional
+// Port.
+type OutCable struct {
+	out  drivers.Out
+	send func(gm.Message) error
+}
+
+// OpenOutCable opens outNum for LED writes only. Unlike OpenRef this performs
+// no re-validation against a remembered name and no ambiguity check — the
+// caller is expected to already be choosing among candidates by number,
+// which is exactly the situation where a name-based or paired lookup has
+// already given up.
+func OpenOutCable(outNum int) (*OutCable, error) {
+	midilock.Lock()
+	defer midilock.Unlock()
+
+	out, err := gm.OutPort(outNum)
+	if err != nil {
+		return nil, fmt.Errorf("opening MIDI out port %d: %w", outNum, err)
+	}
+	send, err := gm.SendTo(out)
+	if err != nil {
+		return nil, fmt.Errorf("opening MIDI out port %d: %w", outNum, err)
+	}
+	return &OutCable{out: out, send: send}, nil
+}
+
+// SetPad lights a grid pad. Same encoding as Port.SetPad.
+func (c *OutCable) SetPad(note, colour byte) error {
+	return c.send(gm.Message([]byte{0x90, note, colour}))
+}
+
+// Clear turns off every pad.
+func (c *OutCable) Clear() {
+	for n := byte(push3.PadNoteMin); n <= push3.PadNoteMax; n++ {
+		_ = c.SetPad(n, 0)
+	}
+}
+
+// Close clears every pad this cable lit and releases it.
+func (c *OutCable) Close() {
+	c.Clear()
+	if c.out != nil && c.out.IsOpen() {
+		_ = c.out.Close()
 	}
 }
 

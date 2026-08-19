@@ -3,12 +3,22 @@ package main
 import (
 	"fmt"
 
+	"github.com/federico-pepe/push-tethered-app/internal/display"
+	pmidi "github.com/federico-pepe/push-tethered-app/internal/midi"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-// errNotConnected is what every module-list/control method returns while no
-// MIDI port has been picked yet — see hostManager and ListMIDIPorts/Connect.
-var errNotConnected = fmt.Errorf("not connected to Push yet")
+// apiVersion is bumped whenever a PushService method's signature changes in a
+// way an old frontend build cannot safely call — which every change in this
+// file is, since single-session methods became session-keyed. The frontend
+// checks this once at startup (see main.ts) and asks for a reload on
+// mismatch, rather than this file carrying old and new method shims side by
+// side.
+const apiVersion = 2
+
+// errNoSession is what every session-scoped method returns for an unknown or
+// no-longer-connected session key.
+var errNoSession = fmt.Errorf("no such session")
 
 // ModuleInfo is the JSON shape sent to the frontend.
 //
@@ -31,59 +41,106 @@ type ModuleInfo struct {
 	Installed bool `json:"installed"`
 }
 
+// SessionInfo is one connected Push, as shown on its session card.
+type SessionInfo struct {
+	Key        string        `json:"key"`
+	Unit       string        `json:"unit"`
+	DisplaySel string        `json:"displaySel"`
+	MIDIIn     pmidi.PortRef `json:"midiIn"`
+}
+
+// Overview is everything the pairing view and the session list need, fetched
+// in one round trip. With N sessions, polling IsConnected + LastError +
+// ListModules per session the way the single-session UI used to would be
+// 1+N calls every tick for no reason.
+type Overview struct {
+	Sessions   []SessionInfo     `json:"sessions"`
+	Units      []display.Info    `json:"units"`
+	MIDIUnits  []pmidi.Unit      `json:"midiUnits"`
+	UnitErrors map[string]string `json:"unitErrors"` // by unit key — see hostManager.lastErrors
+}
+
 // PushService is the bound Go object the frontend calls into. It is a thin
-// wrapper over host.Runtime's own control API (List/Active/Activate/Install/
-// Uninstall) — no new behaviour lives here, only the JSON-shaping and, for
-// InstallModulePrompt, the native folder picker a webview cannot provide
-// itself.
+// wrapper over hostManager and host.Runtime's own control API — no new
+// behaviour lives here beyond JSON-shaping and, for InstallModulePrompt, the
+// native folder picker a webview cannot provide itself.
 type PushService struct {
 	mgr *hostManager
 }
 
-// NewPushService wraps a hostManager, which may or may not be connected yet.
+// NewPushService wraps a hostManager, which may or may not have any sessions
+// connected yet.
 func NewPushService(mgr *hostManager) *PushService {
 	return &PushService{mgr: mgr}
 }
 
-// IsConnected reports whether a MIDI port has been claimed and the host is
-// running. The frontend polls this to decide between the port-picker view and
-// the module-list view.
-func (s *PushService) IsConnected() bool {
-	_, ok := s.mgr.connected()
-	return ok
-}
+// APIVersion lets the frontend detect a stale cached build against a rebuilt
+// backend — see main.ts's startup check. Bump this, not the method
+// signatures below it, when adding a genuinely additive method; bump it and
+// expect the frontend to reload for anything that changes an existing one.
+func (s *PushService) APIVersion() int { return apiVersion }
 
-// LastError reports why the host stopped on its own since the last successful
-// connect — e.g. the device was unplugged. Empty if there is nothing to
-// report. The frontend reads this once IsConnected turns false unexpectedly,
-// to show why rather than silently reverting to the port-picker.
-func (s *PushService) LastError() string {
-	if err := s.mgr.lastError(); err != nil {
-		return err.Error()
+// Overview reports every connected session plus every USB and MIDI unit
+// currently visible, for the pairing view and the session list in one call.
+func (s *PushService) Overview() Overview {
+	units, err := display.List()
+	if err != nil {
+		units = nil // the pairing view shows "no units found" either way
 	}
-	return ""
+	sessions := s.mgr.list()
+	sessInfos := make([]SessionInfo, len(sessions))
+	for i, si := range sessions {
+		sessInfos[i] = SessionInfo{Key: si.Key, Unit: si.Unit, DisplaySel: si.DisplaySel, MIDIIn: si.MIDIIn}
+	}
+	return Overview{
+		Sessions:   sessInfos,
+		Units:      units,
+		MIDIUnits:  pmidi.ListUnits(),
+		UnitErrors: s.mgr.lastErrors(),
+	}
 }
 
-// ListMIDIPorts lists every MIDI input port the OS currently sees, for the
-// port-picker view shown when auto-detect fails (see hostManager.connect).
+// ListMIDIPorts lists every MIDI input port name the OS currently sees. Kept
+// as a flat fallback alongside Overview's grouped MIDIUnits, for whatever the
+// grouping logic cannot make sense of on an untested platform.
 func (s *PushService) ListMIDIPorts() []string {
 	return s.mgr.ports()
 }
 
-// ConnectMIDIPort claims the named MIDI port and starts the host. name must be
-// one of ListMIDIPorts' results — Push's Live port on most setups is the one
-// whose name mentions Push and either ends in "Live Port" or, on Windows,
-// carries no "MIDIINn (...)" prefix at all.
-func (s *PushService) ConnectMIDIPort(name string) error {
-	return s.mgr.connect(name)
+// IdentifyUnit flashes sel's display for a few seconds — see
+// hostManager.identifyUnit. Only meaningful for a unit not already shown as a
+// session card.
+func (s *PushService) IdentifyUnit(sel string) error {
+	return s.mgr.identifyUnit(sel)
 }
 
-// ListModules returns every available module — compiled-in and installed —
-// marking which one is active.
-func (s *PushService) ListModules() ([]ModuleInfo, error) {
-	rt, ok := s.mgr.connected()
+// IdentifyMIDIPort flashes every pad on outNum for a few seconds — the
+// disambiguation path for a PortRef the pairing logic marked Ambiguous, where
+// there is no automatic answer for which physical unit a colliding cable
+// belongs to.
+func (s *PushService) IdentifyMIDIPort(outNum int) error {
+	return s.mgr.identifyMIDIPort(outNum)
+}
+
+// Connect pairs and claims the unit and cable named by req, starting a new
+// session, and returns its key. An empty req reproduces the historical
+// single-device auto-detect, which still works as long as only one Push is
+// attached.
+func (s *PushService) Connect(req ConnectRequest) (string, error) {
+	return s.mgr.connect(req)
+}
+
+// Disconnect stops one session and releases its hardware.
+func (s *PushService) Disconnect(key string) error {
+	return s.mgr.disconnect(key)
+}
+
+// ListModules returns every available module for the given session —
+// compiled-in and installed, marking which one is active.
+func (s *PushService) ListModules(sessionKey string) ([]ModuleInfo, error) {
+	rt, ok := s.mgr.session(sessionKey)
 	if !ok {
-		return nil, errNotConnected
+		return nil, errNoSession
 	}
 	active := rt.Active().ID
 	metas := rt.List()
@@ -102,27 +159,26 @@ func (s *PushService) ListModules() ([]ModuleInfo, error) {
 	return out, nil
 }
 
-// ActivateModule switches the host to the named module. The frontend re-reads
-// ListModules afterward rather than relying on a return value here, so one
-// call site handles both success and the "which one is active now" question.
-func (s *PushService) ActivateModule(id string) error {
-	rt, ok := s.mgr.connected()
+// ActivateModule switches the given session to the named module.
+func (s *PushService) ActivateModule(sessionKey, id string) error {
+	rt, ok := s.mgr.session(sessionKey)
 	if !ok {
-		return errNotConnected
+		return errNoSession
 	}
 	return rt.Activate(id)
 }
 
 // InstallModulePrompt opens a native "choose a folder" dialog and installs
-// whatever the user picks. The dialog has to happen on the Go side: a webview
-// has no access to real filesystem paths, only to files the user drags in or
-// picks through its own sandboxed file input — neither gives us a directory
-// path to hand to Runtime.Install. Returns the zero value with no error if the
-// user cancels, so the frontend can tell "cancelled" apart from "failed".
-func (s *PushService) InstallModulePrompt() (ModuleInfo, error) {
-	rt, ok := s.mgr.connected()
+// whatever the user picks, through the given session's Runtime. The
+// installed-modules directory is shared process-wide, so the module becomes
+// available to every session — but only after each one reloads its own
+// installed list; a session other than sessionKey will not see it until its
+// own ListModules is next called following a fresh LoadInstalled (see
+// plans/2026-08-19-multi-device.md's open question on this).
+func (s *PushService) InstallModulePrompt(sessionKey string) (ModuleInfo, error) {
+	rt, ok := s.mgr.session(sessionKey)
 	if !ok {
-		return ModuleInfo{}, errNotConnected
+		return ModuleInfo{}, errNoSession
 	}
 
 	dir, err := application.Get().Dialog.OpenFile().
@@ -151,16 +207,13 @@ func (s *PushService) InstallModulePrompt() (ModuleInfo, error) {
 	}, nil
 }
 
-// UninstallModule removes a process-loaded module. Refuses (via the error
-// Runtime.Uninstall already returns) for the active module or a compiled-in
-// one — the frontend only offers this for modules where ModuleInfo.Installed
-// is true and Active is false, but the refusal is still real defence, not
-// just a UI nicety, since nothing stops a second client of this same Runtime
-// from acting concurrently.
-func (s *PushService) UninstallModule(id string) error {
-	rt, ok := s.mgr.connected()
+// UninstallModule removes a process-loaded module via the given session.
+// Refuses (via the error Runtime.Uninstall already returns) for the active
+// module or a compiled-in one.
+func (s *PushService) UninstallModule(sessionKey, id string) error {
+	rt, ok := s.mgr.session(sessionKey)
 	if !ok {
-		return errNotConnected
+		return errNoSession
 	}
 	return rt.Uninstall(id)
 }

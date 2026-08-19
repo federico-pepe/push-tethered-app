@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -14,6 +15,7 @@ import (
 	"github.com/federico-pepe/ableton-push-hack/core/push3"
 	"github.com/federico-pepe/push-tethered-app/internal/capture"
 	"github.com/federico-pepe/push-tethered-app/internal/display"
+	"github.com/federico-pepe/push-tethered-app/internal/identify"
 	pmidi "github.com/federico-pepe/push-tethered-app/internal/midi"
 	"github.com/federico-pepe/push-tethered-app/internal/midiout"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
@@ -96,6 +98,14 @@ type Runtime struct {
 
 	frame *module.Frame
 	img   *image.NRGBA
+
+	// identifyMu guards the identify overlay: Identify is called from the UI
+	// goroutine, drawFrame reads it from the frame-loop goroutine.
+	identifyMu     sync.Mutex
+	identifyUntil  time.Time
+	identifyLabel  string
+	identifySwatch color.NRGBA
+	identifyFrame  int // counts drawFrame calls while active; drives the blink
 
 	frames  int
 	evCount atomic.Int64
@@ -222,24 +232,32 @@ func (r *Runtime) Run(ctx context.Context) error {
 		}
 	}
 
-	// The driver thread's only job: translate and enqueue.
-	if err := r.port.Listen(func(ev pmidi.Event) {
-		r.evCount.Add(1)
-		me := translate(ev)
-		if me == nil {
-			return
+	// A nil port never happens on a real bootstrap.Open path — MIDI open
+	// failure aborts before host.New is ever called — so skipping Listen here
+	// only matters for a test-built Runtime with no hardware behind it.
+	// Symmetric with dev's existing "may be nil, degrade" handling in
+	// drawFrame: the frame loop below still runs and still respects
+	// ctx.Done(), just with no input events ever arriving.
+	if r.port != nil {
+		// The driver thread's only job: translate and enqueue.
+		if err := r.port.Listen(func(ev pmidi.Event) {
+			r.evCount.Add(1)
+			me := translate(ev)
+			if me == nil {
+				return
+			}
+			select {
+			case r.events <- me:
+			default:
+				// Drop rather than block. Blocking here would stall the MIDI driver
+				// thread, which is far worse than losing an event: the whole point
+				// of the queue is that a slow module cannot reach back and wedge
+				// the hardware. Dropping the newest keeps the queue in order.
+				r.dropped.Add(1)
+			}
+		}); err != nil {
+			return fmt.Errorf("MIDI listen: %w", err)
 		}
-		select {
-		case r.events <- me:
-		default:
-			// Drop rather than block. Blocking here would stall the MIDI driver
-			// thread, which is far worse than losing an event: the whole point
-			// of the queue is that a slow module cannot reach back and wedge
-			// the hardware. Dropping the newest keeps the queue in order.
-			r.dropped.Add(1)
-		}
-	}); err != nil {
-		return fmt.Errorf("MIDI listen: %w", err)
 	}
 
 	ticker := time.NewTicker(time.Second / time.Duration(r.opts.FPS))
@@ -277,7 +295,58 @@ func (r *Runtime) Run(ctx context.Context) error {
 	}
 }
 
+// Identify overlays an identifying marker on this session's display for d,
+// taking over from the active module's drawing until it expires. Reuses the
+// existing frame ticker rather than claiming the display a second time — see
+// internal/identify's package doc for why a display-only marker is not
+// enough to finish a pairing on its own.
+func (r *Runtime) Identify(label string, swatch color.NRGBA, d time.Duration) {
+	r.identifyMu.Lock()
+	defer r.identifyMu.Unlock()
+	r.identifyUntil = time.Now().Add(d)
+	r.identifyLabel = label
+	r.identifySwatch = swatch
+	r.identifyFrame = 0
+}
+
+// identifyBlinkHz matches internal/identify.Flash's blink rate. Kept as a
+// separate constant rather than an exported one from that package: this path
+// rides the module frame loop's own ticker instead of writing at its own
+// fixed rate, so the two are related by intent, not by a shared value that
+// has to stay byte-identical.
+const identifyBlinkHz = 2
+
+// drawIdentifyOverlay paints the identify marker into r.img in place of the
+// active module's frame, if an Identify call is still within its duration.
+// Reports whether it did, so drawFrame knows to skip the module render.
+func (r *Runtime) drawIdentifyOverlay() bool {
+	r.identifyMu.Lock()
+	if !time.Now().Before(r.identifyUntil) {
+		r.identifyMu.Unlock()
+		return false
+	}
+	label, swatch := r.identifyLabel, r.identifySwatch
+	blinkEvery := r.opts.FPS / (identifyBlinkHz * 2)
+	if blinkEvery < 1 {
+		blinkEvery = 1
+	}
+	r.identifyFrame++
+	phase := r.identifyFrame / blinkEvery
+	r.identifyMu.Unlock()
+
+	clear(r.img.Pix)
+	identify.PaintMarker(r.img, label, swatch, phase)
+	return true
+}
+
 func (r *Runtime) drawFrame(ctx context.Context) error {
+	if r.drawIdentifyOverlay() {
+		if r.dev == nil {
+			return nil
+		}
+		return r.dev.WriteFrame(ctx, r.img)
+	}
+
 	r.activeMu.RLock()
 	m := r.active
 	r.activeMu.RUnlock()
@@ -352,6 +421,9 @@ func (r *Runtime) ensureMIDIOut() (*midiout.Out, error) {
 }
 
 func (r *Runtime) clearLEDs() {
+	if r.port == nil {
+		return
+	}
 	r.portMu.Lock()
 	defer r.portMu.Unlock()
 	r.port.Clear()

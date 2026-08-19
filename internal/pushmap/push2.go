@@ -1,5 +1,7 @@
 package pushmap
 
+import "encoding/json"
+
 // Push 2 control-surface map, measured on hardware 2026-08-16 (§11).
 //
 // Most of Push 2 matches the core/push3 CC table exactly — screen rows, scene
@@ -62,6 +64,32 @@ func (d Device) String() string {
 		return "Push 2"
 	}
 	return "Push 3"
+}
+
+// MarshalJSON encodes as the same "Push 2"/"Push 3" string String() returns,
+// rather than the underlying int — this type crosses into JSON as part of
+// midi.PortRef and midi.Unit, bound to the pushapp-ui frontend, where a raw
+// 0/1 would be meaningless without a copy of this enum on the JS side.
+func (d Device) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + d.String() + `"`), nil
+}
+
+// UnmarshalJSON parses MarshalJSON's own "Push 2"/"Push 3" string form back
+// into the enum. Needed because midi.PortRef round-trips through
+// pushapp-ui's frontend — Overview sends one out, the user picks it, and
+// Connect decodes the same shape back — so this type must be as decodable as
+// it is encodable, not encode-only.
+func (d *Device) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	if s == "Push 2" {
+		*d = Push2
+	} else {
+		*d = Push3
+	}
+	return nil
 }
 
 // DeviceFromPortName infers the device from a MIDI port name such as
