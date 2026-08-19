@@ -144,6 +144,33 @@ func New(port *pmidi.Port, dev *display.Device, opts Options, modules ...module.
 
 // List returns metadata for every available module — compiled-in first, then
 // installed, each in the order they were added.
+// DisplayInfo reports the identity of the display this Runtime claimed, if
+// any — false when running MIDI-only (NoDisplay, or degraded after
+// display.ErrBusy). Exists so a caller that opened with an empty selector
+// (auto-detect) can learn which physical unit actually got claimed, rather
+// than only knowing what it originally asked for — cmd/pushapp-ui's session
+// bookkeeping needs the real identity to recognize an auto-connected unit as
+// paired.
+func (r *Runtime) DisplayInfo() (display.Info, bool) {
+	if r.dev == nil {
+		return display.Info{}, false
+	}
+	return r.dev.Info(), true
+}
+
+// MIDIRef reports the identity of the MIDI cable this Runtime is reading,
+// resolved even when the caller opened with an empty PortRef (auto-detect) —
+// same purpose as DisplayInfo, for the MIDI half of a session's identity. The
+// zero PortRef only happens in a test-built Runtime with no port at all; a
+// real bootstrap.Open path always has one, since MIDI open failure aborts
+// before host.New is ever called.
+func (r *Runtime) MIDIRef() pmidi.PortRef {
+	if r.port == nil {
+		return pmidi.PortRef{}
+	}
+	return r.port.Ref()
+}
+
 func (r *Runtime) List() []module.Meta {
 	r.installedMu.RLock()
 	defer r.installedMu.RUnlock()

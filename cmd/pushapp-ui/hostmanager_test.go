@@ -134,6 +134,37 @@ func TestUnitKeyFallsBackToInName(t *testing.T) {
 	}
 }
 
+func TestUnitKeyDefaultsToAutoWhenEverythingIsEmpty(t *testing.T) {
+	if got := (ConnectRequest{}).unitKey(); got != "auto" {
+		t.Errorf("unitKey() = %q, want \"auto\"", got)
+	}
+}
+
+// unitKeyFor is unitKey's logic, applied a second time in connect() to the
+// *resolved* identity (rt.DisplayInfo/rt.MIDIRef) after an auto-detect
+// connect — this is what fixes a real bug: an auto-connected session used to
+// keep displaySel/midiIn empty forever (echoing the empty request instead of
+// what was actually claimed), so the pairing view never recognized it as
+// paired even though it was genuinely connected. This pins the standalone
+// function's behaviour directly; the end-to-end resolution in connect()
+// cannot be unit-tested the same way, since DisplayInfo/MIDIRef read real
+// hardware-typed fields (r.dev/r.port) that a test-built Runtime leaves nil —
+// verified live instead (plans/2026-08-19-multi-device.md).
+func TestUnitKeyForPrefersDisplaySelector(t *testing.T) {
+	if got := unitKeyFor("usb:1.1", pmidi.PortRef{Unit: "Ableton Push 3"}); got != "usb:1.1" {
+		t.Errorf("unitKeyFor() = %q, want the display selector", got)
+	}
+}
+
+func TestUnitKeyForResolvedFromRuntimeIdentity(t *testing.T) {
+	// Simulates what connect() does for an auto-detect request: req was all
+	// empty, but rt.DisplayInfo() resolved a real serial.
+	resolvedDisplaySel := "serial:37589789"
+	if got := unitKeyFor(resolvedDisplaySel, pmidi.PortRef{}); got != resolvedDisplaySel {
+		t.Errorf("unitKeyFor() = %q, want the resolved display selector", got)
+	}
+}
+
 // lastErrs is keyed by unit so a disconnect reason survives the session that
 // produced it — this exercises that bookkeeping directly, without needing a
 // real Run() failure to trigger it.

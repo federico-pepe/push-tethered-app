@@ -146,6 +146,13 @@ function renderPairing(
     midiListEl.replaceChildren(...midiRows);
 
     pairBtn.disabled = globalBusy || selectedUSB === null || selectedMIDI === null;
+
+    // Auto-detect can never work with more than one Push attached: it goes
+    // through bootstrap.Open's empty-selector path, and pmidi.Open() refuses
+    // outright whenever it sees more than one MIDI unit — there is no right
+    // guess, so it always errors here rather than picking one. Hiding the
+    // button avoids offering an action that is guaranteed to fail.
+    autoBtn.hidden = midiUnits.length > 1;
     autoBtn.disabled = globalBusy;
 }
 
