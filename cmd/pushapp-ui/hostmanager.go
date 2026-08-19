@@ -60,13 +60,22 @@ type ConnectRequest struct {
 // as this cable's unit, else the raw port name as a last resort so an
 // auto-detected single-unit connect still has something to key lastErrs by.
 func (r ConnectRequest) unitKey() string {
+	return unitKeyFor(r.DisplaySel, r.MIDIIn)
+}
+
+// unitKeyFor is unitKey's logic, factored out so it can be applied a second
+// time to the *resolved* identity after an auto-detect connect — see
+// connect's use of rt.DisplayInfo/rt.MIDIRef, which is what makes an
+// auto-detected session's unit key (and displaySel/midiIn) the unit that was
+// actually claimed rather than the empty selector that was requested.
+func unitKeyFor(displaySel string, midiIn pmidi.PortRef) string {
 	switch {
-	case r.DisplaySel != "":
-		return r.DisplaySel
-	case r.MIDIIn.Unit != "":
-		return r.MIDIIn.Unit
-	case r.MIDIIn.InName != "":
-		return r.MIDIIn.InName
+	case displaySel != "":
+		return displaySel
+	case midiIn.Unit != "":
+		return midiIn.Unit
+	case midiIn.InName != "":
+		return midiIn.InName
 	default:
 		return "auto"
 	}
@@ -235,7 +244,23 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 		return "", fmt.Errorf("host: %w", err)
 	}
 
-	unit := req.unitKey()
+	// Resolve what was actually claimed, not merely what was requested: an
+	// auto-detect connect (req.DisplaySel == "" and req.MIDIIn a zero
+	// PortRef) still claims one specific physical unit, and the session's
+	// identity has to reflect that — otherwise the pairing view keeps
+	// showing an auto-connected unit's screen as "unpaired" forever, since
+	// its displaySel never matched anything real. Confirmed live 2026-08-19.
+	displaySel := req.DisplaySel
+	if displaySel == "" {
+		if info, ok := rt.DisplayInfo(); ok {
+			displaySel = info.ID
+		}
+	}
+	midiIn := req.MIDIIn
+	if midiIn.InName == "" {
+		midiIn = rt.MIDIRef()
+	}
+	unit := unitKeyFor(displaySel, midiIn)
 
 	ctx, cancel := context.WithCancel(m.rootCtx)
 	runDone := make(chan error, 1)
@@ -243,7 +268,7 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 
 	sess := &session{
 		key: key, unit: unit, rt: rt, cleanup: cleanup, cancel: cancel,
-		stopped: make(chan struct{}), displaySel: req.DisplaySel, midiIn: req.MIDIIn,
+		stopped: make(chan struct{}), displaySel: displaySel, midiIn: midiIn,
 	}
 	m.sessions[key] = sess
 	m.order = append(m.order, key)
