@@ -287,6 +287,31 @@ jobs:
         shell: msys2 {0}
         run: cp /mingw64/bin/libusb-1.0.dll cmd/pushapp-ui/bin/
 
+      # cmd/pushapp-ui is a separate Go module, so the root module's `go test
+      # ./...` step above never touches it — hostmanager_test.go's
+      # multi-session lifecycle coverage (plans/2026-08-19-multi-device.md)
+      # would otherwise rot silently. Must run after the build steps above:
+      # main.go's `//go:embed all:frontend/dist` fails to compile — breaking
+      # `go test` too — until npm has produced that (gitignored) directory,
+      # confirmed locally by temporarily removing it. Split by OS because
+      # Windows needs the same mingw64-on-PATH + CGO_LDFLAGS=-static
+      # environment as its build step above for the gousb/rtmididrv cgo deps
+      # to compile at all; macOS/Linux already have a working cgo toolchain
+      # in the default shell, same as their plain `wails3 build` step used.
+      - name: Test cmd/pushapp-ui (macOS / Linux)
+        if: runner.os != 'Windows'
+        working-directory: cmd/pushapp-ui
+        run: go test ./...
+
+      - name: Test cmd/pushapp-ui (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        working-directory: cmd/pushapp-ui
+        run: |
+          export PATH="/mingw64/bin:$PATH"
+          export CGO_LDFLAGS="-static"
+          CGO_ENABLED=1 go test ./...
+
       # `wails3 build` produces a bare executable on every OS — no .app bundle,
       # no installer. Those come from `wails3 package` instead (macOS .app/.dmg,
       # Linux AppImage/deb/rpm, Windows NSIS), which needs extra per-OS

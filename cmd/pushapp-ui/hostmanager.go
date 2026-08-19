@@ -110,6 +110,17 @@ type hostManager struct {
 	// unit's row in the pairing view.
 	lastErrs map[string]error
 
+	// identifyMu guards identifyCancels; identifyWG lets shutdownAll wait for
+	// every in-flight identify to actually finish (blank its screen / clear
+	// its pads) rather than merely asking it to stop. Without this, quitting
+	// while an Identify call is running left it writing to a display or MIDI
+	// cable using m.rootCtx after shutdownAll had already returned — the one
+	// way this design could violate "always clear on every exit path" for a
+	// unit that was never part of a session (see beginIdentify).
+	identifyMu      sync.Mutex
+	identifyWG      sync.WaitGroup
+	identifyCancels []context.CancelFunc
+
 	// open replaces bootstrap.Open in tests — see hostmanager_test.go. Real
 	// runs never override it.
 	open func(bootstrap.Options) (*host.Runtime, func(), error)
@@ -205,6 +216,18 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 
 	if reason := m.conflict(req); reason != "" {
 		return "", fmt.Errorf("%s", reason)
+	}
+
+	// CapturePath comes from m.baseOpts, uniform across every session — there
+	// is no per-request field for it, unlike MIDIIn/DisplaySel — so a second
+	// session would not collide on "the same choice", it would collide on
+	// the literal only choice available: every session shares one baseOpts.
+	// pushapp-ui has no UI path that sets this today (only cmd/pushapp does,
+	// and that binary is single-session by design), so this is currently
+	// unreachable — kept as a real guard rather than an assumption, since
+	// nothing stops a future CLI flag from setting it here.
+	if m.baseOpts.CapturePath != "" && len(m.sessions) > 0 {
+		return "", fmt.Errorf("capture path %q is already in use by another session", m.baseOpts.CapturePath)
 	}
 
 	// Assigned before opening, not after, because it also names this
@@ -329,12 +352,14 @@ func (m *hostManager) disconnect(key string) error {
 	return nil
 }
 
-// shutdownAll stops every session in parallel, each bounded so one wedged
-// session cannot hold the process open indefinitely on quit. This is the one
-// place a bug here could violate "always clear LEDs on every exit path": every
-// session's Shutdown (which clears its LEDs) runs inside watch, not inside
-// this function, so shutdownAll only signals and waits — it must wait for
-// all of them, not just cancel and return.
+// shutdownAll stops every session and every in-flight identify call, in
+// parallel, each bounded so one wedged call cannot hold the process open
+// indefinitely on quit. This is the one place a bug here could violate
+// "always clear LEDs on every exit path": every session's Shutdown (which
+// clears its LEDs) runs inside watch, not inside this function, so
+// shutdownAll only signals and waits — it must wait for all of them, not
+// just cancel and return. Same reasoning for identify: cancelling it starts
+// its cleanup, but only waiting for it confirms that cleanup finished.
 func (m *hostManager) shutdownAll() {
 	m.mu.Lock()
 	sessions := make([]*session, 0, len(m.sessions))
@@ -344,7 +369,29 @@ func (m *hostManager) shutdownAll() {
 	}
 	m.mu.Unlock()
 
+	m.identifyMu.Lock()
+	for _, cancel := range m.identifyCancels {
+		cancel()
+	}
+	m.identifyMu.Unlock()
+
 	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		identifyDone := make(chan struct{})
+		go func() {
+			m.identifyWG.Wait()
+			close(identifyDone)
+		}()
+		select {
+		case <-identifyDone:
+		case <-time.After(5 * time.Second):
+			log.Print("host: an identify call did not finish within 5s")
+		}
+	}()
+
 	for _, s := range sessions {
 		wg.Add(1)
 		go func(s *session) {
@@ -367,7 +414,9 @@ func (m *hostManager) shutdownAll() {
 // unit's display would return display.ErrAlreadyClaimed, which is itself a
 // clear enough error rather than a silent no-op.
 func (m *hostManager) identifyUnit(sel string) error {
-	return identify.Flash(m.rootCtx, sel, sel, identifySwatch, identifyDuration, 12)
+	ctx, done := m.beginIdentify()
+	defer done()
+	return identify.Flash(ctx, sel, sel, identifySwatch, identifyDuration, 12)
 }
 
 // identifyMIDIPort flashes every pad on outNum for identifyDuration — see
@@ -375,7 +424,34 @@ func (m *hostManager) identifyUnit(sel string) error {
 // than a PortRef (it is the disambiguation path for exactly the cables a
 // PortRef could not resolve).
 func (m *hostManager) identifyMIDIPort(outNum int) error {
+	ctx, done := m.beginIdentify()
+	defer done()
 	// Palette index 21 — a distinct, easy-to-spot colour confirmed on real
 	// Push 3 hardware (core/push3/colors.go).
-	return identify.FlashLEDs(m.rootCtx, outNum, 21, identifyDuration)
+	return identify.FlashLEDs(ctx, outNum, 21, identifyDuration)
+}
+
+// beginIdentify returns a context derived from m.rootCtx for one identify
+// call, plus a done func the caller must defer-call when it returns.
+// shutdownAll cancels every context handed out this way and waits for done
+// to have been called on all of them — both identify.Flash and
+// identify.FlashLEDs already blank/clear on context cancellation (they are
+// built around a select on ctx.Done()), so this makes an in-flight identify
+// finish its cleanup instead of continuing to write to a display or MIDI
+// cable after the app believes it has shut everything down.
+//
+// Entries in identifyCancels are never pruned — calling an already-completed
+// call's cancel func again in shutdownAll is a safe no-op, and the count of
+// identify calls in one process's lifetime is small enough that this never
+// meaningfully grows.
+func (m *hostManager) beginIdentify() (context.Context, func()) {
+	ctx, cancel := context.WithCancel(m.rootCtx)
+	m.identifyMu.Lock()
+	m.identifyCancels = append(m.identifyCancels, cancel)
+	m.identifyMu.Unlock()
+	m.identifyWG.Add(1)
+	return ctx, func() {
+		cancel()
+		m.identifyWG.Done()
+	}
 }

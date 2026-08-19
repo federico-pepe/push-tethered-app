@@ -351,6 +351,72 @@ func TestConnectRespectsExplicitMIDIOutName(t *testing.T) {
 	}
 }
 
+// CapturePath is process-wide (m.baseOpts), not per-request — unlike
+// MIDIIn/DisplaySel there is no way for two sessions to choose the *same*
+// path deliberately, because there is no per-session choice at all. A second
+// session would collide on the literal only path available.
+func TestConnectRefusesSecondSessionWhenCapturePathSet(t *testing.T) {
+	m := newTestManager(t)
+	m.rootCtx, _ = uncancelledContext()
+	m.baseOpts.CapturePath = "/tmp/capture.mp4"
+
+	if _, err := m.connect(ConnectRequest{DisplaySel: "usb:1.1"}); err != nil {
+		t.Fatalf("first connect: %v", err)
+	}
+	_, err := m.connect(ConnectRequest{DisplaySel: "usb:1.2"})
+	if err == nil {
+		t.Fatal("second connect with CapturePath set and a session already live: expected an error, got nil")
+	}
+}
+
+func TestConnectAllowsCapturePathWithNoLiveSession(t *testing.T) {
+	m := newTestManager(t)
+	m.rootCtx, _ = uncancelledContext()
+	m.baseOpts.CapturePath = "/tmp/capture.mp4"
+
+	if _, err := m.connect(ConnectRequest{DisplaySel: "usb:1.1"}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+}
+
+// shutdownAll must cancel every in-flight Identify call and wait for it to
+// actually finish (blank its screen / clear its pads), not merely ask it to
+// stop — otherwise quitting mid-flash leaves a unit lit past the point the
+// app believes everything is shut down. This exercises beginIdentify and
+// shutdownAll's cancel-and-wait directly, standing in for identify.Flash /
+// identify.FlashLEDs (which need real hardware to run at all): the fake
+// worker below blocks on ctx.Done(), exactly as both of those do internally.
+func TestShutdownAllWaitsForInFlightIdentify(t *testing.T) {
+	m := newTestManager(t)
+	m.rootCtx, _ = uncancelledContext()
+
+	ctx, done := m.beginIdentify()
+	identifyFinished := make(chan struct{})
+	go func() {
+		<-ctx.Done() // stands in for identify.Flash/FlashLEDs' own ctx.Done() select
+		close(identifyFinished)
+		done()
+	}()
+
+	shutdownReturned := make(chan struct{})
+	go func() {
+		m.shutdownAll()
+		close(shutdownReturned)
+	}()
+
+	select {
+	case <-shutdownReturned:
+	case <-time.After(2 * time.Second):
+		t.Fatal("shutdownAll did not return")
+	}
+
+	select {
+	case <-identifyFinished:
+	default:
+		t.Error("shutdownAll returned before the in-flight identify call's context was cancelled and it finished")
+	}
+}
+
 func TestConnectPropagatesOpenError(t *testing.T) {
 	m := newHostManager(context.Background(), bootstrap.Options{}, fakeModules)
 	sentinel := errors.New("no Push found")
