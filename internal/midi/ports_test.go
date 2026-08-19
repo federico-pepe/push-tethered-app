@@ -32,6 +32,23 @@ func TestUnitKeyOf(t *testing.T) {
 		{"MIDIIN3 (Ableton Push 3 MIDI)", "Ableton Push 3 MIDI", "", 3},
 		{"MIDIOUT2 (Ableton Push 3 MIDI)", "Ableton Push 3 MIDI", "", 2},
 
+		// Real Windows measurement, 2026-08-19: this driver's Windows backend
+		// appends a bare " <n>" to every MIDI port name it reports — not just
+		// Push's — where n matches the port's own driver number and
+		// increments globally across every Push-named port on the system,
+		// not per unit. The two names above were the (wrong) hypothesis;
+		// these are what a real Push 3 and a real Push 2 actually reported.
+		{"Ableton Push 3 MIDI 0", "Ableton Push 3 MIDI", "", 1},
+		{"MIDIIN2 (Ableton Push 3 MIDI) 1", "Ableton Push 3 MIDI", "", 2},
+		{"MIDIIN3 (Ableton Push 3 MIDI) 2", "Ableton Push 3 MIDI", "", 3},
+		{"Ableton Push 2 0", "Ableton Push 2", "", 1},
+		{"MIDIIN2 (Ableton Push 2) 1", "Ableton Push 2", "", 2},
+		// With both units attached, the appended index keeps incrementing
+		// globally rather than resetting per unit — still stripped correctly.
+		{"Ableton Push 3 MIDI 2", "Ableton Push 3 MIDI", "", 1},
+		{"MIDIIN2 (Ableton Push 3 MIDI) 3", "Ableton Push 3 MIDI", "", 2},
+		{"MIDIIN3 (Ableton Push 3 MIDI) 4", "Ableton Push 3 MIDI", "", 3},
+
 		// Unrecognised shape: degrade to "one unnamed cable" rather than fail.
 		{"something else entirely", "something else entirely", "", 1},
 	}
@@ -158,6 +175,44 @@ func TestGroupPortsALSAWithClientPortSuffix(t *testing.T) {
 // still unambiguously the same physical unit's cables in relative order. The
 // old key-based-on-absolute-cable-number pairing missed every cable but
 // cable 1 (which happened to share a literal name) whenever this happened.
+// End-to-end version of the real Windows bug: a single Push 3's three input
+// names, measured live 2026-08-19, each carrying the appended index
+// winmmIndex strips (see TestUnitKeyOf). The output side's exact names were
+// never captured live (every cable showed "no output cable found" before
+// this fix, so there was nothing working to read them from) — this
+// hypothesises the output side carries the same "bare name + appended
+// driver-global index" shape, independently numbered from the inputs, which
+// is the worst case the positional fallback has to survive regardless of
+// what the real numbers turn out to be.
+func TestGroupPortsRealWindowsPush3Names(t *testing.T) {
+	ins := []portName{
+		in("Ableton Push 3 MIDI 0", 0),
+		in("MIDIIN2 (Ableton Push 3 MIDI) 1", 1),
+		in("MIDIIN3 (Ableton Push 3 MIDI) 2", 2),
+	}
+	outs := []portName{
+		out("Ableton Push 3 MIDI 5", 5),
+		out("MIDIOUT2 (Ableton Push 3 MIDI) 6", 6),
+		out("MIDIOUT3 (Ableton Push 3 MIDI) 7", 7),
+	}
+	refs := groupPorts(ins, outs)
+	if len(refs) != 3 {
+		t.Fatalf("got %d refs, want 3", len(refs))
+	}
+	for _, r := range refs {
+		if r.Ambiguous {
+			t.Errorf("ref %+v wrongly marked Ambiguous", r)
+		}
+		if r.OutNum < 0 {
+			t.Errorf("ref %+v got no output cable — this is the reported bug", r)
+		}
+	}
+	live := findRef(t, refs, "Ableton Push 3 MIDI 0")
+	if !live.IsLive || live.OutName != "Ableton Push 3 MIDI 5" {
+		t.Errorf("cable 1 = %+v, want paired with the unit's own first output despite the exact names never matching", live)
+	}
+}
+
 func TestGroupPortsWinMMOffsetOutputNumbering(t *testing.T) {
 	ins := []portName{
 		in("Ableton Push 3 MIDI", 0),

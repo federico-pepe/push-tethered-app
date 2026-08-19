@@ -66,17 +66,40 @@ var winmmWrapped = regexp.MustCompile(`^MIDI(?:IN|OUT)(\d+) \((.+)\)$`)
 // marked Live.
 var alsaClientPort = regexp.MustCompile(`\s+\d+:\d+$`)
 
+// winmmIndex strips a trailing " <n>" that this driver's Windows backend
+// appends to every MIDI port name, not just Push's — confirmed live on real
+// Windows hardware 2026-08-19, where the number matched each port's own
+// PortRef.InNum/OutNum exactly ("Ableton Push 3 MIDI 0",
+// "MIDIIN2 (Ableton Push 3 MIDI) 1", "Ableton Push 2 0", the index
+// incrementing globally across every Push-named port the OS reports, not
+// reset per unit). Without stripping it: the bare cable-1 name no longer
+// matches the "no role suffix, cable 1" default cleanly against a
+// same-shaped output name (the two sides get different numbers, since
+// Windows enumerates MIDI in and out independently), and the wrapped form
+// ("MIDIIN2 (...) 1") no longer matches winmmWrapped at all, since that
+// regex anchors to the closing paren. This is why every cable showed
+// "unknown role, Live" and "no output cable found" — role detection and
+// wrapped-cable detection both silently missed on every single port.
+//
+// Safe on every other platform: CoreMIDI/ALSA names never end in a bare
+// space-then-digits — ALSA's own decoration ends in "<client>:<port>", which
+// this pattern's required whitespace-before-digit does not match a colon
+// against, and alsaClientPort already strips that shape first regardless.
+var winmmIndex = regexp.MustCompile(`\s+\d+$`)
+
 // unitKeyOf splits a port name into the unit it belongs to, the cable's named
 // role if it has one, and its 1-based position among that unit's cables.
 //
 // Three shapes are handled, in order: CoreMIDI/ALSA role-suffixed names
-// (which carry the true role — the ALSA client:port address is stripped
-// first, see alsaClientPort), WinMM's wrapped names for cable 2 and up, and
-// WinMM's bare device name for cable 1. Anything else is treated as a single
-// unnamed-role cable 1, which keeps today's single-unit behaviour rather than
-// failing outright on a naming convention this code has not seen yet.
+// (which carry the true role — platform-specific decoration is stripped
+// first, see alsaClientPort and winmmIndex), WinMM's wrapped names for cable
+// 2 and up, and WinMM's bare device name for cable 1. Anything else is
+// treated as a single unnamed-role cable 1, which keeps today's single-unit
+// behaviour rather than failing outright on a naming convention this code
+// has not seen yet.
 func unitKeyOf(name string) (unit, role string, cable int) {
 	trimmed := alsaClientPort.ReplaceAllString(name, "")
+	trimmed = winmmIndex.ReplaceAllString(trimmed, "")
 	for _, suffix := range roleSuffixes {
 		if strings.HasSuffix(trimmed, suffix) {
 			unit = strings.TrimSpace(strings.TrimSuffix(trimmed, suffix))
