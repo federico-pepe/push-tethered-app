@@ -7,11 +7,21 @@ name: build
 # Free-tier account: no `push: branches: [main]` trigger on purpose. Merging
 # a green PR would otherwise re-run this whole matrix a second time against
 # the same tree the PR already tested — pure duplicate cost. CI runs on PRs
-# (before merge) and on demand; a direct push to main bypassing a PR runs
-# untested until manually dispatched.
+# (before merge), on demand, and on version tags (which is also what cuts a
+# release — see the `release` job at the bottom). A direct push to main
+# bypassing a PR runs untested until manually dispatched or tagged.
 on:
   pull_request:
   workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+# Version string baked into binaries via -ldflags (see internal/version).
+# Tag pushes report the tag itself (e.g. v0.1.0-alpha); everything else
+# (PRs, workflow_dispatch) reports "dev".
+env:
+  APP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'dev' }}
 
 jobs:
   # Native arm64 build for Raspberry Pi 4/5, per
@@ -48,10 +58,11 @@ jobs:
 
       - name: Build
         run: |
-          go build -o probe     ./cmd/probe
-          go build -o frametest ./cmd/frametest
-          go build -o mapcheck  ./cmd/mapcheck
-          go build -o pushapp   ./cmd/pushapp
+          LDFLAGS="-X github.com/federico-pepe/push-tethered-app/internal/version.Version=${APP_VERSION}"
+          go build -ldflags "$LDFLAGS" -o probe     ./cmd/probe
+          go build -ldflags "$LDFLAGS" -o frametest ./cmd/frametest
+          go build -ldflags "$LDFLAGS" -o mapcheck  ./cmd/mapcheck
+          go build -ldflags "$LDFLAGS" -o pushapp   ./cmd/pushapp
 
       - name: Vet
         run: go vet ./...
@@ -325,3 +336,40 @@ jobs:
             cmd/pushapp-ui/bin/pushapp-ui
             cmd/pushapp-ui/bin/pushapp-ui.exe
           if-no-files-found: ignore
+
+  # Fires only on a version tag push (see the top-level `on.push.tags`
+  # trigger). Downloads whatever build/build-pi already produced for this
+  # commit and publishes them as a GitHub Release, named after the tag, with
+  # every artifact attached for download. No separate build steps here —
+  # this job is packaging only, reusing the exact binaries CI already
+  # verified.
+  release:
+    needs: [build, build-pi]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v6
+        with:
+          path: artifacts
+
+      # Each actions/upload-artifact name becomes its own artifacts/<name>/
+      # directory; zip each one so the release page offers one clean download
+      # per platform instead of a pile of loose files.
+      - name: Package artifacts
+        working-directory: artifacts
+        run: |
+          for dir in */; do
+            name="${dir%/}"
+            (cd "$name" && zip -r "../${name}.zip" .)
+          done
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
+          generate_release_notes: true
+          files: artifacts/*.zip

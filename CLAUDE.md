@@ -155,7 +155,9 @@ go build ./... && go vet ./... && go test ./...
 
 `pushapp` flags: `-fps`, `-module <id>`, `-list`, `-no-display` (MIDI only),
 `-no-leds`, `-midi-out <name>`, `-no-midi-out`, `-capture`, `-capture-raw`,
-`-install <dir>`, `-uninstall <id>` (filesystem-only, no Push needed).
+`-install <dir>`, `-uninstall <id>` (filesystem-only, no Push needed),
+`-version` (prints `internal/version.Version`, "dev" unless built with the
+release workflow's `-ldflags`).
 
 ```bash
 cd cmd/pushapp-ui
@@ -164,6 +166,29 @@ wails3 build            # produces bin/pushapp-ui
 ```
 
 Full flag reference and probe tools: [docs/guides/debugging.md](docs/guides/debugging.md).
+
+## Releases
+
+Semantic Versioning (pre-1.0, so expect breaking changes between minors):
+`vMAJOR.MINOR.PATCH[-alpha|-beta|-rc.N]`. Current stage: `-alpha`.
+
+Cutting a release:
+
+```bash
+git tag v0.1.1-alpha
+git push origin v0.1.1-alpha
+```
+
+Pushing a `v*` tag triggers `.github/workflows/build.yml`'s `release` job:
+it waits on `build`/`build-pi`, zips their artifacts, and publishes a GitHub
+Release for that tag (pre-release flag set automatically for
+`-alpha`/`-beta`/`-rc` tags) via `softprops/action-gh-release`. Update
+[CHANGELOG.md](CHANGELOG.md) in the same commit as the tagged code, under
+`## [Unreleased]`, then retitle that section to the new version when tagging.
+
+`build.yml` does **not** trigger on plain pushes to `main` (see the comment
+at its top) — only PRs, `workflow_dispatch`, and `v*` tags run CI, to stay
+inside the free-tier Actions minutes.
 
 ## Cross-platform builds
 
