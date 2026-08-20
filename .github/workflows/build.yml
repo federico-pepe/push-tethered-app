@@ -4,14 +4,15 @@ name: build
 # cross-compiled from one machine — see CLAUDE.md's "gousb gotcha" section.
 # This matrix builds natively on each target OS instead, which is the standard
 # way cgo projects cover multiple platforms without owning three machines.
-# Free-tier account: no `push: branches: [main]` trigger on purpose. Merging
-# a green PR would otherwise re-run this whole matrix a second time against
-# the same tree the PR already tested — pure duplicate cost. CI runs on PRs
-# (before merge), on demand, and on version tags (which is also what cuts a
-# release — see the `release` job at the bottom). A direct push to main
-# bypassing a PR runs untested until manually dispatched or tagged.
+# Free-tier account, and this project's own preference: this only runs when
+# explicitly asked for, not automatically on every PR. No `push: branches:
+# [main]` trigger either, for the same reason merging a green PR would
+# otherwise re-run this whole matrix a second time against the same tree —
+# pure duplicate cost. CI runs on demand (workflow_dispatch) and on version
+# tags (which is also what cuts a release — see the `release` job at the
+# bottom). Neither a PR nor a direct push to main runs this automatically;
+# trigger it by hand first if you want pre-merge coverage.
 on:
-  pull_request:
   workflow_dispatch:
   push:
     tags:

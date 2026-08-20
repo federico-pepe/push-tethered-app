@@ -210,9 +210,10 @@ Release for that tag (pre-release flag set automatically for
 [CHANGELOG.md](CHANGELOG.md) in the same commit as the tagged code, under
 `## [Unreleased]`, then retitle that section to the new version when tagging.
 
-`build.yml` does **not** trigger on plain pushes to `main` (see the comment
-at its top) — only PRs, `workflow_dispatch`, and `v*` tags run CI, to stay
-inside the free-tier Actions minutes.
+`build.yml` does **not** trigger automatically on PRs or plain pushes to
+`main` (see the comment at its top) — only `workflow_dispatch` (manual) and
+`v*` tags run CI. Nothing runs without being explicitly asked for, on this
+project's own preference as much as free-tier Actions minutes.
 
 ## Cross-platform builds
 
