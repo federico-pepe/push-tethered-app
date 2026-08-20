@@ -167,7 +167,22 @@ tasks:
         fi
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/MacOS"
       - cp build/darwin/Info.plist "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents"
+      - task: '{{if eq OS "darwin"}}bundle:libusb{{else}}codesign:skip{{end}}'
       - task: '{{if eq OS "darwin"}}codesign:adhoc{{else}}codesign:skip{{end}}'
+
+  bundle:libusb:
+    summary: Bundles the Homebrew libusb dylib into the app so it runs without Homebrew
+    internal: true
+    platforms: [darwin]
+    vars:
+      LIBUSB_PREFIX:
+        sh: 'brew --prefix libusb 2>/dev/null'
+    cmds:
+      - mkdir -p "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Frameworks"
+      - cp "{{.LIBUSB_PREFIX}}/lib/libusb-1.0.0.dylib" "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Frameworks/"
+      - chmod +w "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Frameworks/libusb-1.0.0.dylib"
+      - install_name_tool -id "@executable_path/../Frameworks/libusb-1.0.0.dylib" "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Frameworks/libusb-1.0.0.dylib"
+      - install_name_tool -change "{{.LIBUSB_PREFIX}}/lib/libusb-1.0.0.dylib" "@executable_path/../Frameworks/libusb-1.0.0.dylib" "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/MacOS/{{.APP_NAME}}"
 
   codesign:adhoc:
     summary: Ad-hoc signs the app bundle (macOS only)

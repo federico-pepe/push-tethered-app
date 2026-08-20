@@ -50,11 +50,14 @@ jobs:
       - name: Point core/ replace at the CI checkout
         run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=./.ableton-push-hack/core
 
+      - name: Disable apt recommends
+        run: echo 'APT::Install-Recommends "false";' | sudo tee /etc/apt/apt.conf.d/99no-recommends
+
       - name: Install libusb + pkg-config
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libusb-1.0-0-dev libasound2-dev pkg-config
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libusb-1.0-0-dev libasound2-dev pkg-config
+          version: 1.0
 
       - name: Build
         run: |
@@ -171,6 +174,7 @@ jobs:
         with:
           msystem: MINGW64
           path-type: inherit
+          cache: true
           # No mingw-w64-x86_64-pkg-config here: the toolchain group already
           # pulls mingw-w64-x86_64-pkgconf, which provides pkg-config and
           # conflicts with it. Listing both made pacman warn and drop one
@@ -247,6 +251,8 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: cmd/pushapp-ui/frontend/package-lock.json
 
       # Pinned (not @latest): @latest defeats caching, since the cache key
       # can't know if upstream shipped a new version, and would otherwise let

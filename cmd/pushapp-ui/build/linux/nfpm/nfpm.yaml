@@ -3,7 +3,7 @@
 #
 # The lines below are called `modelines`. See `:help modeline`
 
-name: "pushapp-ui"
+name: "Push Tethered App"
 arch: ${GOARCH}
 platform: "linux"
 version: "0.1.0"
@@ -17,12 +17,12 @@ license: "MIT"
 release: "1"
 
 contents:
-  - src: "./bin/pushapp-ui"
-    dst: "/usr/local/bin/pushapp-ui"
+  - src: "./bin/Push Tethered App"
+    dst: "/usr/local/bin/Push Tethered App"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/pushapp-ui.png"
-  - src: "./build/linux/pushapp-ui.desktop"
-    dst: "/usr/share/applications/pushapp-ui.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/Push Tethered App.png"
+  - src: "./build/linux/Push Tethered App.desktop"
+    dst: "/usr/share/applications/Push Tethered App.desktop"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:
