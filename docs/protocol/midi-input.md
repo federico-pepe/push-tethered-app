@@ -1,7 +1,7 @@
 # MIDI input
 
 **Status:** confirmed on tethered hardware  
-**Last verified:** 2026-08-16 (Push 2 + Push 3 map complete)  
+**Last verified:** 2026-08-20 (Push 2 + Push 3 map complete; User Mode routing confirmed)  
 **Authoritative code:** [internal/midi/midi.go](../../internal/midi/midi.go), `core/push3`, `internal/pushmap`
 
 Push's control-surface MIDI is read through the **OS MIDI API**, never libusb.

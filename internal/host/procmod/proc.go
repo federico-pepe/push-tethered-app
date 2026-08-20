@@ -401,6 +401,18 @@ func (p *Proc) handleChildRequest(env Envelope) {
 		}
 		p.respond(env.ID, struct{}{}, p.host.NoteOff(params.Ch, params.Note))
 
+	case methodSendClock:
+		p.respond(env.ID, struct{}{}, p.host.SendClock())
+
+	case methodSendStart:
+		p.respond(env.ID, struct{}{}, p.host.SendStart())
+
+	case methodSendContinue:
+		p.respond(env.ID, struct{}{}, p.host.SendContinue())
+
+	case methodSendStop:
+		p.respond(env.ID, struct{}{}, p.host.SendStop())
+
 	case methodStoreGet:
 		var doc json.RawMessage
 		if err := p.host.Store().Get(&doc); err != nil {

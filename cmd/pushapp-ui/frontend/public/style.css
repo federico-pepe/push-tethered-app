@@ -287,12 +287,6 @@ html, body {
     white-space: nowrap;
 }
 
-.pairing-warning {
-    font-size: 11px;
-    color: #e0a030;
-    white-space: normal;
-}
-
 .pairing-mismatch {
     font-size: 11px;
     color: #e57373;

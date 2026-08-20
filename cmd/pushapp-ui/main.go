@@ -23,6 +23,7 @@ import (
 
 	"github.com/federico-pepe/push-tethered-app/internal/bootstrap"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
+	"github.com/federico-pepe/push-tethered-app/modules/beatcount"
 	"github.com/federico-pepe/push-tethered-app/modules/monitor"
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
 	"github.com/federico-pepe/push-tethered-app/modules/seq"
@@ -43,6 +44,7 @@ func availableModules() []module.Module {
 		thru.New(),
 		seq.New(),
 		remap.New(),
+		beatcount.New(),
 	}
 }
 

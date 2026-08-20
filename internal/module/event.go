@@ -87,3 +87,15 @@ type Expression struct {
 }
 
 func (Expression) EventKind() string { return "expression" }
+
+// ExternalMIDI is a raw MIDI message that arrived on the app's external
+// input port (internal/midiin) — not from Push. Deliberately undecoded: this
+// can be a clock tick (Raw == []byte{0xF8}), a transport message, a note, a
+// CC, anything the sender chose to send. A module that wants to sync to an
+// external clock, or react to a controller other than Push, decodes Raw
+// itself; nothing here assumes what a module cares about.
+type ExternalMIDI struct {
+	Raw []byte `json:"raw"`
+}
+
+func (ExternalMIDI) EventKind() string { return "external_midi" }

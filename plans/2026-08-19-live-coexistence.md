@@ -121,7 +121,45 @@ guesses Live Port on purpose) and `internal/identify.FlashLEDs`'s bare
 between "User Mode is a working manual toggle" and "co-existence with live
 pad art works out of the box" isn't a plumbing gap at all — it's purely a
 `pushapp-ui` UX gap: nothing in the UI lets a user pick the User Port cable
-or explains that they need to. See the branch note below.
+or explains that they need to.
+
+**UX gap closed, `live-coexistence-output-cable` branch, 2026-08-20.**
+`pushapp-ui`'s pairing view only ever listed a unit's Live cable
+(`main.ts`'s old `if (!port.isLive) continue`); now every cable — Live,
+User, External — is a selectable row, each with role-specific guidance
+(Live needs Live closed; User needs User Mode engaged on the device and
+coexists with Live running) sourced from the measurements above. Also added
+a non-blocking warning when the picked MIDI unit's device model doesn't
+match the picked screen's model — a soft safety net, not a hard constraint,
+since `plans/2026-08-19-multi-device.md` already established there is no
+reliable way to auto-verify a display unit and a MIDI unit are the same
+physical box; manual pairing plus Identify stays the real mechanism. No Go
+code changed — `internal/midi.OpenRef`'s existing per-role cable pairing
+was already correct (see above), this was purely `frontend/`.
+
+**Full end-to-end confirmation, same session, through the real app —
+not a raw script.** First attempt hit a real ordering trap worth recording:
+opening `pushapp-ui` only lists a unit in the pairing view, it does not
+claim anything — Live launched before the operator actually clicked "Pair
+and connect" won the display race, same `ErrBusy` as every other
+too-late-second-claimant case this whole plan. Corrected sequence, verified
+working: Live closed → open `pushapp-ui` → pick screen + **User Port** →
+Pair and connect (claims the display) → launch Live → press User on the
+device. Result: display stays with `pushapp`, User Mode engages with Live
+present, and — bonus, unplanned confirmation of the "PushApp out port" idea
+from earlier discussion — **running `modules/seq` exposed its MIDI output
+as a port Live could see and record from**, live, while User Mode was
+engaged and Live was open the whole time. `pushapp-ui`'s connect hint now
+tells the operator to pair before launching Live.
+
+Still genuinely open, not resolved by this: whether User Mode's actual
+mode-toggle behavior (not just raw CC59 bytes) requires Live to be running
+to engage at all — every test that checked the toggle's real effect had
+Live open already. Doesn't block the documented workflow above, since that
+workflow always has Live open before the toggle anyway, but is worth an
+isolated check if the question ever matters on its own (e.g. a Live-less
+session that still wants exclusive pad ownership on a device that's been
+left in User Mode from a previous Live session).
 
 Original brief, for the record: 
 

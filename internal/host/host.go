@@ -17,6 +17,7 @@ import (
 	"github.com/federico-pepe/push-tethered-app/internal/display"
 	"github.com/federico-pepe/push-tethered-app/internal/identify"
 	pmidi "github.com/federico-pepe/push-tethered-app/internal/midi"
+	"github.com/federico-pepe/push-tethered-app/internal/midiin"
 	"github.com/federico-pepe/push-tethered-app/internal/midiout"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/internal/pushmap"
@@ -46,6 +47,12 @@ type Options struct {
 	// make every run publish a port, even a run of a module that never sends.
 	// Nil means no output is available.
 	OpenMIDIOut func() (*midiout.Out, error)
+
+	// OpenMIDIIn obtains the external input port, same lazy-open shape and
+	// same reason as OpenMIDIOut. Nil means no external input is available —
+	// unlike OpenMIDIOut this is not fatal to activating a module that wants
+	// it (see Meta.NeedsMIDIIn); the module just never receives ExternalMIDI.
+	OpenMIDIIn func() (*midiin.In, error)
 
 	Theme      module.Theme
 	ThemeIsSet bool
@@ -95,6 +102,15 @@ type Runtime struct {
 	out      *midiout.Out
 	outTried bool
 	outErr   error
+
+	// in is the lazily-opened external MIDI input port, plus its listener
+	// started the moment it opens (see ensureMIDIIn) — same one-shot-guard
+	// shape as out, but input also needs an active Listen where output does
+	// not.
+	inMu    sync.Mutex
+	in      *midiin.In
+	inTried bool
+	inErr   error
 
 	frame *module.Frame
 	img   *image.NRGBA
@@ -211,6 +227,17 @@ func (r *Runtime) Activate(id string) error {
 				"(on Windows, create one with loopMIDI and pass -midi-out)", id, err)
 		}
 		log.Printf("MIDI out: %q (%s)", out.Name(), out.Mode())
+	}
+	// Same lazy trigger for input, but never refuses activation — see
+	// Meta.NeedsMIDIIn.
+	if next.Meta().NeedsMIDIIn {
+		in, err := r.ensureMIDIIn()
+		if err != nil {
+			log.Printf("module %q wants external MIDI input, none available: %v "+
+				"(on Windows, create one with loopMIDI and pass -ext-midi-in)", id, err)
+		} else {
+			log.Printf("external MIDI in: %q", in.Name())
+		}
 	}
 
 	r.activeMu.Lock()
@@ -447,6 +474,46 @@ func (r *Runtime) ensureMIDIOut() (*midiout.Out, error) {
 	return out, nil
 }
 
+// ensureMIDIIn opens the external input port on first use, starts listening
+// on it, and caches the result — same one-shot-guard shape as ensureMIDIOut.
+// Listen is started here rather than in Run because this port opens lazily,
+// possibly well after Run's own startup: unlike Push's own port, which is
+// always present and listened to from the start, this one only exists once
+// some activated module asked for it.
+func (r *Runtime) ensureMIDIIn() (*midiin.In, error) {
+	r.inMu.Lock()
+	defer r.inMu.Unlock()
+
+	if r.inTried {
+		return r.in, r.inErr
+	}
+	r.inTried = true
+
+	if r.opts.OpenMIDIIn == nil {
+		r.inErr = errors.New("no external MIDI input is configured")
+		return nil, r.inErr
+	}
+	in, err := r.opts.OpenMIDIIn()
+	if err != nil {
+		r.inErr = err
+		return nil, err
+	}
+	if err := in.Listen(func(raw []byte) {
+		select {
+		case r.events <- module.ExternalMIDI{Raw: raw}:
+		default:
+			// Same drop-rather-than-block policy as Push's own listener.
+			r.dropped.Add(1)
+		}
+	}); err != nil {
+		in.Close()
+		r.inErr = fmt.Errorf("listening on external MIDI in: %w", err)
+		return nil, r.inErr
+	}
+	r.in = in
+	return in, nil
+}
+
 func (r *Runtime) clearLEDs() {
 	if r.port == nil {
 		return
@@ -482,6 +549,12 @@ func (r *Runtime) Shutdown() {
 		r.out = nil
 	}
 	r.outMu.Unlock()
+	r.inMu.Lock()
+	if r.in != nil {
+		r.in.Close()
+		r.in = nil
+	}
+	r.inMu.Unlock()
 	if r.opts.Recorder != nil {
 		if err := r.opts.Recorder.Close(); err != nil {
 			log.Printf("capture: %v", err)
@@ -560,6 +633,38 @@ func (h *moduleHost) NoteOff(ch, note byte) error {
 		return err
 	}
 	return o.NoteOff(ch, note)
+}
+
+func (h *moduleHost) SendClock() error {
+	o, err := h.out()
+	if err != nil {
+		return err
+	}
+	return o.SendClock()
+}
+
+func (h *moduleHost) SendStart() error {
+	o, err := h.out()
+	if err != nil {
+		return err
+	}
+	return o.SendStart()
+}
+
+func (h *moduleHost) SendContinue() error {
+	o, err := h.out()
+	if err != nil {
+		return err
+	}
+	return o.SendContinue()
+}
+
+func (h *moduleHost) SendStop() error {
+	o, err := h.out()
+	if err != nil {
+		return err
+	}
+	return o.SendStop()
 }
 
 // Store gives the module its own JSON document, one file per module ID under

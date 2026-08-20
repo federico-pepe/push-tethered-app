@@ -236,6 +236,113 @@ func TestOtherButtonsAreIgnored(t *testing.T) {
 	}
 }
 
+func TestDeclaresNeedsMIDIIn(t *testing.T) {
+	if !New().Meta().NeedsMIDIIn {
+		t.Error("seq must declare NeedsMIDIIn")
+	}
+}
+
+// clockTick is shorthand for the one byte a real MIDI Timing Clock message
+// is — module.ExternalMIDI carries raw, undecoded bytes, so tests build them
+// by hand rather than reaching for a decoder that does not exist on purpose.
+func clockTick() module.ExternalMIDI { return module.ExternalMIDI{Raw: []byte{0xF8}} }
+
+// TestExternalClockAdvancesOnBoundary mirrors TestTickFiresOnStepBoundary,
+// but driven by MIDI Start + clock ticks instead of wall-clock time.
+func TestExternalClockAdvancesOnBoundary(t *testing.T) {
+	m, h := newTest(t)
+	m.pattern.Steps[0][0] = true
+	m.pattern.Steps[0][1] = true
+	h.Reset()
+
+	m.Handle(module.ExternalMIDI{Raw: []byte{0xFA}}) // Start: triggers step 0 immediately
+	if len(h.MIDI) != 1 || h.MIDI[0].Kind != "note" || h.MIDI[0].Num != baseNote {
+		t.Fatalf("Start sent %+v, want one note-on for %d", h.MIDI, baseNote)
+	}
+
+	for i := 0; i < ticksPerStep-1; i++ {
+		m.Handle(clockTick())
+	}
+	if len(h.MIDI) != 1 {
+		t.Errorf("mid-step clock ticks sent %d more messages, want 0", len(h.MIDI)-1)
+	}
+
+	m.Handle(clockTick()) // the ticksPerStep-th tick crosses into step 1
+	if len(h.MIDI) != 3 {
+		t.Fatalf("at the step-1 boundary, got %d messages, want 3 (start-on, off, on)", len(h.MIDI))
+	}
+	if h.MIDI[1].Kind != "noteoff" || h.MIDI[2].Kind != "note" {
+		t.Errorf("boundary messages = %+v, want [noteoff, note]", h.MIDI[1:])
+	}
+}
+
+// TestExternalClockIgnoredWhileStopped — a clock still arriving after Stop
+// (or before any Start) must not advance anything, same as tick() while
+// !playing.
+func TestExternalClockIgnoredWhileStopped(t *testing.T) {
+	m, h := newTest(t)
+	m.togglePlay() // stopped
+	m.pattern.Steps[0][0] = true
+	h.Reset()
+
+	for i := 0; i < ticksPerStep*2; i++ {
+		m.Handle(clockTick())
+	}
+	if len(h.MIDI) != 0 {
+		t.Errorf("clock ticks sent %d messages while stopped, want 0", len(h.MIDI))
+	}
+}
+
+// TestExternalStopReleasesSoundingNote — Stop must behave like the Play
+// button's stop path: release whatever the current step was sounding.
+func TestExternalStopReleasesSoundingNote(t *testing.T) {
+	m, h := newTest(t)
+	m.pattern.Steps[0][0] = true
+	h.Reset()
+
+	m.Handle(module.ExternalMIDI{Raw: []byte{0xFA}}) // Start, step 0 sounding
+	h.Reset()
+
+	m.Handle(module.ExternalMIDI{Raw: []byte{0xFC}}) // Stop
+	if m.playing {
+		t.Error("Stop did not stop playback")
+	}
+	if len(h.MIDI) != 1 || h.MIDI[0].Kind != "noteoff" {
+		t.Errorf("Stop sent %+v, want one noteoff", h.MIDI)
+	}
+}
+
+// TestExternalClockSuppressesWallClockTick — the whole point: with a clock
+// actively arriving, tick() (the wall-clock path Draw calls every frame)
+// must not also advance the step.
+func TestExternalClockSuppressesWallClockTick(t *testing.T) {
+	m, h := newTest(t)
+	m.pattern.Steps[0][0] = true
+	h.Reset()
+
+	m.Handle(module.ExternalMIDI{Raw: []byte{0xFA}}) // Start, step 0
+	h.Reset()
+
+	// A wall-clock tick far enough in the future to cross several step
+	// boundaries if it were live — it must be a no-op while external-synced.
+	m.tick(time.Now().Add(10 * time.Second))
+	if len(h.MIDI) != 0 {
+		t.Errorf("wall-clock tick sent %d messages while externally synced, want 0", len(h.MIDI))
+	}
+}
+
+// TestUnrelatedExternalMIDIIgnored — a note or CC arriving on the external
+// port must not be mistaken for a clock byte.
+func TestUnrelatedExternalMIDIIgnored(t *testing.T) {
+	m, h := newTest(t) // playing by default
+	h.Reset()
+
+	m.Handle(module.ExternalMIDI{Raw: []byte{0x90, 60, 127}}) // an ordinary Note On
+	if len(h.MIDI) != 0 {
+		t.Errorf("a Note On on the external port produced %d messages, want 0", len(h.MIDI))
+	}
+}
+
 // TestCloseReleasesSoundingNote — quitting mid-step must not leave a note
 // ringing in whatever is listening.
 func TestCloseReleasesSoundingNote(t *testing.T) {
