@@ -37,7 +37,9 @@ Platform-specific notes: [platform/macos.md](platform/macos.md),
 2. [protocol/midi-input.md](protocol/midi-input.md) — decoding pads, encoders, MPE
 3. [protocol/led-output.md](protocol/led-output.md) — pad and button LEDs
 4. [protocol/push2-vs-push3.md](protocol/push2-vs-push3.md) — device differences
-5. [hardware-reference.md](hardware-reference.md) — upstream button map, palette,
+5. [protocol/live-handshake.md](protocol/live-handshake.md) — raw SysEx traffic
+   seen whenever Live is running, mechanism not yet decoded
+6. [hardware-reference.md](hardware-reference.md) — upstream button map, palette,
    authoritative code pointers
 
 Historical measurements and stack rationale:

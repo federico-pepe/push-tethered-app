@@ -29,10 +29,62 @@ If Linux reports `LIBUSB_ERROR_BUSY` when claiming, detach interface 0 alone.
 
 With Live running and Push as its control surface, claiming interface 0 fails
 with `LIBUSB_ERROR_ACCESS` — cleanly, before any write. Everything else
-survives (enumeration, MIDI ports, audio). The claim releases when Live quits;
-no replug needed.
+survives (enumeration, MIDI ports, audio).
 
 Report "Live owns the display" and degrade; do not crash.
+
+**The degrade is one-shot, not retried.** `display.go:51` claims once at
+startup and does not poll — confirmed 2026-08-20: a `pushapp` process that
+degraded to MIDI-only because Live had the screen stays MIDI-only for its
+entire run even after Live quits and the interface frees up. Only a fresh
+launch reclaims the display; there is currently no in-process retry/reclaim
+path.
+
+## Ableton background processes (confirmed 2026-08-20)
+
+The actual claimant of interface 0 is not Live itself but a background helper
+Live spawns: **`Push3.app`** (bundle id `com.ableton.Push3`,
+`LSBackgroundOnly = true`), living at
+`<Live.app>/Contents/Helpers/Push3.app/Contents/MacOS/Push3`, present
+identically across Live 12 Suite, 12 Beta. Push 2 has a sibling,
+`Push2DisplayProcess.app` (`com.ableton.Push2DisplayProcess`), under
+`<Live.app>/Contents/Push2/`. Not launchd-managed — no LaunchAgent/Daemon
+plist anywhere; it is a plain child process of Live
+(`ps` shows `--parent-process-id=<Live's pid>`), spawned only when Live
+launches.
+
+Ownership matrix, all measured on real hardware:
+
+- **Push plugged in, Live not running:** the helper does not start on its
+  own. `frametest` succeeds. `pushapp` is safe to use with Push connected and
+  Live never having run.
+- **Live running:** the helper holds interface 0; `frametest` fails with
+  `ErrBusy` as documented above, regardless of whether `pushapp` or Live
+  claimed first — order only decides which one keeps the screen, not whether
+  contention exists.
+- **Killing just the helper, Live still running:** the helper is not a
+  persistent affordance to build a "stop" button around. It has no config to
+  disable and no `launchd` `KeepAlive` — but Live itself watches and
+  respawns it in **~2.3s**. The display briefly frees during that window,
+  but the pads snap back to Live-driven the moment the helper returns; a
+  race, not a state.
+- **Clean Live quit:** both Live and the helper exit immediately, confirmed
+  with no lingering claim at +0s/+10s/+60s. **The previous claim on this page
+  that "the claim releases when Live quits; no replug needed" is correct only
+  for a clean quit** — see below for the crash case.
+- **`kill -9` on Live (crash, not clean quit):** the helper survives,
+  orphaned (reparented to pid 1) and **still holding interface 0** —
+  `frametest` fails immediately after the crash. It is not indefinite: the
+  helper polls its parent's liveness (matches the `--parent-process-id` flag)
+  and self-exits, measured at **~5.2s** after the crash, after which
+  `frametest` succeeds normally. So a Live crash leaves a real multi-second
+  window where the display stays claimed with no Live process around to
+  explain why — a genuine gap versus "no replug needed," not a documentation
+  error to wave away.
+
+None of this changes the guidance: don't run `pushapp` with Live open, unless
+Push's own User Mode is engaged (see
+[midi-input.md](midi-input.md#user-modes-effect-on-routing)).
 
 ## Button sweep safety
 

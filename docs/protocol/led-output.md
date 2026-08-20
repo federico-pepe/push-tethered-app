@@ -19,14 +19,22 @@ Works without claiming USB interface 5.
 Pad geometry confirmed from output: note 36 = bottom-left, ascending to 99
 top-right.
 
-**Only the Live Port cable carries pad LED writes.** Confirmed 2026-08-19 on
-Push 2 hardware: sending the identical Note On sequence to the User Port's
-output cable lit nothing, while the same sequence to the Live Port's output
-cable lit all 64 pads correctly. Not yet re-confirmed on Push 3's third
-(External) port. Anything that opens a Push output cable to drive LEDs — see
-`internal/midi.OpenOutCable`, used by `internal/identify.FlashLEDs` — must
-target the cable `internal/midi.PortRef.IsLive` reports true, never merely
-"the first output cable found".
+**Which output cable carries pad LED writes depends on User Mode state —
+confirmed 2026-08-20 on Push 3 hardware.** The original 2026-08-19 Push 2
+measurement ("only Live Port carries pad LED writes, User Port lights
+nothing") was taken outside User Mode and is a special case of a more
+general rule: **Live Port renders pad LED writes only while User Mode is
+off; User Port renders them only while User Mode is on** — the same
+exclusive routing already confirmed for pad *input*
+([midi-input.md](midi-input.md#user-modes-effect-on-routing)). Writing to
+the wrong cable for the current mode silently lights nothing, no error.
+
+`internal/midi.OpenOutCable` (used by `internal/identify.FlashLEDs`)
+currently always targets the cable `internal/midi.PortRef.IsLive` reports
+true — correct for every existing caller today since none of them are
+User-Mode-aware yet, but this is the seam that would need to switch cables
+if a module ever wants to paint pads while coexisting with Live via User
+Mode. Not yet re-confirmed on Push 3's third (External) port.
 
 ## Button LEDs
 
@@ -90,11 +98,53 @@ tools/ledbrightness.swift  # macOS single-button CC-value sweep (Swift, not part
 exclusivity means only one of them holds the display interface at a time, but
 co-existence mode leaves Push's MIDI interface bound to the OS driver
 regardless of which process owns the display — so whichever launched second
-still sends pad-LED MIDI, and both end up driving the same physical LEDs at
-once (confirmed 2026-08-17: `pushapp` launched first keeps the display, but
-its pad-mirror grid started reflecting Live's Session View colouring). There
-is no arbitration between the two. **Guidance: don't run `pushapp` while Live
-is open.**
+still sends pad-LED MIDI, and both end up driving the same *physical* pad
+LEDs at once (confirmed 2026-08-17: `pushapp` launched first keeps the
+display, but the **physical pads** started reflecting Live's Session View
+colouring — not a `pushapp`-rendered mirror; `modules/monitor`'s on-screen
+`padsLit` carries no colour information and cannot have produced this).
+
+The contention is **functional, not just cosmetic**: with `pushapp` running
+second, Live also keeps the pad *MIDI* — both its colouring and pressing a
+pad still drives Live, not `pushapp`. There is no arbitration between the two
+hosts, and no direct signal for detecting the contention (see
+[live-coexistence.md Part C](../../plans/2026-08-19-live-coexistence.md) —
+process presence is the strongest available proxy).
+
+**Confirmed 2026-08-20: no inbound echo of any kind.** Neither Live's
+Session View colour changes nor our own `SetPad`/`SetButton` writes produce
+any inbound NoteOn/CC on any port — `midimon` on all three input ports shows
+nothing but SysEx and Active Sensing in both directions of that test. There
+is a recurring SysEx pattern on Live Port whenever Live runs, independent of
+any press or write, that looks handshake-shaped but is not yet decoded — see
+[live-handshake.md](live-handshake.md). It is not currently a usable
+contention signal.
+
+**No re-assert step needed on a clean Live quit.** Confirmed 2026-08-20:
+pads went off on their own when Live quit, not stuck holding Live's last
+colours — unlike the User Mode case below, where Live's colours snap back
+instantly because Live never stopped sending them. Launch order
+(`pushapp`-first vs. Live-first) makes no difference to pad-LED stability
+either way — both orders measured steady, not flickering, with both LED
+policies. A user-facing toggle is enough; nothing here forces a default-on
+back-off.
+
+**Confirmed workaround, both halves: Push's own User Mode — updated
+2026-08-20.** See
+[midi-input.md](midi-input.md#user-modes-effect-on-routing) — engaging User
+Mode on the device cuts Live off from pad MIDI entirely (device-level
+routing, not just a suggestion Live could still listen past), while leaving
+the display claim and button routing untouched. This was originally thought
+to be pad-input-only, with Live's LED writes still flowing to the pads
+underneath a local "User Mode override." That framing is now superseded:
+**pad LED output is exclusively routed by the same mode toggle** — Live
+Port stops rendering and User Port starts rendering the moment User Mode
+engages, so a host that targets User Port can paint its own pad colours
+while fully coexisting with Live, not just read pad presses. `internal/midi`
+doesn't do this yet — see [midi-input.md](midi-input.md#user-modes-effect-on-routing)
+for the seam. **Guidance: don't run `pushapp` while Live is open**, unless
+User Mode is engaged for the duration and, for LED output, `pushapp` targets
+the User Port cable.
 
 ## Open questions
 
@@ -107,4 +157,6 @@ is open.**
 ## Related
 
 - [midi-input.md](midi-input.md) — input decoding
+- [live-handshake.md](live-handshake.md) — the recurring SysEx pattern seen
+  whenever Live is running
 - [hardware-reference.md](../hardware-reference.md) — upstream palette link

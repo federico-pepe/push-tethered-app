@@ -264,12 +264,24 @@ and [docs/architecture/stack-and-layout.md](docs/architecture/stack-and-layout.m
   records the reason, keyed by unit, in `PushService.Overview()`'s
   `unitErrors`) rather than showing a stale module list against a dead port.
   Other sessions are unaffected.
-- **Don't run `pushapp` with Live open.** Co-existence mode leaves Push's
-  MIDI interface bound to the OS driver even while Live doesn't own the
-  display, so both processes end up driving the same pad LEDs — visible
-  fighting, not just a display conflict. There's no arbitration between the
-  two; the two are simply incompatible while both hold a MIDI connection to
-  the device. See [docs/protocol/led-output.md](docs/protocol/led-output.md).
+- **Don't run `pushapp` with Live open** — unless Push's own User Mode is
+  engaged, confirmed 2026-08-20 as a real device-level workaround for
+  **both halves** of contention, not just pad input: it cuts Live off from
+  pad MIDI entirely while leaving the display claim and button routing
+  untouched, **and** pad LED writes are exclusively routed the same way —
+  Live Port renders only outside User Mode, User Port only inside it. A host
+  that targets User Port for LED writes can paint its own pad colours while
+  fully coexisting with Live. `internal/midi` doesn't do this yet — it
+  always targets Live Port. Without User Mode, co-existence mode leaves
+  Push's MIDI
+  interface bound to the OS driver even while Live doesn't own the display,
+  so both processes end up driving the same pad LEDs — visible fighting, not
+  just a display conflict. There's no arbitration between the two. See
+  [docs/protocol/led-output.md](docs/protocol/led-output.md) and
+  [docs/protocol/midi-input.md](docs/protocol/midi-input.md#user-modes-effect-on-routing).
+  Live's actual display claimant is a background helper it spawns
+  (`Push3.app`/`Push2DisplayProcess.app`, not `launchd`-managed) — see
+  [docs/protocol/usb-and-safety.md](docs/protocol/usb-and-safety.md#ableton-background-processes-confirmed-2026-08-20).
 - **Channel convention: 1-16 at every API in this repo**, converted to the
   wire's 0-15 inside `midiout`.
 

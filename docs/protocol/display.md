@@ -50,6 +50,18 @@ redraws its own idle screen over whatever was last sent.
 Use `pushapp -capture out.mp4` to record the screen for inspection (physical
 pad LEDs are not captured).
 
+## Disconnect while running
+
+Confirmed 2026-08-20: unplugging Push mid-session surfaces as a failed frame
+write (`writing frame header: transfer failed`), which `internal/display`
+turns into `ErrDisconnected`; the host logs `host: Push disconnected` and
+exits — no crash, no wedge. `pushapp` does not auto-relaunch or reclaim on
+replug; that needs a fresh launch. If Live is running and was never
+unplugged (only the device was), Live's still-alive background helper (see
+[usb-and-safety.md](usb-and-safety.md#ableton-background-processes-confirmed-2026-08-20))
+reclaims interface 0 on replug automatically, with no arbitration needed
+since `pushapp` had already exited.
+
 ## Probes
 
 ```bash

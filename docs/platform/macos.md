@@ -23,6 +23,25 @@ path.
 
 USB display claim on interface 0 confirmed on Push 2 and Push 3.
 
+## Live's background helper (confirmed 2026-08-20)
+
+Live does not claim interface 0 itself — a background helper does:
+`<Live.app>/Contents/Helpers/Push3.app/Contents/MacOS/Push3` (bundle id
+`com.ableton.Push3`), or `Push2DisplayProcess.app` under
+`<Live.app>/Contents/Push2/` for Push 2. Not `launchd`-managed; spawned as a
+plain child process when Live launches, with `--parent-process-id=<Live's
+pid>`. Full ownership matrix, timings, and doc corrections:
+[protocol/usb-and-safety.md](../protocol/usb-and-safety.md#ableton-background-processes-confirmed-2026-08-20).
+
+Commands used to identify it:
+
+```bash
+ps -Ao pid,ppid,user,command | grep -iE 'ableton|push'
+launchctl list | grep -iE 'ableton|push'          # empty — confirms not launchd-managed
+ls -la ~/Library/LaunchAgents /Library/LaunchAgents /Library/LaunchDaemons | grep -iE 'ableton|push'
+find "/Applications/Ableton Live 12 Suite.app/Contents" -maxdepth 2 -iname "*push*"
+```
+
 ## pushapp-ui
 
 Wails v3 dev/build works with standard Xcode CLI tools + Node/npm. See
