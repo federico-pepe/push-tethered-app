@@ -5,7 +5,7 @@
 !include "FileFunc.nsh"
 
 !ifndef INFO_PROJECTNAME
-    !define INFO_PROJECTNAME "pushapp-ui"
+    !define INFO_PROJECTNAME "Push Tethered App"
 !endif
 !ifndef INFO_COMPANYNAME
     !define INFO_COMPANYNAME "Federico Pepe"

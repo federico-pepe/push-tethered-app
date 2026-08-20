@@ -39,11 +39,16 @@ jobs:
       - name: Point core/ replace at the CI checkout
         run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=./.ableton-push-hack/core
 
+      - name: Disable apt recommends (Linux)
+        if: runner.os == 'Linux'
+        run: echo 'APT::Install-Recommends "false";' | sudo tee /etc/apt/apt.conf.d/99no-recommends
+
       - name: Install libusb + pkg-config (Linux)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libusb-1.0-0-dev libasound2-dev pkg-config
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libusb-1.0-0-dev libasound2-dev pkg-config
+          version: 1.0
 
       - name: Install libusb (macOS)
         if: runner.os == 'macOS'
@@ -57,6 +62,7 @@ jobs:
         with:
           msystem: MINGW64
           path-type: inherit
+          cache: true
           install: mingw-w64-x86_64-libusb mingw-w64-x86_64-toolchain
 
       - name: Build (macOS / Linux)

@@ -3,7 +3,7 @@
 <plist version="1.0">
 	<dict>
 		<key>CFBundleExecutable</key>
-		<string>pushapp-ui</string>
+		<string>Push Tethered App</string>
 		<key>CFBundleGetInfoString</key>
 		<string>Owns Push&#39;s display, pads, buttons, encoders and LEDs, and runs modules on it.</string>
 		<key>CFBundleIconFile</key>
