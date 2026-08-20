@@ -59,6 +59,16 @@ type Meta struct {
 	// The host refuses to activate it when no output port is available, rather
 	// than letting every SendCC fail silently at runtime.
 	NeedsMIDIOut bool `json:"needs_midi_out,omitempty"`
+
+	// NeedsMIDIIn declares that this module wants ExternalMIDI events — raw
+	// MIDI from other software or hardware, not from Push (see
+	// internal/midiin, module.ExternalMIDI). Unlike NeedsMIDIOut this does
+	// NOT refuse activation when no input port is available: an external
+	// clock or controller is an enhancement a module can do without, not
+	// something that makes it non-functional the way a MIDI-out module with
+	// no output would be. The module simply never receives ExternalMIDI
+	// events in that case; the host logs why once.
+	NeedsMIDIIn bool `json:"needs_midi_in,omitempty"`
 }
 
 // Module is the contract. Every method is called from the host's single module
@@ -112,6 +122,16 @@ type Host interface {
 	SendCC(ch, cc, val byte) error
 	SendNote(ch, note, vel byte) error
 	NoteOff(ch, note byte) error
+
+	// SendClock, SendStart, SendContinue and SendStop send MIDI timing
+	// clock/transport messages through the same output port as SendCC — same
+	// NeedsMIDIOut requirement, no channel (these are system realtime
+	// messages). Send SendClock 24 times per quarter note to drive another
+	// device's tempo.
+	SendClock() error
+	SendStart() error
+	SendContinue() error
+	SendStop() error
 
 	// SupportedOps lists the display-list ops this host can render. A module
 	// built against a newer core/gfx can degrade instead of drawing nothing.

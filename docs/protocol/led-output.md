@@ -1,7 +1,7 @@
 # LED output
 
 **Status:** confirmed on tethered hardware  
-**Last verified:** 2026-08-09  
+**Last verified:** 2026-08-20  
 **Authoritative code:** [internal/midi/midi.go](../../internal/midi/midi.go), `core/push3/colors.go`
 
 LEDs are driven over **OS MIDI** (CoreMIDI on macOS). No handshake needed.

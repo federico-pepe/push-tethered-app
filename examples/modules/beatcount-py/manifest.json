@@ -1,0 +1,9 @@
+{
+  "id": "beatcount-py",
+  "name": "Beat Counter (Python example)",
+  "version": "1.0.0",
+  "description": "Process-loaded port of modules/beatcount: counts an external MIDI clock, draws the beat on the pad grid",
+  "author": "push-tethered-app examples",
+  "needs_midi_in": true,
+  "exec": "python3 run.py"
+}

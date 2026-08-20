@@ -1,7 +1,7 @@
 # Writing a JavaScript module
 
 **Status:** living guide  
-**Last verified:** 2026-08-18  
+**Last verified:** 2026-08-20  
 **Example:** [examples/modules/hello-js/](../../examples/modules/hello-js/)
 
 Same behaviour as the Python example — press a pad, screen shows coordinates,
@@ -94,4 +94,10 @@ does not kill the process.
 
 - [writing-a-python-module.md](writing-a-python-module.md) — persistence and
   MIDI out patterns (same wire format)
+- Set `"needs_midi_in": true` and handle `"kind": "external_midi"` to receive
+  MIDI from other software (an external clock, for example) — see
+  [examples/modules/beatcount-js/](../../examples/modules/beatcount-js/),
+  and note `data.raw` there is **base64**, not a number array (Go's
+  `encoding/json` encodes a `[]byte` field that way) — `Buffer.from(s,
+  "base64")` decodes it
 - [architecture/process-modules.md](../architecture/process-modules.md)

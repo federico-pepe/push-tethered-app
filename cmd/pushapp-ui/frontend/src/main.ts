@@ -201,24 +201,6 @@ function renderUSBRow(unit: USBUnit, lastError: string | undefined): HTMLLIEleme
     return li;
 }
 
-// roleWarning gives the operator the consequence of picking this cable —
-// see docs/protocol/midi-input.md#user-modes-effect-on-routing and
-// docs/protocol/led-output.md#led-contention-with-live for the measurements
-// behind each one. "" for an unrecognised role (WinMM cable 1 with no jack
-// string — see internal/midi/ports.go's unitKeyOf).
-function roleWarning(role: string): string {
-    switch (role) {
-        case "Live":
-            return "Live must be closed to use this port.";
-        case "User":
-            return "Needs User Mode engaged on the device (press User on Push) — Live can stay open and keeps working normally.";
-        case "External":
-            return "Standalone MIDI DIN on the back — not the port Live uses.";
-        default:
-            return "";
-    }
-}
-
 function renderMIDIRow(
     unit: MIDIUnit,
     port: PortRef,
@@ -257,16 +239,6 @@ function renderMIDIRow(
             ? "Matches another identical unit — identify by LED to tell them apart"
             : port.inName;
     info.append(name, detail);
-
-    if (!lastError && !port.ambiguous) {
-        const warning = roleWarning(port.role);
-        if (warning !== "") {
-            const warnEl = document.createElement("span");
-            warnEl.className = "pairing-warning";
-            warnEl.textContent = warning;
-            info.appendChild(warnEl);
-        }
-    }
 
     if (selectedUSBModel !== null && unit.device !== selectedUSBModel) {
         const mismatch = document.createElement("span");

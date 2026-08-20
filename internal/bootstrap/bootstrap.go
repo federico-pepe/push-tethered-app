@@ -20,6 +20,7 @@ import (
 	"github.com/federico-pepe/push-tethered-app/internal/display"
 	"github.com/federico-pepe/push-tethered-app/internal/host"
 	pmidi "github.com/federico-pepe/push-tethered-app/internal/midi"
+	"github.com/federico-pepe/push-tethered-app/internal/midiin"
 	"github.com/federico-pepe/push-tethered-app/internal/midiout"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 )
@@ -50,6 +51,14 @@ type Options struct {
 
 	MIDIOutName string
 	NoMIDIOut   bool
+
+	// ExtMIDIInName names the external MIDI input port (see internal/midiin) —
+	// unrelated to MIDIIn/MIDIInName, which select Push's own cable. Empty
+	// means midiin.DefaultName when creating; "the first non-Push port" when
+	// attaching (Windows).
+	ExtMIDIInName string
+	NoExtMIDIIn   bool
+
 	CapturePath string
 	CaptureRaw  bool
 	Modules     []module.Module
@@ -112,6 +121,10 @@ func Open(opts Options) (rt *host.Runtime, cleanup func(), err error) {
 	if opts.NoMIDIOut {
 		openMIDIOut = nil
 	}
+	openMIDIIn := func() (*midiin.In, error) { return midiin.Open(opts.ExtMIDIInName) }
+	if opts.NoExtMIDIIn {
+		openMIDIIn = nil
+	}
 
 	// Taps the render output, so it costs no extra USB traffic and cannot
 	// disturb what the panel shows.
@@ -134,6 +147,7 @@ func Open(opts Options) (rt *host.Runtime, cleanup func(), err error) {
 		NoDisplay:   opts.NoDisplay,
 		NoLEDs:      opts.NoLEDs,
 		OpenMIDIOut: openMIDIOut,
+		OpenMIDIIn:  openMIDIIn,
 		Recorder:    rec,
 	}, opts.Modules...)
 	if err != nil {

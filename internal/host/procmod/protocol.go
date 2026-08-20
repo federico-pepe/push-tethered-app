@@ -57,14 +57,18 @@ const (
 // behaviour here, only JSON-shaping, the same principle as cmd/pushapp-ui's
 // PushService.
 const (
-	methodSetPad    = "set_pad"    // notification
-	methodSetButton = "set_button" // notification
-	methodSendCC    = "send_cc"
-	methodSendNote  = "send_note"
-	methodNoteOff   = "note_off"
-	methodLog       = "log" // notification
-	methodStoreGet  = "store_get"
-	methodStoreSet  = "store_set"
+	methodSetPad       = "set_pad"    // notification
+	methodSetButton    = "set_button" // notification
+	methodSendCC       = "send_cc"
+	methodSendNote     = "send_note"
+	methodNoteOff      = "note_off"
+	methodSendClock    = "send_clock"
+	methodSendStart    = "send_start"
+	methodSendContinue = "send_continue"
+	methodSendStop     = "send_stop"
+	methodLog          = "log" // notification
+	methodStoreGet     = "store_get"
+	methodStoreSet     = "store_set"
 )
 
 // ── host → child params/results ────────────────────────────────────────────

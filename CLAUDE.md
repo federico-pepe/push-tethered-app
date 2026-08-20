@@ -4,20 +4,26 @@ Guidance for Claude Code (claude.ai/code) working in this repository. This is
 a slim agent manual — durable reference lives in [docs/](docs/), read it
 first for anything beyond the safety rules and pointers below.
 
-> **Doc sync rule:** update this file, `README.md`, and `docs/` when a change
-> is *meaningful* to a future reader — new behaviour, a changed protocol fact,
-> a new API, a resolved or newly-found issue. Not every commit needs a doc
-> update; skip internal refactors and trivial edits. When you do update, keep
-> it in the same commit as the change. New protocol fact → `docs/protocol/`;
-> resolved open question → fold into docs and delete from
-> [plans/2026-08-18-open-items.md](plans/2026-08-18-open-items.md).
+> **Doc sync rule:** update this file, `README.md`, `MANUAL.md`, and `docs/`
+> when a change is *meaningful* to a future reader — new behaviour, a changed
+> protocol fact, a new API, a resolved or newly-found issue. Not every commit
+> needs a doc update; skip internal refactors and trivial edits. When you do
+> update, keep it in the same commit as the change. New protocol fact →
+> `docs/protocol/`; resolved open question → fold into docs and delete from
+> [plans/2026-08-18-open-items.md](plans/2026-08-18-open-items.md); anything
+> an **end user** needs to operate or configure the app correctly (pairing,
+> port roles, running alongside Live, troubleshooting a specific error
+> message) → [MANUAL.md](MANUAL.md), not the UI itself — keep the app's own
+> screens terse and put explanation in the manual instead of inline text.
 >
 > **Plans live in `plans/`**, one file per plan, named
 > `YYYY-MM-DD-name-of-the-plan.md`. `docs/` holds durable reference (protocol
-> facts, measurements, rationale); `plans/` holds intent (what we're about to
-> do and why, including open decisions). When a plan is done, distill its
-> settled contract into `docs/architecture/`; leave the plan itself as
-> historical reasoning.
+> facts, measurements, rationale) for **contributors**; `MANUAL.md` holds the
+> same kind of durable truth but written for **end users** — how to use the
+> app, not how it's built; `plans/` holds intent (what we're about to do and
+> why, including open decisions). When a plan is done, distill its settled
+> contract into `docs/architecture/` (and into `MANUAL.md` if it changes how
+> a user operates the app); leave the plan itself as historical reasoning.
 >
 > **`docs/archive/` is frozen** — never edit, move, or delete anything inside
 > it, never add to it unless explicitly asked. It holds superseded docs kept
@@ -45,6 +51,8 @@ is **closed** — reasoning trail only, don't plan against it.
 
 ## Read this first
 
+- [MANUAL.md](MANUAL.md) — end-user manual: pairing, port roles, running
+  alongside Live, troubleshooting
 - [docs/README.md](docs/README.md) — reading paths by task (write a module,
   build/contribute, protocol facts)
 - [docs/protocol/usb-and-safety.md](docs/protocol/usb-and-safety.md) — before
@@ -103,11 +111,13 @@ internal/host/procmod/       process-loaded module: JSON-over-stdio protocol
 internal/display/ USB transport: claim interface 0, frame header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
 internal/midiout/ owns a named MIDI out port for modules (create or attach)
+internal/midiin/  owns a named MIDI in port for modules (create or attach) — raw bytes only, no decoding
 internal/pushmap/ Push 2 map deltas + shared CC/touch name tables
 modules/monitor/  control-surface monitor; the reference module
 modules/thru/     forwards pads/encoders/buttons out as MIDI
 modules/seq/      8-step pad-grid sequencer; wall-clock-driven MIDI + Store
 modules/remap/    user-editable overrides on top of thru's passthrough default
+modules/beatcount/ minimal NeedsMIDIIn reference: counts an external MIDI clock
 examples/modules/ process-loaded example modules (Python, Node.js)
 tools/            macOS-only Swift probes (midimon, ledtest)
 ```
@@ -157,7 +167,12 @@ go build ./... && go vet ./... && go test ./...
 ```
 
 `pushapp` flags: `-fps`, `-module <id>`, `-list`, `-no-display` (MIDI only),
-`-no-leds`, `-midi-out <name>`, `-no-midi-out`, `-capture`, `-capture-raw`,
+`-no-leds`, `-midi-out <name>`, `-no-midi-out`, `-ext-midi-in <name>`,
+`-no-ext-midi-in` (external MIDI input for modules that declare
+`NeedsMIDIIn` — `internal/midiin`, raw bytes delivered as
+`module.ExternalMIDI`; unlike MIDI-out, missing input is never fatal to
+activation, see `internal/module/module.go`'s `Meta.NeedsMIDIIn` doc),
+`-capture`, `-capture-raw`,
 `-install <dir>`, `-uninstall <id>` (filesystem-only, no Push needed),
 `-version` (prints `internal/version.Version`, "dev" unless built with the
 release workflow's `-ldflags`), `-devices` (lists every attached Push unit

@@ -1,7 +1,7 @@
 # Display protocol
 
 **Status:** confirmed on tethered hardware  
-**Last verified:** 2026-08-09 (Push 3, macOS)  
+**Last verified:** 2026-08-20 (Push 3, macOS)  
 **Authoritative code:** [internal/display/display.go](../../internal/display/display.go), `core/display`, `core/push3`
 
 Push 2 and Push 3 share the same display protocol in tethered mode. Evidence

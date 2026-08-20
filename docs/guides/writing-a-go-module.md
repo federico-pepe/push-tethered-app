@@ -1,7 +1,7 @@
 # Writing a Go module
 
 **Status:** living guide  
-**Last verified:** 2026-08-18  
+**Last verified:** 2026-08-20  
 **Authoritative code:** [internal/module/module.go](../../internal/module/module.go), [modules/monitor/](../../modules/monitor/)
 
 Go modules are compiled into the `pushapp` binary. They implement
@@ -34,7 +34,13 @@ design choices (display list, serialised Handle/Draw, open op set).
 4. **ASCII only** in user-visible strings — non-ASCII renders as glyph boxes.
 5. **Declare `NeedsMIDIOut: true`** if you call `SendCC` / `SendNote`. The host
    refuses activation without an output port.
-6. **Release held notes in `Close`.** The host clears pad LEDs on exit but not
+6. **Declare `NeedsMIDIIn: true`** if you want `ExternalMIDI` events — raw
+   MIDI from other software or hardware, not from Push (a clock to sync to,
+   a controller). Unlike `NeedsMIDIOut` this is never fatal: without a port
+   available the module still activates, it just never receives
+   `ExternalMIDI`. Decode `ev.Raw` yourself — the host does not interpret it
+   (see [internal/midiin](../../internal/midiin/midiin.go)).
+7. **Release held notes in `Close`.** The host clears pad LEDs on exit but not
    MIDI notes in flight.
 
 ## Registration

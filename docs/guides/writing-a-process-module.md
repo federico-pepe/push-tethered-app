@@ -1,7 +1,7 @@
 # Writing a process module (overview)
 
 **Status:** living guide  
-**Last verified:** 2026-08-18  
+**Last verified:** 2026-08-20  
 **Authoritative code:** [internal/host/procmod/](../../internal/host/procmod/)
 
 A process module is any executable the host spawns and talks to over
@@ -60,7 +60,20 @@ Requests (with `id`, expect response):
 ```
 
 MIDI out (`send_cc`, `send_note`, `note_off`) requires
-`"needs_midi_out": true` in manifest.
+`"needs_midi_out": true` in manifest. MIDI clock/transport out (`send_clock`,
+`send_start`, `send_continue`, `send_stop`, all no-params requests) uses the
+same port and the same `needs_midi_out` flag.
+
+External MIDI input — raw bytes from other software or hardware, not from
+Push — arrives as a `handle` notification with `"kind": "external_midi"`,
+`"data": {"raw": "..."}`. **`raw` is base64**, not a number array — Go's
+`encoding/json` encodes a `[]byte` field that way by default, and this wire
+format mirrors the Go type directly rather than reshaping it per language.
+Decode it (`base64.b64decode` in Python, `Buffer.from(s, "base64")` in
+Node) to get the actual MIDI bytes — a single `0xF8` clock tick is `"+A=="`,
+for example. Requires `"needs_midi_in": true` in manifest; unlike MIDI out,
+a missing input port never blocks the module from loading, it just never
+receives this event kind.
 
 ## Common mistakes
 
