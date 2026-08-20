@@ -97,6 +97,11 @@ func (h *Host) NoteOff(ch, note byte) error {
 	return h.record("noteoff", ch, note, 0)
 }
 
+func (h *Host) SendClock() error    { return h.record("clock", 0, 0, 0) }
+func (h *Host) SendStart() error    { return h.record("start", 0, 0, 0) }
+func (h *Host) SendContinue() error { return h.record("continue", 0, 0, 0) }
+func (h *Host) SendStop() error     { return h.record("stop", 0, 0, 0) }
+
 func (h *Host) record(kind string, ch, num, val byte) error {
 	if h.NoMIDIOut {
 		return fmt.Errorf("no MIDI output port is open")

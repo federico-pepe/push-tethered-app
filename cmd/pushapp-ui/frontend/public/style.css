@@ -287,6 +287,12 @@ html, body {
     white-space: nowrap;
 }
 
+.pairing-mismatch {
+    font-size: 11px;
+    color: #e57373;
+    white-space: normal;
+}
+
 .pairing-identify {
     font-size: 12px;
     padding: 5px 10px;

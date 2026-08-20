@@ -10,8 +10,9 @@ encoders, buttons, and LEDs. It does not need Ableton Live.
 
 The app is a **module host**. It runs small programs called **modules** — each
 one draws on Push's screen and reacts to its controls. Built-in modules include
-a control-surface monitor, a MIDI passthrough, a step sequencer, and a
-user-editable remapper. You can write your own.
+a control-surface monitor, a MIDI passthrough, a step sequencer that can sync
+to an external MIDI clock, and a user-editable remapper. You can write your
+own. See [MANUAL.md](MANUAL.md) for how to run and configure the app itself.
 
 ## Why
 
@@ -44,10 +45,12 @@ that can speak a small JSON protocol over stdin/stdout.
 3. **Modules never touch USB or MIDI ports directly** — the host owns the
    hardware and exposes a simple API (set a pad colour, send a CC, draw some
    text, and so on).
-4. **Optional extras:** modules can send MIDI out to other software; a desktop
-   UI (`pushapp-ui`) lists and switches modules without using the terminal,
-   and can pair and drive **several Push units at once** — each gets its own
-   session and its own module, independently.
+4. **Optional extras:** modules can send MIDI out to other software and
+   receive MIDI in from it (an external clock to sync to, for example); a
+   desktop UI (`pushapp-ui`) lists and switches modules without using the
+   terminal, and can pair and drive **several Push units at once** — each
+   gets its own session and its own module, independently. `pushapp-ui` can
+   also run alongside Ableton Live — see [MANUAL.md](MANUAL.md).
 
 ```
   You write a module          pushapp owns the hardware
@@ -92,9 +95,12 @@ want the overview first.
 **Pre-alpha, but running.** Confirmed on Push 2 and Push 3 hardware from the
 same binary. Process-loaded Python and Node.js modules verified end-to-end.
 
-Full documentation: **[docs/README.md](docs/README.md)** — protocol reference,
-architecture, platform notes, and contributor guides. Open questions live in
-[plans/2026-08-18-open-items.md](plans/2026-08-18-open-items.md).
+End-user manual: **[MANUAL.md](MANUAL.md)** — pairing, MIDI port roles, running
+alongside Live, troubleshooting.
+
+Full developer documentation: **[docs/README.md](docs/README.md)** — protocol
+reference, architecture, platform notes, and contributor guides. Open
+questions live in [plans/2026-08-18-open-items.md](plans/2026-08-18-open-items.md).
 
 ## Related
 

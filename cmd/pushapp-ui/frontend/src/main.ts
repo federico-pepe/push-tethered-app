@@ -129,12 +129,20 @@ function renderPairing(
     }
     usbListEl.replaceChildren(...usbRows);
 
+    // Every cable is selectable, not just Live — User (and External) need to
+    // be pickable too, since User Mode routing (see
+    // docs/protocol/midi-input.md) makes them real coexistence choices, not
+    // just Live's cable. selectedUSBModel feeds a soft mismatch warning
+    // below; it never blocks a pick, since there's no reliable way to
+    // auto-verify a display unit and a MIDI unit are the same physical box
+    // (see plans/2026-08-19-multi-device.md) — Identify is still how you
+    // actually confirm that.
+    const selectedUSBModel = selectedUSB ? units.find((u) => u.id === selectedUSB)?.model ?? null : null;
     const midiRows: HTMLLIElement[] = [];
     for (const unit of midiUnits) {
         for (const port of (unit.ports ?? [])) {
-            if (!port.isLive) continue; // only the Live cable identifies a connectable unit
             if (pairedInNums.has(port.inNum)) continue;
-            midiRows.push(renderMIDIRow(unit, port, unitErrors[unit.key]));
+            midiRows.push(renderMIDIRow(unit, port, unitErrors[unit.key], selectedUSBModel));
         }
     }
     if (midiRows.length === 0) {
@@ -193,7 +201,12 @@ function renderUSBRow(unit: USBUnit, lastError: string | undefined): HTMLLIEleme
     return li;
 }
 
-function renderMIDIRow(unit: MIDIUnit, port: PortRef, lastError: string | undefined): HTMLLIElement {
+function renderMIDIRow(
+    unit: MIDIUnit,
+    port: PortRef,
+    lastError: string | undefined,
+    selectedUSBModel: string | null,
+): HTMLLIElement {
     const li = document.createElement("li");
     const isSelected = selectedMIDI?.inNum === port.inNum;
     const identifyKey = `out:${port.outNum}`;
@@ -216,7 +229,8 @@ function renderMIDIRow(unit: MIDIUnit, port: PortRef, lastError: string | undefi
     info.className = "pairing-info";
     const name = document.createElement("span");
     name.className = "pairing-name";
-    name.textContent = `${unit.device} — ${unit.key}`;
+    const roleLabel = port.role ? `${port.role} Port` : `cable ${port.cable}`;
+    name.textContent = `${unit.device} ${roleLabel} — ${unit.key}`;
     const detail = document.createElement("span");
     detail.className = "pairing-detail";
     detail.textContent = lastError
@@ -225,6 +239,14 @@ function renderMIDIRow(unit: MIDIUnit, port: PortRef, lastError: string | undefi
             ? "Matches another identical unit — identify by LED to tell them apart"
             : port.inName;
     info.append(name, detail);
+
+    if (selectedUSBModel !== null && unit.device !== selectedUSBModel) {
+        const mismatch = document.createElement("span");
+        mismatch.className = "pairing-mismatch";
+        mismatch.textContent =
+            `Screen picked is a ${selectedUSBModel}, this cable is a ${unit.device} — probably not the same physical unit.`;
+        info.appendChild(mismatch);
+    }
 
     li.append(swatch, info);
 

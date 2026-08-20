@@ -1,7 +1,7 @@
 # Writing a Python module
 
 **Status:** living guide  
-**Last verified:** 2026-08-18  
+**Last verified:** 2026-08-20  
 **Example:** [examples/modules/hello-py/](../../examples/modules/hello-py/)
 
 Minimal process module — stdlib only, no pip install. Press a pad; the screen
@@ -109,5 +109,10 @@ elif method == "close":
 
 - Add `store_get` / `store_set` for persistence
 - Enable MIDI out in manifest and call `send_note`
+- Set `"needs_midi_in": true` and handle `"kind": "external_midi"` to receive
+  MIDI from other software (an external clock, for example) — see
+  [examples/modules/beatcount-py/](../../examples/modules/beatcount-py/),
+  and note `data.raw` there is **base64**, not a number array (Go's
+  `encoding/json` encodes a `[]byte` field that way)
 - Read [architecture/process-modules.md](../architecture/process-modules.md)
   for the full method table

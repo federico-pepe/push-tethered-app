@@ -1,7 +1,7 @@
 # USB and hardware safety
 
 **Status:** living policy  
-**Last verified:** 2026-08-18  
+**Last verified:** 2026-08-20  
 **Authoritative code:** [internal/display/display.go](../../internal/display/display.go)
 
 Read this before USB experiments or button sweeps on real hardware.

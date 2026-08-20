@@ -1,7 +1,7 @@
 # MIDI input
 
 **Status:** confirmed on tethered hardware  
-**Last verified:** 2026-08-16 (Push 2 + Push 3 map complete)  
+**Last verified:** 2026-08-20 (Push 2 + Push 3 map complete; User Mode routing confirmed)  
 **Authoritative code:** [internal/midi/midi.go](../../internal/midi/midi.go), `core/push3`, `internal/pushmap`
 
 Push's control-surface MIDI is read through the **OS MIDI API**, never libusb.
@@ -62,10 +62,21 @@ not just a pad-input one: engage it and a host gets exclusive pad input *and*
 exclusive pad LED output, both routed away from Live at the device level —
 not a routing suggestion Live could still be listening past. **The catch: a
 host must target the matching output cable for its mode** — writing pad LEDs
-to Live Port while in User Mode silently goes nowhere. `internal/midi`
-currently always targets the Live Port cable
-([led-output.md](led-output.md)) — switching cable on User Mode state is
-unbuilt. It does not touch the display claim or button routing either way.
+to Live Port while in User Mode silently goes nowhere.
+
+**Correction, confirmed 2026-08-20: `internal/midi` already handles this,
+no code change needed.** `OpenRef` pairs each `PortRef`'s input cable with
+its own same-role output cable (`ports.go`'s pairing logic, exact-name match
+on macOS/Linux, positional on Windows) — it does not hardcode Live. Running
+`pushapp -midi-in "Ableton Push 3 User Port"` while User Mode is engaged and
+Live is running was tested end-to-end: pad presses arrive via User Port and
+`SetPad` writes land on User Port's paired output cable automatically,
+rendering `pushapp`'s own colours live, with Live running. What *is* still
+Live-hardcoded: `Open()`'s zero-arg auto-detect (guesses Live Port by
+design, no selection given) and `internal/identify.FlashLEDs`'s use of the
+unpaired `OpenOutCable` — see [led-output.md](led-output.md). Neither is the
+general path a caller with an explicit `PortRef`/name goes through. It does
+not touch the display claim or button routing either way.
 
 Windows names ports differently from CoreMIDI/ALSA — see
 [platform/windows.md](../platform/windows.md).

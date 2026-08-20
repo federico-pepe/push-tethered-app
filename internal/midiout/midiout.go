@@ -182,6 +182,22 @@ func (o *Out) NoteOff(ch, note byte) error {
 	return o.send(status, note&0x7F, 0)
 }
 
+// SendClock sends one MIDI timing clock tick (0xF8) — a system realtime
+// message, no channel and no data bytes. Send 24 per quarter note to drive
+// another device's tempo; see SendStart/SendContinue/SendStop for the
+// transport messages that go with it.
+func (o *Out) SendClock() error { return o.send(0xF8) }
+
+// SendStart sends MIDI Start (0xFA): begin playback from the top.
+func (o *Out) SendStart() error { return o.send(0xFA) }
+
+// SendContinue sends MIDI Continue (0xFB): resume playback from wherever it
+// was stopped, as opposed to Start's "from the top".
+func (o *Out) SendContinue() error { return o.send(0xFB) }
+
+// SendStop sends MIDI Stop (0xFC).
+func (o *Out) SendStop() error { return o.send(0xFC) }
+
 // status builds a status byte from a message kind and a 1-16 channel.
 func status(kind, ch byte) (byte, error) {
 	if ch < 1 || ch > 16 {

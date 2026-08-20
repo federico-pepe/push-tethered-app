@@ -52,11 +52,14 @@ What's still unresolved: [plans/2026-08-18-open-items.md](../plans/2026-08-18-op
 | Location | Purpose |
 |---|---|
 | [README.md](../README.md) | Project entry point — what, why, how |
-| `docs/` (here) | Durable reference and how-to guides |
+| [MANUAL.md](../MANUAL.md) | End-user manual — how to run and configure the app |
+| `docs/` (here) | Durable reference and how-to guides, for contributors |
 | [plans/](../plans/) | Intent and decision history |
 | [docs/archive/](archive/) | Frozen superseded writeups |
 | [CLAUDE.md](../CLAUDE.md) | AI agent guidance + safety reminders |
 
 **Doc sync rule:** when a change is meaningful to a future reader — new
 behaviour, a protocol fact, a resolved issue — update the relevant doc here
-(and README or CLAUDE.md if appropriate) in the same commit.
+(and README, MANUAL.md, or CLAUDE.md if appropriate) in the same commit.
+New end-user-facing behaviour (not just an internal API) belongs in
+MANUAL.md, not only here.

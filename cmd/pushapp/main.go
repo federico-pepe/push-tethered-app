@@ -31,6 +31,7 @@ import (
 	"github.com/federico-pepe/push-tethered-app/internal/midi"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/internal/version"
+	"github.com/federico-pepe/push-tethered-app/modules/beatcount"
 	"github.com/federico-pepe/push-tethered-app/modules/monitor"
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
 	"github.com/federico-pepe/push-tethered-app/modules/seq"
@@ -49,6 +50,7 @@ func available() []module.Module {
 		thru.New(),
 		seq.New(),
 		remap.New(),
+		beatcount.New(),
 	}
 }
 
@@ -60,6 +62,8 @@ func main() {
 	noLEDs := flag.Bool("no-leds", false, "do not drive LEDs")
 	midiOutName := flag.String("midi-out", "", "MIDI output port to create, or attach to on Windows")
 	noMIDIOut := flag.Bool("no-midi-out", false, "do not open a MIDI output port")
+	extMIDIInName := flag.String("ext-midi-in", "", "external MIDI input port to create, or attach to on Windows — for modules that declare NeedsMIDIIn, e.g. to sync to an external clock")
+	noExtMIDIIn := flag.Bool("no-ext-midi-in", false, "do not open an external MIDI input port")
 	capturePath := flag.String("capture", "", "record the screen to a file (.mp4, .mov or .gif)")
 	captureRaw := flag.Bool("capture-raw", false, "record the source image instead of panel-accurate BGR565 colour")
 	installDir := flag.String("install", "", "install the module directory at this path (manifest.json + executable), then exit")
@@ -152,6 +156,9 @@ func main() {
 			if meta.NeedsMIDIOut {
 				fmt.Print("  [needs MIDI out]")
 			}
+			if meta.NeedsMIDIIn {
+				fmt.Print("  [needs MIDI in]")
+			}
 			fmt.Println()
 		}
 		if installed, err := procmod.ListInstalled(); err == nil {
@@ -160,6 +167,9 @@ func main() {
 				if man.NeedsMIDIOut {
 					fmt.Print(", needs MIDI out")
 				}
+				if man.NeedsMIDIIn {
+					fmt.Print(", needs MIDI in")
+				}
 				fmt.Println()
 			}
 		}
@@ -167,16 +177,18 @@ func main() {
 	}
 
 	rt, cleanup, err := bootstrap.Open(bootstrap.Options{
-		FPS:         *fps,
-		NoDisplay:   *noDisplay,
-		NoLEDs:      *noLEDs,
-		MIDIInName:  *midiInName,
-		DisplaySel:  *deviceSel,
-		MIDIOutName: *midiOutName,
-		NoMIDIOut:   *noMIDIOut,
-		CapturePath: *capturePath,
-		CaptureRaw:  *captureRaw,
-		Modules:     mods,
+		FPS:           *fps,
+		NoDisplay:     *noDisplay,
+		NoLEDs:        *noLEDs,
+		MIDIInName:    *midiInName,
+		DisplaySel:    *deviceSel,
+		MIDIOutName:   *midiOutName,
+		NoMIDIOut:     *noMIDIOut,
+		ExtMIDIInName: *extMIDIInName,
+		NoExtMIDIIn:   *noExtMIDIIn,
+		CapturePath:   *capturePath,
+		CaptureRaw:    *captureRaw,
+		Modules:       mods,
 	})
 	if err != nil {
 		log.Fatalf("%v", err)

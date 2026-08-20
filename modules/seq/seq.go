@@ -19,6 +19,13 @@
 //   - Timing is advanced inside Draw, using time.Now(). The advance logic
 //     itself (tick) takes an explicit time so it is testable without a real
 //     clock — see seq_test.go.
+//
+// Optionally follows an external MIDI clock instead of its own wall-clock
+// timing (see NeedsMIDIIn, handleExternalMIDI): while clock bytes are
+// actively arriving, they — not tick() — advance the step, so the sequencer
+// locks to whatever is sending them. No external clock connected is the
+// common case and needs no configuration; wall-clock timing is the default
+// and the fallback the moment external ticks stop arriving.
 package seq
 
 import (
@@ -47,6 +54,19 @@ const (
 	stepsPerBeat = 2
 
 	minBPM, maxBPM, defaultBPM = 40, 240, 120
+
+	// clockTicksPerQuarter is the MIDI clock standard: 24 ticks per quarter
+	// note, regardless of tempo. ticksPerStep converts that to this
+	// sequencer's own resolution (stepsPerBeat steps per quarter note).
+	clockTicksPerQuarter = 24
+	ticksPerStep         = clockTicksPerQuarter / stepsPerBeat
+
+	// externalClockTimeout is how long without a clock byte before falling
+	// back to wall-clock timing. Long enough that a single dropped tick at
+	// any realistic tempo (even 40 BPM, 24 ticks/quarter, is ~62ms/tick)
+	// never trips it; short enough that unplugging the clock source is
+	// noticed well within one bar.
+	externalClockTimeout = 2 * time.Second
 
 	// Both match core/push3/colors.go's NamedColors ("green" and "white").
 	// That file itself was corrected 2026-08-18: it used to claim "green" = 22
@@ -90,6 +110,16 @@ type Module struct {
 	curStep   int
 	haveStep  bool // false until the first tick after Init/play
 
+	// External MIDI clock state — see handleExternalMIDI. extTicks counts
+	// clock bytes (0-ticksPerStep-1) within the current step; lastExtClock is
+	// when the last one arrived, which is what isExternallySynced checks
+	// against externalClockTimeout. wasExternalSynced lets tick() notice the
+	// exact frame sync is lost, so it can re-anchor playStart instead of
+	// jumping using a now-stale one.
+	extTicks          int
+	lastExtClock      time.Time
+	wasExternalSynced bool
+
 	log     []string
 	sent    int
 	lastErr string
@@ -107,8 +137,9 @@ func (m *Module) Meta() module.Meta {
 		Name:         "Step Sequencer (Test)",
 		Author:       "Federico Pepe",
 		Version:      "1.0.0",
-		Description:  "8-step pad-grid sequencer driving MIDI out on wall-clock time",
+		Description:  "8-step pad-grid sequencer, wall-clock or external-MIDI-clock driven",
 		NeedsMIDIOut: true,
+		NeedsMIDIIn:  true,
 	}
 }
 
@@ -202,7 +233,109 @@ func (m *Module) Handle(ev module.Event) {
 		}
 		m.pattern.BPM = bpm
 		m.save()
+
+	case module.ExternalMIDI:
+		m.handleExternalMIDI(e)
 	}
+}
+
+// handleExternalMIDI decodes the one byte this module cares about — clock,
+// start, continue, stop — and ignores everything else (notes, CC, anything
+// a sender chose to also put on the same port). Raw system realtime
+// messages carry no channel and no data bytes, so a length/status check is
+// all the decoding there is.
+func (m *Module) handleExternalMIDI(e module.ExternalMIDI) {
+	if len(e.Raw) == 0 {
+		return
+	}
+	switch e.Raw[0] {
+	case 0xF8: // Timing Clock
+		m.onExternalClock()
+	case 0xFA: // Start
+		m.onExternalStart()
+	case 0xFB: // Continue
+		m.onExternalContinue()
+	case 0xFC: // Stop
+		m.onExternalStop()
+	}
+}
+
+// onExternalClock advances the sequencer by one MIDI clock tick. Once
+// ticksPerStep ticks have accumulated, it crosses a step boundary exactly
+// like tick()'s wall-clock path does: release whatever the previous step was
+// sounding, trigger the new one.
+func (m *Module) onExternalClock() {
+	m.lastExtClock = time.Now()
+	if !m.playing {
+		return
+	}
+	m.extTicks++
+	if m.extTicks < ticksPerStep {
+		return
+	}
+	m.extTicks = 0
+	if m.haveStep {
+		if err := m.releaseStep(m.curStep); err != nil {
+			m.fail(err)
+		}
+	}
+	m.curStep = (m.curStep + 1) % steps
+	m.haveStep = true
+	m.triggerStep(m.curStep)
+}
+
+// onExternalStart begins playback at step 0 immediately — MIDI Start means
+// "begin now", not "begin after the first tick arrives", matching how a real
+// transport reacts to it.
+func (m *Module) onExternalStart() {
+	m.lastExtClock = time.Now()
+	if m.haveStep {
+		if err := m.releaseStep(m.curStep); err != nil {
+			m.fail(err)
+		}
+	}
+	m.extTicks = 0
+	m.curStep = 0
+	m.haveStep = true
+	if !m.playing {
+		m.playing = true
+		m.host.SetButton(push3.CCPlay, 127)
+	}
+	m.triggerStep(0)
+}
+
+// onExternalContinue resumes from wherever playback was left — unlike Start
+// it does not reset the step or the tick count.
+func (m *Module) onExternalContinue() {
+	m.lastExtClock = time.Now()
+	if !m.playing {
+		m.playing = true
+		m.host.SetButton(push3.CCPlay, 127)
+	}
+}
+
+// onExternalStop mirrors togglePlay's stop path, driven by the clock link
+// instead of the Play button.
+func (m *Module) onExternalStop() {
+	m.lastExtClock = time.Now()
+	if !m.playing {
+		return
+	}
+	if m.haveStep {
+		if err := m.releaseStep(m.curStep); err != nil {
+			m.fail(err)
+		}
+	}
+	m.haveStep = false
+	m.playing = false
+	m.host.SetButton(push3.CCPlay, 0)
+}
+
+// isExternallySynced reports whether an external clock is actively driving
+// the sequencer right now — ticks arriving recently enough that tick()'s
+// wall-clock path should stand down rather than also advancing the step.
+func (m *Module) isExternallySynced() bool {
+	return !m.lastExtClock.IsZero() && time.Since(m.lastExtClock) < externalClockTimeout
 }
 
 func (m *Module) togglePlay() {
@@ -230,6 +363,19 @@ func (m *Module) togglePlay() {
 func (m *Module) tick(now time.Time) {
 	if !m.playing {
 		return
+	}
+	if m.isExternallySynced() {
+		// An external clock owns stepping right now — see onExternalClock.
+		m.wasExternalSynced = true
+		return
+	}
+	if m.wasExternalSynced {
+		// Just lost the external clock (timeout, or it was never that
+		// active to begin with): re-anchor from now rather than resuming
+		// wall-clock timing from a playStart that may be arbitrarily stale.
+		m.playStart = now
+		m.haveStep = false
+		m.wasExternalSynced = false
 	}
 	stepDur := time.Duration(float64(time.Minute) / float64(m.pattern.BPM) / stepsPerBeat)
 	if stepDur <= 0 {
@@ -323,8 +469,12 @@ func (m *Module) Draw(f *module.Frame) {
 	if !m.playing {
 		state = "stopped"
 	}
+	clockSrc := "internal"
+	if m.isExternallySynced() {
+		clockSrc = "EXT CLOCK"
+	}
 	f.Rect(0, 0, w, 20, t.CrumbBg)
-	f.Text(8, 14, fmt.Sprintf("pushapp - seq  BPM %d  [%s]", m.pattern.BPM, state), t.CrumbCol)
+	f.Text(8, 14, fmt.Sprintf("pushapp - seq  BPM %d  [%s]  %s", m.pattern.BPM, state, clockSrc), t.CrumbCol)
 
 	// Grid mirror, laid out the same way monitor's is: row 0 is the bottom row
 	// on the hardware, so it is drawn lowest on screen.
