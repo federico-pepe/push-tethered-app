@@ -11,15 +11,61 @@ Rationale: [architecture/stack-and-layout.md](../architecture/stack-and-layout.m
 
 Push 3 exposes three MIDI input ports via the OS (interface 5 = MIDIStreaming):
 
-| Port | Role (observed) |
+| Port | Role (confirmed 2026-08-20) |
 |---|---|
-| **Live Port** | All control-surface traffic — pads, encoders, buttons, touch |
-| User Port | Keepalive only in normal use |
+| **Live Port** | Buttons/encoders/touch always; **pads only while User Mode is off** |
+| User Port | Buttons/encoders/touch duplicate here always; **pads only while User Mode is on** |
 | External Port | Keepalive only in normal use |
 
 Push 2 has Live Port and User Port only.
 
 **No host handshake** — Push emits MIDI as soon as it is connected.
+
+### User Mode's effect on routing
+
+Confirmed on Push 3 hardware, 2026-08-20 (`tools/midimon.swift` on all three
+ports simultaneously, User button = CC 59, `core/push3/buttons.go:104`):
+
+- **Buttons/encoders/touch (CC messages) always duplicate to both Live Port
+  and User Port**, identical bytes, regardless of User Mode state. This does
+  *not* change with the mode toggle.
+- **Pad messages (Note On/Off, PolyAT) are exclusively routed**: Live Port
+  only while User Mode is off, User Port only while User Mode is on. Never
+  both, never neither. This is a real, device-level cutoff — with Push not
+  selected in Live's generic MIDI-input prefs, Live receives zero pad bytes
+  while User Mode is engaged, confirmed both by the port trace and by
+  watching Live's UI directly.
+- **The display claim is unaffected either way** — `pushapp` keeps interface
+  0 through Live launching and through User Mode toggling; screen briefly
+  blanks on Live's launch, then returns to `pushapp`'s own UI.
+- **Live's outbound LED SysEx (`38 0D…`/`38 18…`) never stops**, User Mode or
+  not — Live keeps sending it regardless of the device's mode.
+- **User Mode enter/exit is announced unsolicited**, on both Live Port and
+  User Port simultaneously, right at the toggle: `F0 00 21 1D 01 01 0A 01
+  F7` (enter), `F0 00 21 1D 01 01 0A 00 F7` (exit). Usable as a detection
+  signal — see [live-coexistence.md's C2](../../plans/2026-08-19-live-coexistence.md).
+- **Pad LED *output* is exclusively routed too, mirroring input — confirmed
+  2026-08-20.** `tools/ledtest.swift`'s palette sweep sent to the **Live
+  Port** output cable renders nothing while User Mode is on; the identical
+  sweep sent to the **User Port** output cable renders correctly while User
+  Mode is on. (Earlier framing on this page called the User Mode grid a
+  "local firmware override on top of Live's still-live colour stream" —
+  that was based on Live Port writes only and is superseded by this: it
+  isn't an override masking the grid, it's that Live Port stops being the
+  live output cable the moment User Mode engages, same as it stops being
+  the live input cable.) This means colours snapping back to Live's the
+  instant User Mode exits (still true) is because Live Port becomes live
+  again, not because Live's writes were ever being blocked.
+
+This means User Mode is a genuine, working **full** contention workaround,
+not just a pad-input one: engage it and a host gets exclusive pad input *and*
+exclusive pad LED output, both routed away from Live at the device level —
+not a routing suggestion Live could still be listening past. **The catch: a
+host must target the matching output cable for its mode** — writing pad LEDs
+to Live Port while in User Mode silently goes nowhere. `internal/midi`
+currently always targets the Live Port cable
+([led-output.md](led-output.md)) — switching cable on User Mode state is
+unbuilt. It does not touch the display claim or button routing either way.
 
 Windows names ports differently from CoreMIDI/ALSA — see
 [platform/windows.md](../platform/windows.md).
@@ -111,7 +157,7 @@ Full map: [hardware-reference.md](../hardware-reference.md).
 
 ## Open questions
 
-- User Port / External Port roles
+- External Port role (User Port role is now confirmed, see above)
 - Push 2 arrow down/right CCs (expected 46/47/44/45)
 
 See [plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md).

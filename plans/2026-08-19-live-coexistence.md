@@ -1,7 +1,24 @@
 # Coexisting with Live, and taking control of Push
 
-Status: measurements not yet run. Software groundwork (Parts B4, C1-C3) started
-2026-08-19.
+Status: A3, A1, A2, and A5 measured 2026-08-20 — see below,
+[docs/protocol/midi-input.md](../docs/protocol/midi-input.md#user-modes-effect-on-routing),
+[docs/protocol/usb-and-safety.md](../docs/protocol/usb-and-safety.md#ableton-background-processes-confirmed-2026-08-20),
+[docs/platform/macos.md](../docs/platform/macos.md#lives-background-helper-confirmed-2026-08-20),
+[docs/protocol/led-output.md](../docs/protocol/led-output.md#led-contention-with-live),
+[docs/protocol/display.md](../docs/protocol/display.md#disconnect-while-running),
+[docs/protocol/live-handshake.md](../docs/protocol/live-handshake.md).
+User Mode confirmed as a working **full** contention workaround — pad input
+*and* pad LED output are both exclusively routed by the same mode toggle,
+found same-day chasing "can we skip Part B/C"; the `push` helper identified
+and its ownership matrix measured; pad-LED stability confirmed steady across
+every launch order, no default-on back-off forced by the evidence; no
+inbound echo of any kind found, but a recurring handshake-shaped SysEx
+pattern is now on record for later decoding. Part B deprioritized pending a
+decision — see Sequencing. A4 (Windows capture) tried and **blocked** — the
+available VM is ARM64 Windows, and USBPcap's driver cannot load there at
+all; needs x86/x64 Windows (bare-metal, or an untested/likely-too-slow QEMU
+TCG x86_64 VM) to proceed.
+Software groundwork (Parts B4, C1-C3) started 2026-08-19.
 
 ## Why
 
@@ -62,7 +79,41 @@ needs is one named CC 59 with the display already held. No SysEx fuzzing; the
 only known-safe device SysEx is read-only command `0x04` (palette lookup). No
 interface 6, no control transfers, no firmware operations.
 
-### A3 (first) — User Mode
+### A3 (first) — User Mode — **done, 2026-08-20, extended same day — bigger than originally scoped**
+
+Result: User Mode is a real, working workaround for **both halves** of
+contention, not just pad input. Full writeup:
+[docs/protocol/midi-input.md](../docs/protocol/midi-input.md#user-modes-effect-on-routing),
+[docs/protocol/led-output.md](../docs/protocol/led-output.md#led-contention-with-live).
+Summary — buttons always duplicate to both Live Port and User Port
+regardless of mode; pads are exclusively routed, Live Port only with User
+Mode off, User Port only with it on, a device-level cutoff confirmed both by
+port trace and by watching Live's UI with its generic MIDI-input prefs
+disabled; the display claim is untouched by Live launching or by the mode
+toggle; Live's outbound LED SysEx never stops; and the mode toggle announces
+itself unsolicited on both ports (`0A 01` enter / `0A 00` exit), a usable
+signal for C2.
+
+**Same-day follow-up, prompted by "can we just use User Mode instead of
+building Part B/C" — the answer turned out to be closer to yes than
+expected: pad LED *output* is exclusively routed by the same toggle.**
+`tools/ledtest.swift`'s palette sweep to Live Port's output cable renders
+nothing while User Mode is on; the identical sweep to User Port's output
+cable renders correctly while User Mode is on. So a host that targets User
+Port for LED writes can paint its own pad colours *while fully coexisting
+with Live* — not just read pad presses. This supersedes the "Live's colours
+persist because of a local firmware override" framing above: it isn't an
+override masking the grid, Live Port simply stops being the live output
+cable the moment User Mode engages, symmetric with input. **Real
+consequence: `internal/midi` always targets the Live Port cable today
+(`internal/midi.OpenOutCable`/`PortRef.IsLive`) — switching cable based on
+User Mode state is unbuilt.** That's the actual remaining gap between
+"User Mode is a working manual toggle" and "co-existence with live pad art
+works out of the box," and it's a much smaller build than Part B's libusb
+spike or Part C's contention-detection-and-back-off — it's a mode-aware
+output cable seam, not a claim/arbitration system.
+
+Original brief, for the record: 
 
 Because the docs assert an untested assumption, and because a yes is the
 cheapest possible answer to everything below.
@@ -82,7 +133,24 @@ where it returned `ErrBusy`? Any yes is a shipping workaround. A refutation is
 equally valuable and must be corrected everywhere it is cited. Also settles the
 User/External port-role theory at `2026-08-18-open-items.md:27-33`.
 
-### A1 — the `push` background app: what does it own?
+### A1 — the `push` background app: what does it own? — **done, 2026-08-20**
+
+Result: the helper is `Push3.app` (`com.ableton.Push3`), a plain child
+process of Live, not `launchd`-managed. Full matrix, all 7 cells measured on
+real hardware, in
+[docs/protocol/usb-and-safety.md](../docs/protocol/usb-and-safety.md#ableton-background-processes-confirmed-2026-08-20)
+and
+[docs/platform/macos.md](../docs/platform/macos.md#lives-background-helper-confirmed-2026-08-20).
+Headlines: doesn't start without Live (cell 2 closed cleanly); killing it
+alone frees the display for ~2.3s before Live's own watchdog respawns it,
+not a usable "stop" affordance (cell 4); clean quit releases everything
+immediately (cell 5); `kill -9` on Live leaves it orphaned and still holding
+interface 0 for ~5.2s before it self-exits via a parent-liveness poll (cell
+6) — a real gap in the old "no replug needed" claim, now corrected; launch
+order doesn't affect pad contention, only which process keeps the screen
+(cell 3 vs. 7, symmetric).
+
+Original brief, for the record: 
 
 Reframed from the dead deselect experiment. The goal is to establish which
 process holds interface 0 and which holds the MIDI connection — Live, the
@@ -140,9 +208,47 @@ failure mode; the multi-device work
 ([2026-08-19-multi-device.md](2026-08-19-multi-device.md)) does not depend on any
 of this.
 
-### A2 — launch-order matrix, and it must run before C4 lands
+### A2 — launch-order matrix, and it must run before C4 lands — **done, 2026-08-20**
 
-Otherwise the measurement measures the fix. Each cell twice, default then
+Result so far: every cell tested is **steady, not flickering** — no
+default-on back-off needed on this evidence, a user toggle suffices. Detail:
+
+- **Live-then-`pushapp`** (both LED flags): display → Live, degrade text
+  exactly `display: display interface is claimed by another process (Live?)`
+  / `display: continuing MIDI-only — quit Live to get the screen`, inbound
+  events arrive fine, pads steady both with default LEDs (both writers
+  active) and `-no-leds` (Live only).
+- **`pushapp`-then-Live** (both LED flags): display stays with `pushapp`
+  (log never updates, no error/degrade), Push3 helper starts normally with
+  no error surfaced, inbound events fine, pads steady both ways. Symmetric
+  with the previous cell and with A1 cell 7 — order decides the screen only,
+  never the pad-LED stability.
+- **Control surface set mid-session: N/A.** Dead, same as the deselect
+  workaround the plan's correction #2 already flags — there is no live
+  toggle to test. The closest equivalent is A1 cell 4 (killing the helper
+  mid-session): it respawns in ~2.3s and Live's pad ownership snaps straight
+  back.
+- **Quit Live with `pushapp` up (default LEDs):** two new findings.
+  (1) **`pushapp` never retries the display claim after an initial
+  degrade** — confirmed both by the log staying silent after Live quit and
+  by code, `internal/display/display.go:51` ("display rather than retry").
+  Once degraded, that process stays MIDI-only for its whole run; only a
+  relaunch reclaims. The screen fell back to Push's own firmware idle
+  screen ("connect Push to a computer"), consistent with nobody holding
+  interface 0. (2) **No re-assert step needed**: pads went off on their own
+  when Live quit, not stuck on Live's last colours — unlike the User Mode
+  case (A3), where Live's colours snap back instantly because Live never
+  stopped sending them. `-no-leds` variant skipped as redundant — nothing to
+  differ with only one writer ever active.
+
+**Unplug Push with Live present** (`pushapp` holding the display, Live
+launched second and degraded): the unplug surfaces as a failed frame write →
+`ErrDisconnected` → `host: Push disconnected` logged → clean exit, no crash.
+On replug, `pushapp` does not auto-relaunch; Live's still-running background
+helper (never itself unplugged) reclaims interface 0 on its own. Full
+writeup: [docs/protocol/display.md](../docs/protocol/display.md#disconnect-while-running).
+
+Original brief, for the record: Each cell twice, default then
 `-no-leds`: Live-then-`pushapp`; `pushapp`-then-Live; control surface set
 mid-session; quit Live with `pushapp` up; unplug Push with Live present.
 
@@ -153,9 +259,30 @@ toggle may suffice; flicker means back-off must be default-on. The quit-Live
 cell tells us whether back-off needs a re-assert step (it will, if Live's
 colours persist on the hardware afterwards).
 
-### A5 — is any of Live's LED output observable? (quick confirmation now)
+### A5 — is any of Live's LED output observable? — **done, 2026-08-20**
 
-The operator's observation already answers the substance. Run the cheap version
+Both clean negatives, confirmed with `midimon` on all three ports:
+
+- **No inbound NoteOn/CC/PolyAT burst from Session View colour changes
+  alone** — 20s capture, actively changing track/clip colours in Live with
+  zero physical touches on Push, produced only SysEx (the recurring
+  handshake-shaped traffic, see below) and Active Sensing. Zero note/CC
+  events.
+- **No echo of our own writes.** `tools/ledtest.swift` sent 581 pad/button
+  LED-write MIDI messages (Live closed, so no confound) while `midimon`
+  captured all three input ports simultaneously — zero NoteOn/CC came back,
+  only Active Sensing. Push does not echo `SetPad`/`SetButton` writes on any
+  port or channel; the trap this task called out (a press and an echo being
+  indistinguishable on the same channel) doesn't apply because there's no
+  echo to trip over.
+
+Side finding, written up separately rather than guessed at here: a
+recurring SysEx pattern shows up on Live Port continuously whenever Live is
+running, independent of presses or writes on either side — looks
+handshake/keepalive-shaped but mechanism unconfirmed. Full raw evidence:
+[docs/protocol/live-handshake.md](../docs/protocol/live-handshake.md).
+
+Original brief, for the record: the operator's observation already answers the substance. Run the cheap version
 anyway: a negative is a durable protocol fact worth writing down, and the
 reverse direction is genuinely unknown. With `midimon` on all ports and Live
 driving the grid, confirm no inbound `0x90`/`0xB0` bursts appear when Live's
@@ -165,9 +292,20 @@ echo does exist, note the trap before building on it: a pad press and an LED
 echo are the same three bytes on channel 1, so it is only usable if it arrives
 on a different port or channel.
 
-### A4 — the host→device capture, never done
+### A4 — the host→device capture, never done — **blocked, 2026-08-20**
 
-Needs the Windows 11 VM with USB passthrough (Live has no Linux build, and
+Tried on a UTM VM running **Windows 11 for ARM64** (the fast, native option
+on Apple Silicon). Dead end, not fixable: USBPcap's driver is x86/x64-only
+and cannot load on ARM64 Windows at all — surfaces as `USBPcapCMD.exe`
+failing with "No filter control devices are available. Failed to query
+UpperFilters value size! Code 2", which looks like a driver-install/Secure
+Boot problem but isn't; it's an architecture mismatch, and reinstalling
+never fixes it. Needs **x86/x64 Windows** specifically — either a UTM VM
+running x86_64 Windows (untested; QEMU TCG software emulation on Apple
+Silicon, likely too slow for reliable USB capture work) or bare-metal x86/x64
+Windows, which the original brief already flagged as the fallback.
+
+Original brief, for the record: needs the Windows 11 VM with USB passthrough (Live has no Linux build, and
 CoreMIDI cannot see host→device at all — `feasibility.md:1003-1013`).
 
 Wireshark **with the USBPcap component**; `USBPcapCMD.exe` interactively to find
@@ -326,9 +464,18 @@ routing writes through the existing `portMu`. Add `-leds auto|on|off` to
 
 ## Sequencing
 
-- **A3 before committing to Part B's scope.** If User Mode releases the display
-  or quiets Live's pad ownership, the full-ownership spike may be solving a
-  problem with a one-button answer.
+- **A3 before committing to Part B's scope — this fired, 2026-08-20.** User
+  Mode doesn't release the display (unaffected either way), but it does
+  quiet Live's pad ownership on **both** input and LED output, provided the
+  host targets the matching cable. Part B (libusb full ownership, Linux-only)
+  now looks like solving a problem User Mode plus a small mode-aware output
+  seam already solves cross-platform — deprioritize Part B pending a
+  decision, rather than starting the spike. Part C's contention-detection
+  angle is still useful (the mode toggle is manual; C could automate
+  engaging it, or at least warn when it's off and Live is present), but C4's
+  clear/reassert design may want revisiting given the output-cable finding
+  rather than being built against the old "LED writes always go nowhere
+  useful during contention" assumption.
 - **A2 before C4 lands**, or the measurement measures the fix.
 - **A1 before C2's process names are written** — and note C2 must match the
   *helper*, not just Live.
