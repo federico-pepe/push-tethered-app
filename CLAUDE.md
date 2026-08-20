@@ -271,9 +271,12 @@ and [docs/architecture/stack-and-layout.md](docs/architecture/stack-and-layout.m
   untouched, **and** pad LED writes are exclusively routed the same way —
   Live Port renders only outside User Mode, User Port only inside it. A host
   that targets User Port for LED writes can paint its own pad colours while
-  fully coexisting with Live. `internal/midi` doesn't do this yet — it
-  always targets Live Port. Without User Mode, co-existence mode leaves
-  Push's MIDI
+  fully coexisting with Live — `internal/midi` already routes this
+  correctly (`OpenRef` pairs each cable's own same-role output, confirmed
+  2026-08-20 with `pushapp -midi-in "... User Port"`), no code change
+  needed; only `Open()`'s auto-detect and `internal/identify.FlashLEDs`'s
+  bare cable open are Live-hardcoded by design. Without User Mode,
+  co-existence mode leaves Push's MIDI
   interface bound to the OS driver even while Live doesn't own the display,
   so both processes end up driving the same pad LEDs — visible fighting, not
   just a display conflict. There's no arbitration between the two. See

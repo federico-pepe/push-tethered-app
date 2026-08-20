@@ -104,14 +104,24 @@ Port for LED writes can paint its own pad colours *while fully coexisting
 with Live* — not just read pad presses. This supersedes the "Live's colours
 persist because of a local firmware override" framing above: it isn't an
 override masking the grid, Live Port simply stops being the live output
-cable the moment User Mode engages, symmetric with input. **Real
-consequence: `internal/midi` always targets the Live Port cable today
-(`internal/midi.OpenOutCable`/`PortRef.IsLive`) — switching cable based on
-User Mode state is unbuilt.** That's the actual remaining gap between
-"User Mode is a working manual toggle" and "co-existence with live pad art
-works out of the box," and it's a much smaller build than Part B's libusb
-spike or Part C's contention-detection-and-back-off — it's a mode-aware
-output cable seam, not a claim/arbitration system.
+cable the moment User Mode engages, symmetric with input.
+
+**Correction, same day: no code change needed for this at all.**
+`internal/midi.OpenRef` already pairs each `PortRef`'s input cable with its
+own same-role output cable (`ports.go`'s pairing logic — exact-name match
+on macOS/Linux, positional per-unit on Windows), so `pushapp -midi-in
+"Ableton Push 3 User Port"` already writes LEDs to the correct cable with
+zero changes. Verified end-to-end, User Mode engaged, Live running: the
+`monitor` module's own white (palette 120) rendered correctly on press, and
+a dedicated single-pad red write (palette 1, unambiguous colour) rendered
+correctly at the right grid position. What's still Live-hardcoded by design
+and unaffected by this: `Open()`'s zero-arg auto-detect (no selection given,
+guesses Live Port on purpose) and `internal/identify.FlashLEDs`'s bare
+`OpenOutCable` (no pairing, used only for unit disambiguation). So the gap
+between "User Mode is a working manual toggle" and "co-existence with live
+pad art works out of the box" isn't a plumbing gap at all — it's purely a
+`pushapp-ui` UX gap: nothing in the UI lets a user pick the User Port cable
+or explains that they need to. See the branch note below.
 
 Original brief, for the record: 
 
@@ -467,15 +477,16 @@ routing writes through the existing `portMu`. Add `-leds auto|on|off` to
 - **A3 before committing to Part B's scope — this fired, 2026-08-20.** User
   Mode doesn't release the display (unaffected either way), but it does
   quiet Live's pad ownership on **both** input and LED output, provided the
-  host targets the matching cable. Part B (libusb full ownership, Linux-only)
-  now looks like solving a problem User Mode plus a small mode-aware output
-  seam already solves cross-platform — deprioritize Part B pending a
-  decision, rather than starting the spike. Part C's contention-detection
-  angle is still useful (the mode toggle is manual; C could automate
-  engaging it, or at least warn when it's off and Live is present), but C4's
-  clear/reassert design may want revisiting given the output-cable finding
-  rather than being built against the old "LED writes always go nowhere
-  useful during contention" assumption.
+  host targets the matching cable — and `internal/midi` already does that
+  correctly with zero code changes (`OpenRef`'s existing per-role cable
+  pairing). Part B (libusb full ownership, Linux-only) now looks like
+  solving a problem User Mode already solves cross-platform, for free —
+  deprioritize Part B pending a decision, rather than starting the spike.
+  Part C's contention-detection angle is still useful (the mode toggle is
+  manual; C could automate engaging it, or at least warn when it's off and
+  Live is present), but C4's clear/reassert design may want revisiting given
+  the output-cable finding rather than being built against the old "LED
+  writes always go nowhere useful during contention" assumption.
 - **A2 before C4 lands**, or the measurement measures the fix.
 - **A1 before C2's process names are written** — and note C2 must match the
   *helper*, not just Live.

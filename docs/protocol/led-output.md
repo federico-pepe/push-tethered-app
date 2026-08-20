@@ -140,11 +140,18 @@ underneath a local "User Mode override." That framing is now superseded:
 **pad LED output is exclusively routed by the same mode toggle** — Live
 Port stops rendering and User Port starts rendering the moment User Mode
 engages, so a host that targets User Port can paint its own pad colours
-while fully coexisting with Live, not just read pad presses. `internal/midi`
-doesn't do this yet — see [midi-input.md](midi-input.md#user-modes-effect-on-routing)
-for the seam. **Guidance: don't run `pushapp` while Live is open**, unless
-User Mode is engaged for the duration and, for LED output, `pushapp` targets
-the User Port cable.
+while fully coexisting with Live, not just read pad presses. **`internal/midi`
+already does this correctly, confirmed 2026-08-20, no code change needed** —
+see [midi-input.md](midi-input.md#user-modes-effect-on-routing) for the
+detail: `OpenRef` pairs each `PortRef` with its own same-role output cable,
+so `pushapp -midi-in "Ableton Push 3 User Port"` while User Mode is engaged
+already writes LEDs to the right cable, tested end-to-end (`monitor`'s own
+white and a dedicated red palette-index-1 write, both rendered correctly,
+positioned correctly, with Live running the whole time). **Guidance: don't
+run `pushapp` while Live is open**, unless User Mode is engaged for the
+duration and `pushapp` is pointed at the User Port cable (`-midi-in
+"... User Port"`, or the equivalent `PortRef` in `pushapp-ui` once it
+exposes per-unit port selection).
 
 ## Open questions
 
