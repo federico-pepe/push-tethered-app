@@ -36,6 +36,7 @@ import (
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
 	"github.com/federico-pepe/push-tethered-app/modules/seq"
 	"github.com/federico-pepe/push-tethered-app/modules/thru"
+	"github.com/federico-pepe/push-tethered-app/modules/uidemo"
 )
 
 // available lists the modules compiled into this binary.
@@ -51,6 +52,7 @@ func available() []module.Module {
 		seq.New(),
 		remap.New(),
 		beatcount.New(),
+		uidemo.New(),
 	}
 }
 

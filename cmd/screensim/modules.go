@@ -7,6 +7,9 @@ package main
 // hand-built frames) — no hardware, no MIDI port, no display claim.
 
 import (
+	"fmt"
+
+	"github.com/federico-pepe/ableton-push-hack/core/push3"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/internal/module/moduletest"
 	"github.com/federico-pepe/push-tethered-app/internal/renderframe"
@@ -15,6 +18,7 @@ import (
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
 	"github.com/federico-pepe/push-tethered-app/modules/seq"
 	"github.com/federico-pepe/push-tethered-app/modules/thru"
+	"github.com/federico-pepe/push-tethered-app/modules/uidemo"
 )
 
 // compiledModules mirrors cmd/pushapp's registration list. New() rather
@@ -26,11 +30,35 @@ var compiledModules = map[string]func() module.Module{
 	"thru":      func() module.Module { return thru.New() },
 	"beatcount": func() module.Module { return beatcount.New() },
 	"remap":     func() module.Module { return remap.New() },
+	// ui-demo is intentionally not here: it has one page per widget
+	// cluster, cycled with D-Pad right, so it gets its own per-page scenes
+	// below instead of only ever showing page 0.
 }
 
 func init() {
 	for id, ctor := range compiledModules {
 		frameScenes["mod:"+id] = moduleScene(ctor)
+	}
+	// ui-demo has one page per widget cluster, cycled with D-Pad right —
+	// register one scene per page so every widget it exercises gets its
+	// own PNG rather than only ever seeing page 0.
+	for p := range uidemo.NumPages {
+		frameScenes[fmt.Sprintf("mod:ui-demo:%d", p)] = uidemoPageScene(p)
+	}
+}
+
+func uidemoPageScene(page int) func(*module.Frame) {
+	return func(f *module.Frame) {
+		m := uidemo.New()
+		h := &moduletest.Host{Ops: renderframe.SupportedOps()}
+		if err := m.Init(h); err != nil {
+			panic(err)
+		}
+		defer m.Close()
+		for range page {
+			m.Handle(module.Button{CC: push3.CCDPadRight, Pressed: true})
+		}
+		m.Draw(f)
 	}
 }
 

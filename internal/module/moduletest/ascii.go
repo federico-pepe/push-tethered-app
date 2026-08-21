@@ -68,6 +68,42 @@ func NonASCIIStrings(f *module.Frame) []string {
 					check(b.Label)
 				}
 			}
+		case "breadcrumb":
+			var v module.BreadcrumbParams
+			if json.Unmarshal(op.Params, &v) == nil {
+				check(v.Breadcrumb)
+				check(v.Status)
+			}
+		case "statusbar":
+			var v module.StatusBarParams
+			if json.Unmarshal(op.Params, &v) == nil {
+				check(v.S)
+			}
+		case "hlist":
+			var v module.HListParams
+			if json.Unmarshal(op.Params, &v) == nil {
+				check(v.View.Breadcrumb)
+				check(v.View.Status)
+				check(v.View.EmptyText)
+				for _, c := range v.View.Cols {
+					check(c.Text)
+				}
+			}
+		case "styledtext":
+			var v module.StyledTextParams
+			if json.Unmarshal(op.Params, &v) == nil {
+				check(v.S)
+			}
+		case "knob", "knobfull":
+			var v module.KnobParams
+			if json.Unmarshal(op.Params, &v) == nil {
+				check(v.K.Label)
+			}
+		case "fader":
+			var v module.FaderParams
+			if json.Unmarshal(op.Params, &v) == nil {
+				check(v.K.Label)
+			}
 		}
 	}
 	return bad
