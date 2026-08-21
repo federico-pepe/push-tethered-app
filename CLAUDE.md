@@ -123,6 +123,8 @@ modules/thru/     forwards pads/encoders/buttons out as MIDI
 modules/seq/      8-step pad-grid sequencer; wall-clock-driven MIDI + Store
 modules/remap/    user-editable overrides on top of thru's passthrough default
 modules/beatcount/ minimal NeedsMIDIIn reference: counts an external MIDI clock
+modules/uidemo/   every design-system widget, one page per cluster, driven by
+                   real hardware controls — run this to verify the widget set
 examples/modules/ process-loaded example modules (Python, Node.js)
 tools/            macOS-only Swift probes (midimon, ledtest)
 ```
