@@ -224,8 +224,7 @@ func (m *Module) Draw(f *module.Frame) {
 
 	// Title bar. Channel is shown because it is the one thing a listener has to
 	// match, and it is not configurable yet.
-	f.Rect(0, 0, w, 20, t.CrumbBg)
-	f.Text(8, 14, fmt.Sprintf("pushapp - thru  ->  ch %d", outChannel), t.CrumbCol)
+	f.Header(0, w, 20, fmt.Sprintf("pushapp - thru  ->  ch %d", outChannel))
 	el := time.Since(m.start).Seconds()
 	if el < 0.001 {
 		el = 0.001

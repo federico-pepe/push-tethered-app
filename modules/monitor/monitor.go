@@ -138,8 +138,7 @@ func (m *Module) Draw(f *module.Frame) {
 	// Title bar, with a live frame rate. The module counts its own Draw calls
 	// rather than asking the host, since that is the same number and keeps the
 	// contract smaller.
-	f.Rect(0, 0, w, 20, t.CrumbBg)
-	f.Text(8, 14, "pushapp - monitor", t.CrumbCol)
+	f.Header(0, w, 20, "pushapp - monitor")
 	el := time.Since(m.start).Seconds()
 	if el < 0.001 {
 		el = 0.001

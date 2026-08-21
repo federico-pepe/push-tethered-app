@@ -474,8 +474,7 @@ func (m *Module) Draw(f *module.Frame) {
 	if m.isExternallySynced() {
 		clockSrc = "EXT CLOCK"
 	}
-	f.Rect(0, 0, w, 20, t.CrumbBg)
-	f.Text(8, 14, fmt.Sprintf("pushapp - seq  BPM %d  [%s]  %s", m.pattern.BPM, state, clockSrc), t.CrumbCol)
+	f.Header(0, w, 20, fmt.Sprintf("pushapp - seq  BPM %d  [%s]  %s", m.pattern.BPM, state, clockSrc))
 
 	// Grid mirror, laid out the same way monitor's is: row 0 is the bottom row
 	// on the hardware, so DrawPadGrid draws it lowest on screen.

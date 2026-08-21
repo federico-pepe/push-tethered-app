@@ -179,8 +179,7 @@ func (m *Module) Draw(f *module.Frame) {
 	t := m.host.Theme()
 	f.Rect(0, 0, w, h, t.Black)
 
-	f.Rect(0, 0, w, 20, t.CrumbBg)
-	f.Text(8, 14, "pushapp - beat counter", t.CrumbCol)
+	f.Header(0, w, 20, "pushapp - beat counter")
 
 	if !m.haveClock {
 		f.Text(8, 60, "waiting for an external MIDI clock...", t.Gray)

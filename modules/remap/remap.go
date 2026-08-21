@@ -486,7 +486,6 @@ func (m *Module) Draw(f *module.Frame) {
 	t := m.host.Theme()
 
 	f.Rect(0, 0, w, h, t.Black)
-	f.Rect(0, 0, w, 20, t.CrumbBg)
 	title := fmt.Sprintf("pushapp - remap  (%d override(s))", len(m.overrides))
 	switch m.ui {
 	case stateArmed:
@@ -498,7 +497,7 @@ func (m *Module) Draw(f *module.Frame) {
 		}
 		title = fmt.Sprintf("pushapp - remap  EDITING %s %d", kind, m.sel.num)
 	}
-	f.Text(8, 14, title, t.CrumbCol)
+	f.Header(0, w, 20, title)
 	el := time.Since(m.start).Seconds()
 	if el < 0.001 {
 		el = 0.001
