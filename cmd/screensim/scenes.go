@@ -27,6 +27,7 @@ var frameScenes = map[string]func(*module.Frame){
 var drawScenes = map[string]func(*image.NRGBA){
 	"meter-arc":   sceneMeterArc,
 	"grid-splits": sceneGridSplits,
+	"meterv":      sceneMeterV,
 }
 
 func sceneKitchenSink(f *module.Frame) {
@@ -159,6 +160,18 @@ func sceneGridSplits(img *image.NRGBA) {
 	x, w = layout.ColSpan(960, 6, 2)
 	gfx.FillRect(img, x, row2Y, w-4, rowH, t.OffColor)
 	text.Draw(img, x+8, row2Y+rowH-6, "2 cols", t.Black)
+}
+
+// sceneMeterV shows four vertical meters at different fill levels, side by
+// side — the layout an 8-channel level meter row would use.
+func sceneMeterV(img *image.NRGBA) {
+	t := widgets.Default
+	gfx.FillRect(img, 0, 0, 960, 160, t.Black)
+	fracs := []float64{0.1, 0.4, 0.75, 1.0}
+	for i, frac := range fracs {
+		x := 40 + i*80
+		widgets.DrawMeterV(img, x, 10, 24, 130, frac, t.OnColor, t.DarkGray)
+	}
 }
 
 func sceneMeterArc(img *image.NRGBA) {

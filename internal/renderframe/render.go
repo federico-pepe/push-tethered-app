@@ -189,6 +189,15 @@ func init() {
 		return nil
 	})
 
+	RegisterOp("meterv", func(dst *image.NRGBA, _ module.Theme, _ *module.Frame, p json.RawMessage) error {
+		var v module.MeterVParams
+		if err := json.Unmarshal(p, &v); err != nil {
+			return err
+		}
+		widgets.DrawMeterV(dst, v.X, v.Y, v.W, v.H, v.Frac, v.FG, v.BG)
+		return nil
+	})
+
 	RegisterOp("arc", func(dst *image.NRGBA, _ module.Theme, _ *module.Frame, p json.RawMessage) error {
 		var v module.ArcParams
 		if err := json.Unmarshal(p, &v); err != nil {

@@ -130,6 +130,16 @@ type MeterParams struct {
 	BG   color.NRGBA `json:"bg"`
 }
 
+type MeterVParams struct {
+	X    int         `json:"x"`
+	Y    int         `json:"y"`
+	W    int         `json:"w"`
+	H    int         `json:"h"`
+	Frac float64     `json:"frac"`
+	FG   color.NRGBA `json:"fg"`
+	BG   color.NRGBA `json:"bg"`
+}
+
 type ArcParams struct {
 	CX   int         `json:"cx"`
 	CY   int         `json:"cy"`
@@ -228,6 +238,12 @@ func (f *Frame) VLine(x, y, h int, c color.NRGBA) {
 // Meter draws a horizontal bar filled to frac, clamped to 0..1.
 func (f *Frame) Meter(x, y, w, h int, frac float64, fg, bg color.NRGBA) {
 	f.add("meter", MeterParams{X: x, Y: y, W: w, H: h, Frac: frac, FG: fg, BG: bg})
+}
+
+// MeterV draws a vertical bar filled from the bottom up to frac, clamped
+// to 0..1 — the usual reading for a level/volume meter.
+func (f *Frame) MeterV(x, y, w, h int, frac float64, fg, bg color.NRGBA) {
+	f.add("meterv", MeterVParams{X: x, Y: y, W: w, H: h, Frac: frac, FG: fg, BG: bg})
 }
 
 // Arc draws a circular arc of radius r, filled to frac of a full turn.

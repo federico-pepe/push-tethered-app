@@ -217,6 +217,7 @@ func TestSupportedOpsCoversEveryConstructor(t *testing.T) {
 	f.VLine(0, 0, 1, color.NRGBA{})
 	f.Meter(0, 0, 1, 1, 0, color.NRGBA{}, color.NRGBA{})
 	f.Arc(0, 0, 1, 0, color.NRGBA{})
+	f.MeterV(0, 0, 1, 1, 0, color.NRGBA{}, color.NRGBA{})
 	f.Header(0, 1, 1, "x")
 	f.Breadcrumb(0, 1, "x", "")
 	f.KVRows(0, 1, 1, 1, 1, nil)
