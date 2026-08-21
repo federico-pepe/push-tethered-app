@@ -1,5 +1,34 @@
 # Push design system: screen-simulator tool + roadmap
 
+## Status (2026-08-21)
+
+All roadmap items below are implemented — layout grid, breadcrumb bar,
+horizontal-scroll list, soft-button groups, the missing-widgets basket
+(meter-v, knob, knob-full, fader, envelope, pad-grid), text scaling, and
+alternate fonts/weights (`text.NewFace`/`DrawWith`, answering IDEAS.md's
+font questions with code, not just a recommendation). All 5 compiled-in
+Go modules, both example languages (Python/JS), and `hacks/push-manager`
+(already compliant, audited not re-migrated) now use the shared widgets
+for title bars and status bars — `hacks/keyboard-visualizer` deliberately
+excluded, no equivalent widget exists for it. Full catalog and how-to:
+[docs/architecture/design-system.md](../docs/architecture/design-system.md).
+Decisions: `ableton-push-hack`'s `DESIGN.md`.
+
+`modules/uidemo` is the hardware-verification module this plan's last
+step asked for — one page per widget cluster, each driven by a real
+control (D-Pad, encoders, pads, soft-buttons). It's built, tested, and
+rendered through every page via `cmd/screensim -scene mod:ui-demo:<N>`
+(catching and fixing three real layout bugs before hardware), but **not
+yet run on real Push hardware** — that verification step is still open,
+per this project's own hardware-test-loop discipline (Live closed, eyeball
+the actual screen; a clean `go build`/render is not proof it looks right
+on the panel). Run `go run ./cmd/pushapp -module ui-demo` to do that.
+
+Not done: visual polish (deliberately deferred — basics first, per this
+round's own instruction), and no widget author beyond this plan's own
+work has adopted the outline-font path yet (Face7x13 stays every
+existing module's actual look).
+
 ## Context
 
 `IDEAS.md` (Desktop) kicks off a shared, reusable widget/design system for
