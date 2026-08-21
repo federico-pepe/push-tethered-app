@@ -19,6 +19,13 @@ Reference and guides for **push-tethered-app**. Start from the root
 Architecture background: [architecture/module-host.md](architecture/module-host.md),
 [architecture/process-modules.md](architecture/process-modules.md).
 
+### I want to draw something on the screen
+
+[architecture/design-system.md](architecture/design-system.md) — the
+shared widget catalog (knobs, faders, lists, meters, …), how the `Frame`
+API maps to it, and how to preview a screen with `cmd/screensim` before
+touching hardware.
+
 ### I want to build or contribute
 
 1. [guides/development-setup.md](guides/development-setup.md) — per-OS toolchain

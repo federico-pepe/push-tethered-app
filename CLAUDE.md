@@ -153,10 +153,11 @@ Architecture: [architecture/module-host.md](docs/architecture/module-host.md),
 [architecture/process-modules.md](docs/architecture/process-modules.md).
 
 The drawing widget set (`core/gfx/widgets`, shared with `ableton-push-hack`)
-and its design decisions live in that repo's `DESIGN.md` — start there
-before adding a new widget or drawing pattern; preview any of it with
-`cmd/screensim` before wiring hardware. Design-system work in progress:
-[plans/2026-08-21-design-system-screensim.md](plans/2026-08-21-design-system-screensim.md).
+is catalogued in [docs/architecture/design-system.md](docs/architecture/design-system.md)
+(widget-to-op-to-Frame-method map, how to preview with `cmd/screensim`);
+its design decisions live in `ableton-push-hack`'s `DESIGN.md`. Start
+there before adding a new widget or drawing pattern. Design-system work
+in progress: [plans/2026-08-21-design-system-screensim.md](plans/2026-08-21-design-system-screensim.md).
 
 ```bash
 go run ./cmd/pushapp -install path/to/your-module   # copies it in, registers it
