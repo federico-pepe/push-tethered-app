@@ -104,10 +104,15 @@ cmd/probe/        USB descriptor dump (read-only, never opens the device)
 cmd/frametest/    display-only probe, one frame or a timed hold
 cmd/mapcheck/     cross-references captures against the button map
 cmd/midiouttest/  MIDI-out probe: create/attach a port, send, and receive back
+cmd/screensim/    renders named Frame/widget test scenes to PNG — no hardware,
+                   no display claim; the fast-iteration tool for the design system
 internal/bootstrap/  hardware-opening sequence shared by cmd/pushapp and -ui
 internal/module/  the ABI: Module, Host, Frame/Op, Event, Meta, Store
 internal/host/    runtime: registry, control API, event fan-out, frame loop
 internal/host/procmod/       process-loaded module: JSON-over-stdio protocol
+internal/renderframe/  the Frame/Op renderer itself (RegisterOp, Render, SupportedOps),
+                   split out of internal/host so gousb-free tools like cmd/screensim
+                   can import it
 internal/display/ USB transport: claim interface 0, frame header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
 internal/midiout/ owns a named MIDI out port for modules (create or attach)
@@ -147,6 +152,12 @@ Guides: [writing-a-go-module.md](docs/guides/writing-a-go-module.md),
 Architecture: [architecture/module-host.md](docs/architecture/module-host.md),
 [architecture/process-modules.md](docs/architecture/process-modules.md).
 
+The drawing widget set (`core/gfx/widgets`, shared with `ableton-push-hack`)
+and its design decisions live in that repo's `DESIGN.md` — start there
+before adding a new widget or drawing pattern; preview any of it with
+`cmd/screensim` before wiring hardware. Design-system work in progress:
+[plans/2026-08-21-design-system-screensim.md](plans/2026-08-21-design-system-screensim.md).
+
 ```bash
 go run ./cmd/pushapp -install path/to/your-module   # copies it in, registers it
 go run ./cmd/pushapp -uninstall your-module-id
@@ -163,6 +174,8 @@ go run ./cmd/pushapp -module monitor
 go run ./cmd/probe        # dump USB descriptors
 go run ./cmd/frametest    # claim interface 0, push one frame
 go run ./cmd/midiouttest  # prove MIDI reaches other software
+go run ./cmd/screensim -list-scenes         # design-system scenes, no hardware
+go run ./cmd/screensim -scene <name> -out out.png
 go build ./... && go vet ./... && go test ./...
 ```
 
