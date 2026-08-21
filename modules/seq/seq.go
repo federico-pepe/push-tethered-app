@@ -30,6 +30,7 @@ package seq
 
 import (
 	"fmt"
+	"image/color"
 	"time"
 
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/text"
@@ -477,10 +478,11 @@ func (m *Module) Draw(f *module.Frame) {
 	f.Text(8, 14, fmt.Sprintf("pushapp - seq  BPM %d  [%s]  %s", m.pattern.BPM, state, clockSrc), t.CrumbCol)
 
 	// Grid mirror, laid out the same way monitor's is: row 0 is the bottom row
-	// on the hardware, so it is drawn lowest on screen.
+	// on the hardware, so DrawPadGrid draws it lowest on screen.
 	const cell, gx, gy = 12, 10, 28
+	colors := make([][]color.NRGBA, lanes)
 	for lane := 0; lane < lanes; lane++ {
-		y := gy + (lanes-1-lane)*cell
+		colors[lane] = make([]color.NRGBA, steps)
 		for step := 0; step < steps; step++ {
 			c := t.DarkGray
 			switch {
@@ -491,9 +493,10 @@ func (m *Module) Draw(f *module.Frame) {
 			case m.pattern.Steps[lane][step]:
 				c = t.Accent
 			}
-			f.Rect(gx+step*cell, y, cell-2, cell-2, c)
+			colors[lane][step] = c
 		}
 	}
+	f.PadGrid(gx, gy, cell, colors)
 
 	// Right: recent activity.
 	lx := gx + steps*cell + 24

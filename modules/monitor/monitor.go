@@ -147,22 +147,24 @@ func (m *Module) Draw(f *module.Frame) {
 	stats := fmt.Sprintf("%d events   %.0f fps", m.evCount, float64(m.frames)/el)
 	f.Text(w-8-text.Width(stats), 14, stats, t.Gray)
 
-	// Left: 8x8 mirror of which pads are held.
+	// Left: 8x8 mirror of which pads are held. DrawPadGrid's row 0 = bottom
+	// convention is the same flip that used to be inline here — this is
+	// still the note-to-coordinate decode proof, just drawn by the shared
+	// widget instead of a hand-rolled loop.
 	const cell, gx, gy = 12, 10, 28
+	colors := make([][]color.NRGBA, 8)
 	for row := 0; row < 8; row++ {
+		colors[row] = make([]color.NRGBA, 8)
 		for col := 0; col < 8; col++ {
 			note := push3.PadNote(col, row)
-			// Row 0 is the bottom row on the hardware, so it must be drawn
-			// lowest on screen — this flip is what proves the note-to-coordinate
-			// decode is right way up.
-			y := gy + (7-row)*cell
 			c := t.DarkGray
 			if m.padsLit[note] {
 				c = t.OnColor
 			}
-			f.Rect(gx+col*cell, y, cell-2, cell-2, c)
+			colors[row][col] = c
 		}
 	}
+	f.PadGrid(gx, gy, cell, colors)
 	f.Text(gx, gy+8*cell+12, fmt.Sprintf("%d held", len(m.padsLit)), t.Gray)
 
 	// Middle: encoder accumulators.

@@ -197,6 +197,17 @@ type BotStripParams struct {
 	Hint    string        `json:"hint"`
 }
 
+// PadGridParams carries the whole cell-color matrix rather than a callback:
+// Op payloads must survive a JSON boundary for out-of-process modules, and
+// a Go func cannot. Colors[row][col], matching widgets.DrawPadGrid's row-0-
+// at-the-bottom convention.
+type PadGridParams struct {
+	X      int             `json:"x"`
+	Y      int             `json:"y"`
+	Cell   int             `json:"cell"`
+	Colors [][]color.NRGBA `json:"colors"`
+}
+
 type KnobParams struct {
 	CX int  `json:"cx"`
 	CY int  `json:"cy"`
@@ -315,6 +326,14 @@ func (f *Frame) HList(v HListView, y, w, h, colW, maxX int) {
 // BotStrip draws the eight soft buttons under the screen plus a hint.
 func (f *Frame) BotStrip(y, w, colW, h int, buttons [8]SoftButton, hint string) {
 	f.add("botstrip", BotStripParams{Y: y, W: w, ColW: colW, H: h, Buttons: buttons, Hint: hint})
+}
+
+// PadGrid draws a cols x rows grid of cells, cell pixels apart, row 0 at
+// the bottom (Push's pad numbering is bottom-up). colors[row][col] gives
+// each cell's color; rows/cols are colors' dimensions, so a ragged or
+// empty slice draws nothing rather than panicking.
+func (f *Frame) PadGrid(x, y, cell int, colors [][]color.NRGBA) {
+	f.add("padgrid", PadGridParams{X: x, Y: y, Cell: cell, Colors: colors})
 }
 
 // Knob draws a radial-progress knob: a sweep to k's value fraction, value

@@ -21,6 +21,7 @@ var frameScenes = map[string]func(*module.Frame){
 	"hlist":         sceneHList,
 	"button-groups": sceneButtonGroups,
 	"controls":      sceneControls,
+	"padgrid":       scenePadGrid,
 }
 
 // drawScenes draw straight onto the canvas with core/gfx and
@@ -126,6 +127,24 @@ func sceneControls(f *module.Frame) {
 	f.Fader(440, 20, 24, 110, module.Knob{Label: "VOL", Value: 80, Min: 0, Max: 100})
 	f.Envelope(560, 20, 360, 110,
 		[]float64{0, 1, 0.6, 0.6, 0}, widgets.Default.OnColor)
+}
+
+// scenePadGrid shows the shared grid now used by both modules/monitor and
+// modules/seq: a diagonal lit from bottom-left, proving row 0 draws lowest.
+func scenePadGrid(f *module.Frame) {
+	f.Rect(0, 0, 960, 160, widgets.Default.Black)
+	colors := make([][]color.NRGBA, 8)
+	for row := 0; row < 8; row++ {
+		colors[row] = make([]color.NRGBA, 8)
+		for col := 0; col < 8; col++ {
+			c := widgets.Default.DarkGray
+			if col == row {
+				c = widgets.Default.OnColor
+			}
+			colors[row][col] = c
+		}
+	}
+	f.PadGrid(10, 10, 14, colors)
 }
 
 func sceneList(f *module.Frame) {

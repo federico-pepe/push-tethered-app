@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	"sort"
 	"strings"
@@ -204,6 +205,25 @@ func init() {
 			return err
 		}
 		widgets.DrawArc(dst, v.CX, v.CY, v.R, v.Frac, v.C)
+		return nil
+	})
+
+	RegisterOp("padgrid", func(dst *image.NRGBA, _ module.Theme, _ *module.Frame, p json.RawMessage) error {
+		var v module.PadGridParams
+		if err := json.Unmarshal(p, &v); err != nil {
+			return err
+		}
+		rows := len(v.Colors)
+		if rows == 0 {
+			return nil
+		}
+		cols := len(v.Colors[0])
+		widgets.DrawPadGrid(dst, v.X, v.Y, v.Cell, cols, rows, func(col, row int) color.NRGBA {
+			if row >= len(v.Colors) || col >= len(v.Colors[row]) {
+				return color.NRGBA{}
+			}
+			return v.Colors[row][col]
+		})
 		return nil
 	})
 

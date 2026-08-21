@@ -14,6 +14,7 @@ import (
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/internal/pushmap"
+	"github.com/federico-pepe/push-tethered-app/internal/renderframe"
 )
 
 // PadWrite is one recorded SetPad call.
@@ -59,22 +60,18 @@ type Host struct {
 
 var _ module.Host = (*Host)(nil)
 
-// defaultOps mirrors the ops the host registers by default. Duplicated on
-// purpose: importing internal/host here would drag libusb into every module
-// test.
-var defaultOps = []string{
-	"arc", "border", "botstrip", "header", "hline", "image",
-	"kvrows", "list", "meter", "rect", "text", "vline",
-}
-
 func (h *Host) Device() pushmap.Device { return h.Dev }
 func (h *Host) Theme() module.Theme    { return widgets.Default }
 
+// SupportedOps defers to internal/renderframe's real registry rather than a
+// hand-duplicated list — renderframe was split out of internal/host
+// precisely so a gousb-free caller like this one could import it directly,
+// which makes keeping a second copy in sync pure risk with no upside.
 func (h *Host) SupportedOps() []string {
 	if h.Ops != nil {
 		return h.Ops
 	}
-	return defaultOps
+	return renderframe.SupportedOps()
 }
 
 func (h *Host) SetPad(note, colour byte) {
