@@ -123,7 +123,8 @@ function draw() {
 
   const ops = [
     { kind: "rect", params: { x: 0, y: 0, w: 960, h: 160, c: black } },
-    { kind: "text", params: { x: 8, baseline: 14, s: "pushapp - beat counter (out of process)", c: gray } },
+    // Same "header" op modules/beatcount (the Go original) draws its title with.
+    { kind: "header", params: { y: 0, w: 960, h: 20, s: "pushapp - beat counter (out of process)" } },
   ];
   if (!state.haveClock) {
     ops.push({ kind: "text", params: { x: 8, baseline: 60, s: "waiting for an external MIDI clock...", c: gray } });

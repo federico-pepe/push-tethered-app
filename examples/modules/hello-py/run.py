@@ -92,12 +92,16 @@ def draw(state):
     is {"R":.,"G":.,"B":.,"A":.}, matching Go's image/color.NRGBA JSON
     encoding (capitalised, no json tags on that stdlib type)."""
     white = {"R": 255, "G": 255, "B": 255, "A": 255}
-    gray = {"R": 120, "G": 120, "B": 120, "A": 255}
     black = {"R": 0, "G": 0, "B": 0, "A": 255}
 
     ops = [
         {"kind": "rect", "params": {"x": 0, "y": 0, "w": 960, "h": 160, "c": black}},
-        {"kind": "text", "params": {"x": 8, "baseline": 20, "s": "pushapp - hello-py (out of process)", "c": gray}},
+        # "header" draws a themed filled title bar — the same op the compiled-in
+        # Go modules use (internal/module.Frame.Header), so an out-of-process
+        # module in any language reads as belonging to the same app rather than
+        # a lesser-looking guest. Op shapes mirror internal/module's Go types
+        # exactly; see docs/guides/writing-a-process-module.md.
+        {"kind": "header", "params": {"y": 0, "w": 960, "h": 20, "s": "pushapp - hello-py (out of process)"}},
     ]
 
     if state.last_note is None:

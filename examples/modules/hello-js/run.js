@@ -75,14 +75,16 @@ function handlePad(data) {
 // tags of its own).
 function draw() {
   const white = { R: 255, G: 255, B: 255, A: 255 };
-  const gray = { R: 120, G: 120, B: 120, A: 255 };
   const black = { R: 0, G: 0, B: 0, A: 255 };
 
   const ops = [
     { kind: "rect", params: { x: 0, y: 0, w: 960, h: 160, c: black } },
+    // Same "header" op the compiled-in Go modules draw their title with
+    // (internal/module.Frame.Header) — see hello-py's draw() for the same
+    // migration and why it matters for a process module in any language.
     {
-      kind: "text",
-      params: { x: 8, baseline: 20, s: "pushapp - hello-js (out of process)", c: gray },
+      kind: "header",
+      params: { y: 0, w: 960, h: 20, s: "pushapp - hello-js (out of process)" },
     },
   ];
 
