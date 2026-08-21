@@ -1,9 +1,15 @@
 # Frame.Text scale parameter
 
-**Status: open, parked for later.** Raised while building the on-device
-remap editor ([2026-08-17-module-host.md](2026-08-17-module-host.md)'s
-follow-on work, not its own plan file) — the editor wanted the current
-field's value drawn larger than its label, and there was no way to do that.
+**Status: done (2026-08-21).** Raised while building the on-device remap
+editor ([2026-08-17-module-host.md](2026-08-17-module-host.md)'s follow-on
+work, not its own plan file) — the editor wanted the current field's value
+drawn larger than its label, and there was no way to do that. Implemented
+per the plan below, verified with `cmd/screensim -scene text-scale`
+(pixel-doubling proof also lives in `core/gfx/text/text_test.go`), and
+`modules/remap`'s editor now uses it. Open questions below settled: 2x for
+remap, `Text`/`TextScaled` only (not `Header`/`KVRow`). Left as historical
+reasoning — see [2026-08-21-design-system-screensim.md](2026-08-21-design-system-screensim.md)
+for the broader design-system work this was folded into.
 
 ## Context
 
