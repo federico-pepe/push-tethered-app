@@ -18,6 +18,7 @@ var frameScenes = map[string]func(*module.Frame){
 	"botstrip":     sceneBotStrip,
 	"list":         sceneList,
 	"breadcrumb":   sceneBreadcrumb,
+	"hlist":        sceneHList,
 }
 
 // drawScenes draw straight onto the canvas with core/gfx and
@@ -60,6 +61,23 @@ func sceneBreadcrumb(f *module.Frame) {
 	f.Rect(0, 0, 960, 160, widgets.Default.Black)
 	f.Breadcrumb(0, 960, "root / folder / deep", "")
 	f.Breadcrumb(20, 960, "root / folder / deep", "3 files copied") // Status overrides Breadcrumb
+}
+
+// sceneHList shows the new horizontal-scroll list: 12 columns, only 8 fit
+// at colW=120, so DrawScrollbarH's thumb gutter should be visible along
+// the bottom edge — the horizontal counterpart to sceneList's vertical
+// DrawScrollbar.
+func sceneHList(f *module.Frame) {
+	f.Rect(0, 0, 960, 160, widgets.Default.Black)
+	cols := make([]module.ListRow, 0, 12)
+	for i := 0; i < 12; i++ {
+		cols = append(cols, module.ListRow{Text: "preset"})
+	}
+	f.HList(module.HListView{
+		Cols:       cols,
+		Cursor:     3,
+		Breadcrumb: "presets (scroll right)",
+	}, 0, 960, 140, 120, 960)
 }
 
 func sceneList(f *module.Frame) {

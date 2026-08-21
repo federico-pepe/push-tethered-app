@@ -169,6 +169,15 @@ type ListParams struct {
 	MaxY int      `json:"max_y"`
 }
 
+type HListParams struct {
+	View HListView `json:"view"`
+	Y    int       `json:"y"`
+	W    int       `json:"w"`
+	H    int       `json:"h"`
+	ColW int       `json:"col_w"`
+	MaxX int       `json:"max_x"`
+}
+
 type BotStripParams struct {
 	Y       int           `json:"y"`
 	W       int           `json:"w"`
@@ -252,6 +261,15 @@ func (f *Frame) KVRows(y, w, rowH, labelW, maxY int, rows []KVRow) {
 // gains an image-handle mechanism.
 func (f *Frame) List(v ListView, y, w, rowH, maxY int) {
 	f.add("list", ListParams{View: v, Y: y, W: w, RowH: rowH, MaxY: maxY})
+}
+
+// HList draws a horizontally-scrolling row of columns with an optional
+// breadcrumb bar and scrollbar — the horizontal-scroll counterpart to List,
+// for content that reads left-to-right instead of top-to-bottom (e.g. a
+// row of presets browsed with a jog wheel rather than the D-Pad up/down a
+// vertical List uses).
+func (f *Frame) HList(v HListView, y, w, h, colW, maxX int) {
+	f.add("hlist", HListParams{View: v, Y: y, W: w, H: h, ColW: colW, MaxX: maxX})
 }
 
 // BotStrip draws the eight soft buttons under the screen plus a hint.

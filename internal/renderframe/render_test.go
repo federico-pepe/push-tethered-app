@@ -147,6 +147,10 @@ func TestSanitisedInsideWidgets(t *testing.T) {
 	f.KVRows(0, 960, 14, 100, 140, []module.KVRow{{Label: "l—", Value: "v—"}})
 	f.Header(0, 960, 18, "head—er")
 	f.Breadcrumb(0, 960, "crumb—two", "stat—us")
+	f.HList(module.HListView{
+		Cols:       []module.ListRow{{Text: "col—one"}},
+		Breadcrumb: "hcrumb—bar",
+	}, 0, 960, 40, 120, 960)
 
 	if st := Render(f, dst, widgets.Default); st.Unknown != 0 || st.Failed != 0 {
 		t.Fatalf("widget ops failed to render: %+v", st)
@@ -162,6 +166,10 @@ func TestSanitisedInsideWidgets(t *testing.T) {
 	wf.KVRows(0, 960, 14, 100, 140, []module.KVRow{{Label: "l?", Value: "v?"}})
 	wf.Header(0, 960, 18, "head?er")
 	wf.Breadcrumb(0, 960, "crumb?two", "stat?us")
+	wf.HList(module.HListView{
+		Cols:       []module.ListRow{{Text: "col?one"}},
+		Breadcrumb: "hcrumb?bar",
+	}, 0, 960, 40, 120, 960)
 	Render(wf, want, widgets.Default)
 
 	if !bytes.Equal(dst.Pix, want.Pix) {
@@ -213,6 +221,7 @@ func TestSupportedOpsCoversEveryConstructor(t *testing.T) {
 	f.Breadcrumb(0, 1, "x", "")
 	f.KVRows(0, 1, 1, 1, 1, nil)
 	f.List(module.ListView{}, 0, 1, 1, 1)
+	f.HList(module.HListView{}, 0, 1, 1, 1, 1)
 	f.BotStrip(0, 1, 1, 1, [8]module.SoftButton{}, "")
 	f.Image(0, 0, image.NewNRGBA(image.Rect(0, 0, 1, 1)))
 

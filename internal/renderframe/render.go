@@ -244,6 +244,21 @@ func init() {
 		return nil
 	})
 
+	RegisterOp("hlist", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
+		var v module.HListParams
+		if err := json.Unmarshal(p, &v); err != nil {
+			return err
+		}
+		v.View.Breadcrumb = asciiOnly(v.View.Breadcrumb)
+		v.View.Status = asciiOnly(v.View.Status)
+		v.View.EmptyText = asciiOnly(v.View.EmptyText)
+		for i := range v.View.Cols {
+			v.View.Cols[i].Text = asciiOnly(v.View.Cols[i].Text)
+		}
+		widgets.RenderListH(dst, t, v.View, v.Y, v.W, v.H, v.ColW, v.MaxX)
+		return nil
+	})
+
 	RegisterOp("botstrip", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
 		var v module.BotStripParams
 		if err := json.Unmarshal(p, &v); err != nil {

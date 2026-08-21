@@ -42,6 +42,7 @@ type (
 	Theme           = widgets.Theme
 	ListView        = widgets.ListView
 	ListRow         = widgets.ListRow
+	HListView       = widgets.HListView
 	KVRow           = widgets.KVRow
 	SoftButton      = widgets.SoftButton
 	SoftButtonState = widgets.SoftButtonState
