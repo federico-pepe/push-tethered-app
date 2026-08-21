@@ -13,12 +13,13 @@ found same-day chasing "can we skip Part B/C"; the `push` helper identified
 and its ownership matrix measured; pad-LED stability confirmed steady across
 every launch order, no default-on back-off forced by the evidence; no
 inbound echo of any kind found, but a recurring handshake-shaped SysEx
-pattern is now on record for later decoding. Part B deprioritized pending a
-decision — see Sequencing. A4 (Windows capture) tried and **blocked** — the
-available VM is ARM64 Windows, and USBPcap's driver cannot load there at
-all; needs x86/x64 Windows (bare-metal, or an untested/likely-too-slow QEMU
-TCG x86_64 VM) to proceed.
-Software groundwork (Parts B4, C1-C3) started 2026-08-19.
+pattern is now on record for later decoding. **Part C closed 2026-08-20** —
+superseded by the User Mode finding, nothing built, not being pursued
+further. **Part B open, unscheduled** — waiting on a Linux tester; B2
+already established full ownership is Linux-only. A4 (Windows capture)
+tried and **blocked** — the available VM is ARM64 Windows, and USBPcap's
+driver cannot load there at all; needs x86/x64 Windows (bare-metal, or an
+untested/likely-too-slow QEMU TCG x86_64 VM) to proceed.
 
 ## Why
 
@@ -381,7 +382,15 @@ Windows is the fallback.
 Linux `usbmon` cannot see Live, but it is the tool that verifies **our own**
 interface-5 writes byte-for-byte in Part B.
 
-## Part B — full-ownership spike (opt-in interface 5)
+## Part B — full-ownership spike (opt-in interface 5) — **open, waiting on a Linux tester, 2026-08-20**
+
+Deprioritized after A3's extended findings (User Mode solves the pad-contention
+problem this was aimed at, cross-platform, with no libusb detach needed — see
+Sequencing) but deliberately kept open rather than closed: the operator wants
+this explored once someone with a Linux machine can help test it, since B2
+already established full ownership is Linux-only (macOS refuses outright,
+Windows needs a system-wide Zadig rebind that's out of scope). Not scheduled;
+resume when a tester is available.
 
 Starts as a throwaway `cmd/` probe, matching the shape of `cmd/probe` /
 `cmd/frametest` / `cmd/midiouttest`: each isolates one risky thing, and if the
@@ -446,7 +455,20 @@ document it; never fuzz.
 The seam for re-emitting to a DAW already exists (`internal/midiout` plus
 `host.Options.OpenMIDIOut`). Nothing to build now.
 
-## Part C — LED contention: detect and back off
+## Part C — LED contention: detect and back off — **closed, 2026-08-20, superseded**
+
+Not built — `internal/contention`, `LEDPolicy`/`LEDsAuto`, `clearOurs`/
+`reassertOurs` never existed in the codebase, confirmed by direct search.
+Closed by operator decision rather than left open: User Mode's confirmed
+full routing of both pad input and pad LED output away from Live (see A3)
+solves the coexistence problem this part existed for, with the display
+already non-contentious via first-claimant-wins — there is nothing left
+here worth exploring further. C4's real, independent bug (`clearLEDs()`
+ungated, blanking the other host's colours on every module switch and
+shutdown) is the one piece of this part that could still matter on its own
+merits, decoupled from the contention-detection machinery around it — worth
+a fresh look later as a plain bug fix if it ever bites, not as part of
+reopening this section.
 
 **C1 what is honestly detectable — and it got easier.** Live's MIDI output is
 not observable to us, and there is no known "read LED state" command. So there
@@ -520,19 +542,13 @@ routing writes through the existing `portMu`. Add `-leds auto|on|off` to
   pairing). Part B (libusb full ownership, Linux-only) now looks like
   solving a problem User Mode already solves cross-platform, for free —
   deprioritize Part B pending a decision, rather than starting the spike.
-  Part C's contention-detection angle is still useful (the mode toggle is
-  manual; C could automate engaging it, or at least warn when it's off and
-  Live is present), but C4's clear/reassert design may want revisiting given
-  the output-cable finding rather than being built against the old "LED
-  writes always go nowhere useful during contention" assumption.
-- **A2 before C4 lands**, or the measurement measures the fix.
-- **A1 before C2's process names are written** — and note C2 must match the
-  *helper*, not just Live.
+  Part C's contention-detection angle turned out not to be needed either —
+  closed by operator decision, see Part C above.
 - **A4 before B3**, because B6's ladder depends on knowing whether config replay
   is needed.
 - **B5's doc amendment before B1 merges.**
 
-Parts B4, C1-C3 need no hardware and can land first. C4 waits on A2.
+Part B is open, unscheduled, waiting on a Linux tester. Part C is closed.
 
 ## Doc sync when findings land
 

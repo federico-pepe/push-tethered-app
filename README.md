@@ -2,6 +2,15 @@
 
 **Turn your Push 2 or Push 3 into a programmable surface — no DAW required.**
 
+This project is built on top of [Push Hack](https://github.com/federico-pepe/ableton-push-hack)
+
+* 📕 [Read the Manual](MANUAL.md)
+* 🛟 [Would you like to contribute?](CONTRIBUTING.md)
+* 💬 [Join the Discord Community](https://discord.gg/8y6aYxy9nU) to discuss this project.
+
+> [!WARNING]
+> This project is <ins>**NOT**</ins> approved, endorsed or supported by Ableton. **Use at your own risk**.
+
 ## What this is
 
 Push Tethered App is a desktop program that takes full control of an **Ableton
