@@ -587,10 +587,11 @@ func (m *Module) drawEditing(f *module.Frame, w, h int, t module.Theme) {
 		fmt.Sprintf("%d", m.draft.OutMin),
 		fmt.Sprintf("%d", m.draft.OutMax),
 	}
+	const valueScale = 2 // the field being dialed in should read as the important number, not just a different color
 	for i, label := range labels {
 		x := i * colW
 		f.Text(x+(colW-text.Width(label))/2, 44, label, t.Gray)
-		f.Text(x+(colW-text.Width(values[i]))/2, 70, values[i], t.White)
+		f.TextScaled(x+(colW-text.WidthScaled(values[i], valueScale))/2, 76, values[i], t.White, valueScale)
 	}
 
 	var buttons [8]module.SoftButton
