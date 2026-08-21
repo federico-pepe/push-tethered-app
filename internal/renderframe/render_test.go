@@ -212,6 +212,7 @@ func TestSupportedOpsCoversEveryConstructor(t *testing.T) {
 	f := module.NewFrame(960, 160)
 	f.Rect(0, 0, 1, 1, color.NRGBA{})
 	f.Text(0, 0, "x", color.NRGBA{})
+	f.TextScaled(0, 0, "x", color.NRGBA{}, 2)
 	f.Border(0, 0, 1, 1, color.NRGBA{})
 	f.HLine(0, 0, 1, color.NRGBA{})
 	f.VLine(0, 0, 1, color.NRGBA{})
@@ -276,6 +277,51 @@ func TestRegisterOpExtends(t *testing.T) {
 	}
 	if !called {
 		t.Error("registered handler was not invoked")
+	}
+}
+
+// TestTextScaleZeroMeansOneX pins the wire-compat rule: every TextParams
+// serialized before Scale existed has Scale==0 (the zero value), and that
+// must render identically to Text/scale=1, not draw nothing.
+func TestTextScaleZeroMeansOneX(t *testing.T) {
+	f := module.NewFrame(960, 160)
+	f.Text(10, 20, "hi", color.NRGBA{255, 255, 255, 255})
+	dst := newDst()
+	Render(f, dst, widgets.Default)
+
+	f2 := module.NewFrame(960, 160)
+	injectRaw(t, f2, "text", `{"x":10,"baseline":20,"s":"hi","c":{"R":255,"G":255,"B":255,"A":255}}`)
+	dst2 := newDst()
+	Render(f2, dst2, widgets.Default)
+
+	if !bytes.Equal(dst.Pix, dst2.Pix) {
+		t.Error("Scale-less wire payload (scale=0) should render identically to Text/scale=1")
+	}
+}
+
+// TestTextScaledDrawsLarger checks scale=2 actually occupies more pixels
+// than scale=1, without re-deriving DrawScaled's own pixel-doubling proof
+// (that lives in core/gfx/text) — this only checks the op wiring reaches it.
+func TestTextScaledDrawsLarger(t *testing.T) {
+	count := func(f *module.Frame) int {
+		dst := newDst()
+		Render(f, dst, widgets.Default)
+		n := 0
+		for i := 3; i < len(dst.Pix); i += 4 {
+			if dst.Pix[i] != 0 {
+				n++
+			}
+		}
+		return n
+	}
+
+	f1 := module.NewFrame(960, 160)
+	f1.Text(10, 40, "X", color.NRGBA{255, 255, 255, 255})
+	f2 := module.NewFrame(960, 160)
+	f2.TextScaled(10, 40, "X", color.NRGBA{255, 255, 255, 255}, 3)
+
+	if n1, n2 := count(f1), count(f2); n2 <= n1 {
+		t.Errorf("scale=3 drew %d opaque pixels, want more than scale=1's %d", n2, n1)
 	}
 }
 

@@ -150,7 +150,11 @@ func init() {
 		if err := json.Unmarshal(p, &v); err != nil {
 			return err
 		}
-		text.Draw(dst, v.X, v.Baseline, asciiOnly(v.S), v.C)
+		scale := v.Scale
+		if scale <= 0 {
+			scale = 1
+		}
+		text.DrawScaled(dst, v.X, v.Baseline, scale, asciiOnly(v.S), v.C)
 		return nil
 	})
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 
@@ -22,6 +23,7 @@ var frameScenes = map[string]func(*module.Frame){
 	"button-groups": sceneButtonGroups,
 	"controls":      sceneControls,
 	"padgrid":       scenePadGrid,
+	"text-scale":    sceneTextScale,
 }
 
 // drawScenes draw straight onto the canvas with core/gfx and
@@ -145,6 +147,23 @@ func scenePadGrid(f *module.Frame) {
 		}
 	}
 	f.PadGrid(10, 10, 14, colors)
+}
+
+// sceneTextScale shows scale 1/2/3/4 stacked, plus the exact use case that
+// raised plans/2026-08-18-frame-text-scale.md: modules/remap's editor
+// wanting its value bigger than its label. Settle "which scale factors are
+// enough" by eye here instead of speculatively.
+func sceneTextScale(f *module.Frame) {
+	f.Rect(0, 0, 960, 160, widgets.Default.Black)
+	y := 20
+	for scale := 1; scale <= 4; scale++ {
+		f.TextScaled(10, y, fmt.Sprintf("scale %dx", scale), widgets.Default.White, scale)
+		y += 10 + scale*13
+	}
+
+	// The remap use case: label small, value big, both centered under a column.
+	f.Text(700, 20, "CUTOFF", widgets.Default.Gray)
+	f.TextScaled(690, 45, "64", widgets.Default.White, 2)
 }
 
 func sceneList(f *module.Frame) {

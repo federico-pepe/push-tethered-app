@@ -111,6 +111,7 @@ type TextParams struct {
 	Baseline int         `json:"baseline"`
 	S        string      `json:"s"`
 	C        color.NRGBA `json:"c"`
+	Scale    int         `json:"scale,omitempty"` // 0 means 1x, matching every TextParams serialized before this field existed
 }
 
 type LineParams struct {
@@ -253,6 +254,15 @@ func (f *Frame) Rect(x, y, w, h int, c color.NRGBA) {
 // to look good; write ASCII.
 func (f *Frame) Text(x, baseline int, s string, c color.NRGBA) {
 	f.add("text", TextParams{X: x, Baseline: baseline, S: s, C: c})
+}
+
+// TextScaled is Text at an integer scale — each source pixel of the 1x
+// glyph expanded to a scale x scale block, nearest-neighbor (no blur).
+// scale<=1 is identical to Text. Folds into the existing "text" op rather
+// than a new kind, so SupportedOps and every ASCII-checking/wire-schema
+// path built around "text" needs no changes for this to exist.
+func (f *Frame) TextScaled(x, baseline int, s string, c color.NRGBA, scale int) {
+	f.add("text", TextParams{X: x, Baseline: baseline, S: s, C: c, Scale: scale})
 }
 
 // Border strokes a 1px rectangle outline.
