@@ -5,6 +5,7 @@ import (
 	"image/color"
 
 	"github.com/federico-pepe/ableton-push-hack/core/gfx"
+	"github.com/federico-pepe/ableton-push-hack/core/gfx/layout"
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/text"
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
@@ -21,7 +22,8 @@ var frameScenes = map[string]func(*module.Frame){
 // drawScenes draw straight onto the canvas with core/gfx and
 // core/gfx/widgets, for prototyping a widget that has no Frame op yet.
 var drawScenes = map[string]func(*image.NRGBA){
-	"meter-arc": sceneMeterArc,
+	"meter-arc":   sceneMeterArc,
+	"grid-splits": sceneGridSplits,
 }
 
 func sceneKitchenSink(f *module.Frame) {
@@ -62,6 +64,38 @@ func sceneList(f *module.Frame) {
 		Scroll:     0,
 		Breadcrumb: "root / folder",
 	}, 0, 960, 14, 160)
+}
+
+// sceneGridSplits demonstrates core/gfx/layout: a top bar carved off with
+// layout.Content, then a 4+4 split in the row below it and a 6+2 split in
+// the row below that, each block filled and labelled with its own column
+// span so the widths are visually checkable against the -grid overlay.
+func sceneGridSplits(img *image.NRGBA) {
+	t := widgets.Default
+	gfx.FillRect(img, 0, 0, 960, 160, t.Black)
+
+	content := layout.Content(960, 160, layout.Bars{TopH: 18})
+	widgets.DrawHeader(img, t, 0, 960, layout.Bars{TopH: 18}.TopH, "layout: top bar + 4+4 + 6+2")
+
+	rowH := (content.Dy() - 8) / 2
+	row1Y := content.Min.Y + 4
+	row2Y := row1Y + rowH + 8
+
+	x, w := layout.ColSpan(960, 0, 4)
+	gfx.FillRect(img, x, row1Y, w-4, rowH, t.Select)
+	text.Draw(img, x+8, row1Y+rowH-6, "4 cols", t.White)
+
+	x, w = layout.ColSpan(960, 4, 4)
+	gfx.FillRect(img, x, row1Y, w-4, rowH, t.Accent)
+	text.Draw(img, x+8, row1Y+rowH-6, "4 cols", t.White)
+
+	x, w = layout.ColSpan(960, 0, 6)
+	gfx.FillRect(img, x, row2Y, w-4, rowH, t.OnColor)
+	text.Draw(img, x+8, row2Y+rowH-6, "6 cols", t.Black)
+
+	x, w = layout.ColSpan(960, 6, 2)
+	gfx.FillRect(img, x, row2Y, w-4, rowH, t.OffColor)
+	text.Draw(img, x+8, row2Y+rowH-6, "2 cols", t.Black)
 }
 
 func sceneMeterArc(img *image.NRGBA) {

@@ -29,6 +29,7 @@ import (
 	"sort"
 
 	coredisplay "github.com/federico-pepe/ableton-push-hack/core/display"
+	"github.com/federico-pepe/ableton-push-hack/core/gfx/layout"
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
 	"github.com/federico-pepe/ableton-push-hack/core/push3"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
@@ -109,14 +110,13 @@ func panelAccurate(img *image.NRGBA) *image.NRGBA {
 	return coredisplay.FromBGR565(coredisplay.ToBGR565(img)[:push3.FrameBytes])
 }
 
-// drawGrid overlays the 8-column division lines (960/8 = 120px each) as a
-// visual reference for the layout-grid work — cheap now, becomes the check
-// for that roadmap item once it exists.
+// drawGrid overlays the 8-column division lines from core/gfx/layout as a
+// visual reference — this is the check that package's own doc points to
+// before any module is rewritten to use it.
 func drawGrid(img *image.NRGBA) {
-	const cols = 8
-	colW := push3.VisW / cols
 	guide := color.NRGBA{R: 255, G: 0, B: 255, A: 80}
-	for i := 1; i < cols; i++ {
+	colW := layout.ColWidth(push3.VisW)
+	for i := 1; i < layout.Cols; i++ {
 		widgets.DrawVLine(img, i*colW, 0, push3.VisH, guide)
 	}
 }
