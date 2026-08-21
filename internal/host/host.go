@@ -21,6 +21,7 @@ import (
 	"github.com/federico-pepe/push-tethered-app/internal/midiout"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/internal/pushmap"
+	"github.com/federico-pepe/push-tethered-app/internal/renderframe"
 )
 
 // eventBuf is how many input events may queue for the module goroutine.
@@ -414,7 +415,7 @@ func (r *Runtime) drawFrame(ctx context.Context) error {
 	// Clear to the theme background rather than allocating a fresh image each
 	// frame: at 30fps a 960x160 NRGBA is 2.4MB/s of garbage for no reason.
 	clear(r.img.Pix)
-	stats := Render(r.frame, r.img, r.opts.Theme)
+	stats := renderframe.Render(r.frame, r.img, r.opts.Theme)
 	if stats.Unknown > 0 || stats.Failed > 0 {
 		// Once per frame at most, and only when something is actually wrong.
 		log.Printf("module %s: %d unknown / %d failed ops",
@@ -585,7 +586,7 @@ type moduleHost struct {
 
 func (h *moduleHost) Device() pushmap.Device { return h.rt.port.Device() }
 func (h *moduleHost) Theme() module.Theme    { return h.rt.opts.Theme }
-func (h *moduleHost) SupportedOps() []string { return SupportedOps() }
+func (h *moduleHost) SupportedOps() []string { return renderframe.SupportedOps() }
 
 func (h *moduleHost) Log(format string, args ...any) {
 	log.Printf("%s: %s", h.id, fmt.Sprintf(format, args...))

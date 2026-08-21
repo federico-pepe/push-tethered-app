@@ -1,5 +1,10 @@
-// Package host owns the hardware and runs modules.
-package host
+// Package renderframe draws a module's display list onto an image.
+//
+// Split out of internal/host so it can be imported by tools that must not
+// link gousb/libusb (internal/host pulls that in transitively through
+// internal/display) — currently cmd/screensim, potentially any future
+// out-of-process or headless renderer.
+package renderframe
 
 import (
 	"encoding/json"
