@@ -46,6 +46,7 @@ type (
 	KVRow           = widgets.KVRow
 	SoftButton      = widgets.SoftButton
 	SoftButtonState = widgets.SoftButtonState
+	Knob            = widgets.Knob
 )
 
 // Meta identifies a module to the host and to the user.

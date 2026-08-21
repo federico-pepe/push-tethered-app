@@ -207,6 +207,45 @@ func init() {
 		return nil
 	})
 
+	RegisterOp("knob", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
+		var v module.KnobParams
+		if err := json.Unmarshal(p, &v); err != nil {
+			return err
+		}
+		v.K.Label = asciiOnly(v.K.Label)
+		widgets.DrawKnob(dst, t, v.CX, v.CY, v.R, v.K)
+		return nil
+	})
+
+	RegisterOp("knobfull", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
+		var v module.KnobParams
+		if err := json.Unmarshal(p, &v); err != nil {
+			return err
+		}
+		v.K.Label = asciiOnly(v.K.Label)
+		widgets.DrawKnobFull(dst, t, v.CX, v.CY, v.R, v.K)
+		return nil
+	})
+
+	RegisterOp("fader", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
+		var v module.FaderParams
+		if err := json.Unmarshal(p, &v); err != nil {
+			return err
+		}
+		v.K.Label = asciiOnly(v.K.Label)
+		widgets.DrawFader(dst, t, v.X, v.Y, v.W, v.H, v.K)
+		return nil
+	})
+
+	RegisterOp("envelope", func(dst *image.NRGBA, _ module.Theme, _ *module.Frame, p json.RawMessage) error {
+		var v module.EnvelopeParams
+		if err := json.Unmarshal(p, &v); err != nil {
+			return err
+		}
+		widgets.DrawEnvelope(dst, v.X, v.Y, v.W, v.H, v.Points, v.C)
+		return nil
+	})
+
 	RegisterOp("header", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
 		var v module.HeaderParams
 		if err := json.Unmarshal(p, &v); err != nil {

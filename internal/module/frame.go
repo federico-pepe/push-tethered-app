@@ -197,6 +197,30 @@ type BotStripParams struct {
 	Hint    string        `json:"hint"`
 }
 
+type KnobParams struct {
+	CX int  `json:"cx"`
+	CY int  `json:"cy"`
+	R  int  `json:"r"`
+	K  Knob `json:"k"`
+}
+
+type FaderParams struct {
+	X int  `json:"x"`
+	Y int  `json:"y"`
+	W int  `json:"w"`
+	H int  `json:"h"`
+	K Knob `json:"k"`
+}
+
+type EnvelopeParams struct {
+	X      int         `json:"x"`
+	Y      int         `json:"y"`
+	W      int         `json:"w"`
+	H      int         `json:"h"`
+	Points []float64   `json:"points"`
+	C      color.NRGBA `json:"c"`
+}
+
 type ImageParams struct {
 	X   int `json:"x"`
 	Y   int `json:"y"`
@@ -291,6 +315,30 @@ func (f *Frame) HList(v HListView, y, w, h, colW, maxX int) {
 // BotStrip draws the eight soft buttons under the screen plus a hint.
 func (f *Frame) BotStrip(y, w, colW, h int, buttons [8]SoftButton, hint string) {
 	f.add("botstrip", BotStripParams{Y: y, W: w, ColW: colW, H: h, Buttons: buttons, Hint: hint})
+}
+
+// Knob draws a radial-progress knob: a sweep to k's value fraction, value
+// centered inside, label below.
+func (f *Frame) Knob(cx, cy, r int, k Knob) {
+	f.add("knob", KnobParams{CX: cx, CY: cy, R: r, K: k})
+}
+
+// KnobFull draws a traditional rotary knob: full circle outline plus a
+// pointer line at k's value angle.
+func (f *Frame) KnobFull(cx, cy, r int, k Knob) {
+	f.add("knobfull", KnobParams{CX: cx, CY: cy, R: r, K: k})
+}
+
+// Fader draws a vertical linear control with a handle at k's value and the
+// value readout above it.
+func (f *Frame) Fader(x, y, w, h int, k Knob) {
+	f.add("fader", FaderParams{X: x, Y: y, W: w, H: h, K: k})
+}
+
+// Envelope connects points (each normalized to [0,1], 0=bottom) with
+// straight segments over a w x h rect at (x,y).
+func (f *Frame) Envelope(x, y, w, h int, points []float64, c color.NRGBA) {
+	f.add("envelope", EnvelopeParams{X: x, Y: y, W: w, H: h, Points: points, C: c})
 }
 
 // Image blits an image — the escape hatch for anything the widget set cannot

@@ -20,6 +20,7 @@ var frameScenes = map[string]func(*module.Frame){
 	"breadcrumb":    sceneBreadcrumb,
 	"hlist":         sceneHList,
 	"button-groups": sceneButtonGroups,
+	"controls":      sceneControls,
 }
 
 // drawScenes draw straight onto the canvas with core/gfx and
@@ -114,6 +115,17 @@ func sceneButtonGroups(f *module.Frame) {
 		{Label: "SOLO", State: state(toggles, 5), Group: 2},
 	}
 	f.BotStrip(140, 960, 120, 20, buttons, "")
+}
+
+// sceneControls shows one of each new basic control: a radial-progress
+// knob, a rotary-pointer knob, a fader, and an envelope curve.
+func sceneControls(f *module.Frame) {
+	f.Rect(0, 0, 960, 160, widgets.Default.Black)
+	f.Knob(100, 80, 40, module.Knob{Label: "CUTOFF", Value: 65, Min: 0, Max: 100})
+	f.KnobFull(280, 80, 40, module.Knob{Label: "RESO", Value: 30, Min: 0, Max: 100})
+	f.Fader(440, 20, 24, 110, module.Knob{Label: "VOL", Value: 80, Min: 0, Max: 100})
+	f.Envelope(560, 20, 360, 110,
+		[]float64{0, 1, 0.6, 0.6, 0}, widgets.Default.OnColor)
 }
 
 func sceneList(f *module.Frame) {
