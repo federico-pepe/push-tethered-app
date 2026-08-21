@@ -11,6 +11,9 @@
 *.mov
 *.gif
 
+# screensim scratch renders
+/test/
+
 # Go
 *.test
 *.out
