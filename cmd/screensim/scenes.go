@@ -14,11 +14,12 @@ import (
 // frameScenes build a *module.Frame the way a module's Draw would, so
 // renderframe.Render exercises the exact path a real run takes.
 var frameScenes = map[string]func(*module.Frame){
-	"kitchen-sink": sceneKitchenSink,
-	"botstrip":     sceneBotStrip,
-	"list":         sceneList,
-	"breadcrumb":   sceneBreadcrumb,
-	"hlist":        sceneHList,
+	"kitchen-sink":  sceneKitchenSink,
+	"botstrip":      sceneBotStrip,
+	"list":          sceneList,
+	"breadcrumb":    sceneBreadcrumb,
+	"hlist":         sceneHList,
+	"button-groups": sceneButtonGroups,
 }
 
 // drawScenes draw straight onto the canvas with core/gfx and
@@ -78,6 +79,40 @@ func sceneHList(f *module.Frame) {
 		Cursor:     3,
 		Breadcrumb: "presets (scroll right)",
 	}, 0, 960, 140, 120, 960)
+}
+
+// sceneButtonGroups shows two clusters in one BotStrip: buttons 0-2 are an
+// exclusive (radio) quantize group — only "1/8" is On — and buttons 4-5 are
+// an independent mute/solo pair, both On at once. Each group's underline
+// color is what DrawBotStrip's grouping cue looks like; the states
+// (SoftOn/SoftNeutral) come from a module.ButtonGroup's IsSelected, the way
+// a real module would build this array from its own Handle-driven state.
+func sceneButtonGroups(f *module.Frame) {
+	f.Rect(0, 0, 960, 160, widgets.Default.Black)
+
+	quantize := module.NewButtonGroup(true)
+	quantize.Toggle(1) // "1/8" selected
+
+	toggles := module.NewButtonGroup(false)
+	toggles.Toggle(4)
+	toggles.Toggle(5)
+
+	state := func(g *module.ButtonGroup, i int) module.SoftButtonState {
+		if g.IsSelected(i) {
+			return widgets.SoftOn
+		}
+		return widgets.SoftNeutral
+	}
+
+	buttons := [8]module.SoftButton{
+		{Label: "1/16", State: state(quantize, 0), Group: 1},
+		{Label: "1/8", State: state(quantize, 1), Group: 1},
+		{Label: "1/4", State: state(quantize, 2), Group: 1},
+		{},
+		{Label: "MUTE", State: state(toggles, 4), Group: 2},
+		{Label: "SOLO", State: state(toggles, 5), Group: 2},
+	}
+	f.BotStrip(140, 960, 120, 20, buttons, "")
 }
 
 func sceneList(f *module.Frame) {
