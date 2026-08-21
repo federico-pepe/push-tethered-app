@@ -207,6 +207,15 @@ func init() {
 		return nil
 	})
 
+	RegisterOp("breadcrumb", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
+		var v module.BreadcrumbParams
+		if err := json.Unmarshal(p, &v); err != nil {
+			return err
+		}
+		widgets.DrawBreadcrumbBar(dst, t, v.Y, v.W, asciiOnly(v.Breadcrumb), asciiOnly(v.Status))
+		return nil
+	})
+
 	RegisterOp("kvrows", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
 		var v module.KVRowsParams
 		if err := json.Unmarshal(p, &v); err != nil {

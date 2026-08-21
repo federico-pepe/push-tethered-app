@@ -146,6 +146,7 @@ func TestSanitisedInsideWidgets(t *testing.T) {
 	f.BotStrip(140, 960, 120, 18, [8]module.SoftButton{{Label: "a—b"}}, "hint—")
 	f.KVRows(0, 960, 14, 100, 140, []module.KVRow{{Label: "l—", Value: "v—"}})
 	f.Header(0, 960, 18, "head—er")
+	f.Breadcrumb(0, 960, "crumb—two", "stat—us")
 
 	if st := Render(f, dst, widgets.Default); st.Unknown != 0 || st.Failed != 0 {
 		t.Fatalf("widget ops failed to render: %+v", st)
@@ -160,6 +161,7 @@ func TestSanitisedInsideWidgets(t *testing.T) {
 	wf.BotStrip(140, 960, 120, 18, [8]module.SoftButton{{Label: "a?b"}}, "hint?")
 	wf.KVRows(0, 960, 14, 100, 140, []module.KVRow{{Label: "l?", Value: "v?"}})
 	wf.Header(0, 960, 18, "head?er")
+	wf.Breadcrumb(0, 960, "crumb?two", "stat?us")
 	Render(wf, want, widgets.Default)
 
 	if !bytes.Equal(dst.Pix, want.Pix) {
@@ -208,6 +210,7 @@ func TestSupportedOpsCoversEveryConstructor(t *testing.T) {
 	f.Meter(0, 0, 1, 1, 0, color.NRGBA{}, color.NRGBA{})
 	f.Arc(0, 0, 1, 0, color.NRGBA{})
 	f.Header(0, 1, 1, "x")
+	f.Breadcrumb(0, 1, "x", "")
 	f.KVRows(0, 1, 1, 1, 1, nil)
 	f.List(module.ListView{}, 0, 1, 1, 1)
 	f.BotStrip(0, 1, 1, 1, [8]module.SoftButton{}, "")

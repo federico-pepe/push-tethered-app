@@ -17,6 +17,7 @@ var frameScenes = map[string]func(*module.Frame){
 	"kitchen-sink": sceneKitchenSink,
 	"botstrip":     sceneBotStrip,
 	"list":         sceneList,
+	"breadcrumb":   sceneBreadcrumb,
 }
 
 // drawScenes draw straight onto the canvas with core/gfx and
@@ -50,6 +51,15 @@ func sceneBotStrip(f *module.Frame) {
 		buttons[i] = module.SoftButton{Label: "BTN", State: states[i%len(states)]}
 	}
 	f.BotStrip(140, 960, 120, 20, buttons, "")
+}
+
+// sceneBreadcrumb shows the new standalone Breadcrumb op: a top bar with
+// no list under it, plus the same bar showing a status message instead
+// (Status overrides Breadcrumb — drawn side by side here for comparison).
+func sceneBreadcrumb(f *module.Frame) {
+	f.Rect(0, 0, 960, 160, widgets.Default.Black)
+	f.Breadcrumb(0, 960, "root / folder / deep", "")
+	f.Breadcrumb(20, 960, "root / folder / deep", "3 files copied") // Status overrides Breadcrumb
 }
 
 func sceneList(f *module.Frame) {

@@ -145,6 +145,13 @@ type HeaderParams struct {
 	S string `json:"s"`
 }
 
+type BreadcrumbParams struct {
+	Y          int    `json:"y"`
+	W          int    `json:"w"`
+	Breadcrumb string `json:"breadcrumb"`
+	Status     string `json:"status"`
+}
+
 type KVRowsParams struct {
 	Y      int     `json:"y"`
 	W      int     `json:"w"`
@@ -222,6 +229,13 @@ func (f *Frame) Arc(cx, cy, r int, frac float64, c color.NRGBA) {
 // Header draws a themed header bar with a title.
 func (f *Frame) Header(y, w, h int, s string) {
 	f.add("header", HeaderParams{Y: y, W: w, H: h, S: s})
+}
+
+// Breadcrumb draws a themed top bar with a breadcrumb path, or — when status
+// is non-empty — a status message in its place instead. Use this instead of
+// List when a module wants a top bar without a scrolling list under it.
+func (f *Frame) Breadcrumb(y, w int, breadcrumb, status string) {
+	f.add("breadcrumb", BreadcrumbParams{Y: y, W: w, Breadcrumb: breadcrumb, Status: status})
 }
 
 // KVRows draws label/value rows, themed.
