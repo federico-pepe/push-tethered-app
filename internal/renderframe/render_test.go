@@ -213,6 +213,7 @@ func TestSupportedOpsCoversEveryConstructor(t *testing.T) {
 	f.Rect(0, 0, 1, 1, color.NRGBA{})
 	f.Text(0, 0, "x", color.NRGBA{})
 	f.TextScaled(0, 0, "x", color.NRGBA{}, 2)
+	f.StyledText(0, 10, "x", color.NRGBA{}, module.Bold, 12)
 	f.Border(0, 0, 1, 1, color.NRGBA{})
 	f.HLine(0, 0, 1, color.NRGBA{})
 	f.VLine(0, 0, 1, color.NRGBA{})

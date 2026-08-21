@@ -9,6 +9,9 @@ require (
 	gitlab.com/gomidi/midi/v2 v2.3.24
 )
 
-require golang.org/x/image v0.41.0 // indirect
+require (
+	golang.org/x/image v0.41.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
+)
 
 replace github.com/federico-pepe/ableton-push-hack/core => ../../Documents/GitHub/ableton-push-hack/core

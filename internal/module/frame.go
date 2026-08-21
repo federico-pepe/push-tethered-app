@@ -114,6 +114,21 @@ type TextParams struct {
 	Scale    int         `json:"scale,omitempty"` // 0 means 1x, matching every TextParams serialized before this field existed
 }
 
+// StyledTextParams is deliberately a separate op from TextParams rather
+// than more optional fields on it: Text/TextScaled draw Face7x13 (cheap,
+// crisp, ASCII-enforced by font coverage); StyledText draws an antialiased
+// outline face at an arbitrary point size (Weight/Size), a different
+// rendering path with its own cost and its own explicit ASCII sanitizing —
+// mixing the two into one op's optional-field soup would blur that.
+type StyledTextParams struct {
+	X        int         `json:"x"`
+	Baseline int         `json:"baseline"`
+	S        string      `json:"s"`
+	C        color.NRGBA `json:"c"`
+	Weight   Weight      `json:"weight"`
+	Size     float64     `json:"size"`
+}
+
 type LineParams struct {
 	X int         `json:"x"`
 	Y int         `json:"y"`
@@ -263,6 +278,16 @@ func (f *Frame) Text(x, baseline int, s string, c color.NRGBA) {
 // path built around "text" needs no changes for this to exist.
 func (f *Frame) TextScaled(x, baseline int, s string, c color.NRGBA, scale int) {
 	f.add("text", TextParams{X: x, Baseline: baseline, S: s, C: c, Scale: scale})
+}
+
+// StyledText draws s with an antialiased outline face at weight and size
+// points (72 DPI, so size points is approximately size pixels) — an opt-in
+// alternative to Text's fixed 7x13 bitmap font for a hack or module that
+// wants a different look for specific text. ASCII only, same as Text: an
+// outline face can render more than Face7x13 can, but the host sanitizes
+// non-ASCII before drawing either way.
+func (f *Frame) StyledText(x, baseline int, s string, c color.NRGBA, weight Weight, size float64) {
+	f.add("styledtext", StyledTextParams{X: x, Baseline: baseline, S: s, C: c, Weight: weight, Size: size})
 }
 
 // Border strokes a 1px rectangle outline.

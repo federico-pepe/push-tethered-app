@@ -158,6 +158,22 @@ func init() {
 		return nil
 	})
 
+	RegisterOp("styledtext", func(dst *image.NRGBA, _ module.Theme, _ *module.Frame, p json.RawMessage) error {
+		var v module.StyledTextParams
+		if err := json.Unmarshal(p, &v); err != nil {
+			return err
+		}
+		face, err := text.NewFace(v.Weight, v.Size)
+		if err != nil {
+			return err
+		}
+		// asciiOnly first, same defense-in-depth as every other text op —
+		// DrawWith's own sanitizing is real but this keeps one place
+		// responsible for what a module's raw string becomes on screen.
+		text.DrawWith(dst, v.X, v.Baseline, asciiOnly(v.S), v.C, face)
+		return nil
+	})
+
 	RegisterOp("border", func(dst *image.NRGBA, _ module.Theme, _ *module.Frame, p json.RawMessage) error {
 		var v module.RectParams
 		if err := json.Unmarshal(p, &v); err != nil {

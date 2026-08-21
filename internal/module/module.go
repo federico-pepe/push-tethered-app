@@ -30,6 +30,7 @@
 package module
 
 import (
+	"github.com/federico-pepe/ableton-push-hack/core/gfx/text"
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
 	"github.com/federico-pepe/push-tethered-app/internal/pushmap"
 )
@@ -47,6 +48,15 @@ type (
 	SoftButton      = widgets.SoftButton
 	SoftButtonState = widgets.SoftButtonState
 	Knob            = widgets.Knob
+	Weight          = text.Weight
+)
+
+// Weight values, aliased from core/gfx/text — see StyledText.
+const (
+	Regular    = text.Regular
+	Bold       = text.Bold
+	Italic     = text.Italic
+	BoldItalic = text.BoldItalic
 )
 
 // Meta identifies a module to the host and to the user.

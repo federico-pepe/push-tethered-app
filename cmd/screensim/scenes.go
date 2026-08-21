@@ -24,6 +24,7 @@ var frameScenes = map[string]func(*module.Frame){
 	"controls":      sceneControls,
 	"padgrid":       scenePadGrid,
 	"text-scale":    sceneTextScale,
+	"fonts":         sceneFonts,
 }
 
 // drawScenes draw straight onto the canvas with core/gfx and
@@ -164,6 +165,17 @@ func sceneTextScale(f *module.Frame) {
 	// The remap use case: label small, value big, both centered under a column.
 	f.Text(700, 20, "CUTOFF", widgets.Default.Gray)
 	f.TextScaled(690, 45, "64", widgets.Default.White, 2)
+}
+
+// sceneFonts shows the opt-in outline face alongside the default Face7x13,
+// all four weights, so a look/feel comparison doesn't need hardware.
+func sceneFonts(f *module.Frame) {
+	f.Rect(0, 0, 960, 160, widgets.Default.Black)
+	f.Text(10, 20, "Face7x13 (default, bitmap)", widgets.Default.White)
+	f.StyledText(10, 50, "Regular 16pt", widgets.Default.White, module.Regular, 16)
+	f.StyledText(10, 80, "Bold 16pt", widgets.Default.White, module.Bold, 16)
+	f.StyledText(10, 110, "Italic 16pt", widgets.Default.White, module.Italic, 16)
+	f.StyledText(10, 140, "BoldItalic 16pt", widgets.Default.White, module.BoldItalic, 16)
 }
 
 func sceneList(f *module.Frame) {
