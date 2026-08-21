@@ -171,6 +171,14 @@ type HeaderParams struct {
 	S string `json:"s"`
 }
 
+type StatusBarParams struct {
+	Y       int    `json:"y"`
+	W       int    `json:"w"`
+	H       int    `json:"h"`
+	S       string `json:"s"`
+	IsError bool   `json:"is_error,omitempty"`
+}
+
 type BreadcrumbParams struct {
 	Y          int    `json:"y"`
 	W          int    `json:"w"`
@@ -324,6 +332,13 @@ func (f *Frame) Arc(cx, cy, r int, frac float64, c color.NRGBA) {
 // Header draws a themed header bar with a title.
 func (f *Frame) Header(y, w, h int, s string) {
 	f.add("header", HeaderParams{Y: y, W: w, H: h, S: s})
+}
+
+// StatusBar draws a bottom-of-screen status/error line: StatusBg/StatusCol
+// normally, OffColor+white text when isError (the "an error takes over
+// the strip" convention monitor/thru/seq/remap all use).
+func (f *Frame) StatusBar(y, w, h int, s string, isError bool) {
+	f.add("statusbar", StatusBarParams{Y: y, W: w, H: h, S: s, IsError: isError})
 }
 
 // Breadcrumb draws a themed top bar with a breadcrumb path, or — when status

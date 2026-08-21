@@ -550,8 +550,7 @@ func (m *Module) drawOverview(f *module.Frame, w, h int, t module.Theme) {
 	// to stay noticeable); otherwise the Remap button + a hint carry the
 	// same information the old status bar did.
 	if m.ui == stateOff && m.lastErr != "" {
-		f.Rect(0, h-18, w, 18, t.OffColor)
-		f.Text(8, h-5, "send error: "+text.Truncate(m.lastErr, 90), t.White)
+		f.StatusBar(h-18, w, 18, "send error: "+text.Truncate(m.lastErr, 90), true)
 		return
 	}
 

@@ -226,6 +226,7 @@ func TestSupportedOpsCoversEveryConstructor(t *testing.T) {
 	f.Envelope(0, 0, 1, 1, []float64{0, 1}, color.NRGBA{})
 	f.Header(0, 1, 1, "x")
 	f.Breadcrumb(0, 1, "x", "")
+	f.StatusBar(0, 1, 1, "x", false)
 	f.KVRows(0, 1, 1, 1, 1, nil)
 	f.List(module.ListView{}, 0, 1, 1, 1)
 	f.HList(module.HListView{}, 0, 1, 1, 1, 1)

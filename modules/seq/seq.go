@@ -511,14 +511,12 @@ func (m *Module) Draw(f *module.Frame) {
 	// A send failure gets priority over the routine status — a silently broken
 	// output path is the failure worth surfacing loudest.
 	if m.lastErr != "" {
-		f.Rect(0, h-18, w, 18, t.OffColor)
-		f.Text(8, h-5, "send error: "+text.Truncate(m.lastErr, 90), t.White)
+		f.StatusBar(h-18, w, 18, "send error: "+text.Truncate(m.lastErr, 90), true)
 		return
 	}
 	last := "press a pad to toggle a step"
 	if m.sent > 0 {
 		last = fmt.Sprintf("%d notes sent", m.sent)
 	}
-	f.Rect(0, h-18, w, 18, t.StatusBg)
-	f.Text(8, h-5, last, t.StatusCol)
+	f.StatusBar(h-18, w, 18, last, false)
 }

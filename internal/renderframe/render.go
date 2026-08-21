@@ -295,6 +295,15 @@ func init() {
 		return nil
 	})
 
+	RegisterOp("statusbar", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
+		var v module.StatusBarParams
+		if err := json.Unmarshal(p, &v); err != nil {
+			return err
+		}
+		widgets.DrawStatusBar(dst, t, v.Y, v.W, v.H, asciiOnly(v.S), v.IsError)
+		return nil
+	})
+
 	RegisterOp("breadcrumb", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
 		var v module.BreadcrumbParams
 		if err := json.Unmarshal(p, &v); err != nil {

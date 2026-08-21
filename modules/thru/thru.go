@@ -271,15 +271,13 @@ func (m *Module) Draw(f *module.Frame) {
 	// Bottom strip: errors get priority over the last success. A silent output
 	// path is the failure this module exists to make visible.
 	if m.errs > 0 {
-		f.Rect(0, h-18, w, 18, t.OffColor)
-		f.Text(8, h-5, fmt.Sprintf("%d send error(s): %s", m.errs,
-			text.Truncate(m.lastErr, 90)), t.White)
+		f.StatusBar(h-18, w, 18, fmt.Sprintf("%d send error(s): %s", m.errs,
+			text.Truncate(m.lastErr, 90)), true)
 		return
 	}
 	last := m.lastSent
 	if last == "" {
 		last = "press a pad or turn an encoder"
 	}
-	f.Rect(0, h-18, w, 18, t.StatusBg)
-	f.Text(8, h-5, "last sent: "+last, t.StatusCol)
+	f.StatusBar(h-18, w, 18, "last sent: "+last, false)
 }

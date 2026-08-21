@@ -190,6 +190,5 @@ func (m *Module) Draw(f *module.Frame) {
 	if last == "" {
 		last = "press a pad"
 	}
-	f.Rect(0, h-18, w, 18, t.StatusBg)
-	f.Text(8, h-5, "last pad: "+last, t.StatusCol)
+	f.StatusBar(h-18, w, 18, "last pad: "+last, false)
 }
