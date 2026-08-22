@@ -1,0 +1,9 @@
+{
+  "id": "knobs-js",
+  "name": "Knobs (Node.js example)",
+  "version": "1.0.0",
+  "description": "8 knobs, one per encoder, driven live — a quick anti-aliased-knob test module",
+  "author": "push-tethered-app examples",
+  "needs_midi_out": false,
+  "exec": "node run.js"
+}
