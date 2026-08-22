@@ -33,11 +33,11 @@ import (
 // NumPages is exported so tooling (cmd/screensim) can cycle every page from
 // outside the package via ordinary D-Pad Handle calls, without reaching
 // into unexported state.
-const NumPages = 8
+const NumPages = 9
 const numPages = NumPages
 
 var pageNames = [numPages]string{
-	"bars", "knobs", "meters", "lists", "buttons", "pad grid", "fonts", "envelope",
+	"bars", "knobs", "meters", "lists", "buttons", "pad grid", "fonts", "helvetica", "envelope",
 }
 
 // Module holds all state as plain fields — Handle and Draw never run
@@ -168,6 +168,8 @@ func (m *Module) Draw(f *module.Frame) {
 		m.drawPadGrid(f, w, h, t)
 	case "fonts":
 		m.drawFonts(f, w, h, t)
+	case "helvetica":
+		m.drawHelvetica(f, w, h, t)
 	case "envelope":
 		m.drawEnvelope(f, w, h, t)
 	}
@@ -299,6 +301,28 @@ func (m *Module) drawFonts(f *module.Frame, w, h int, t module.Theme) {
 	f.Text(10, 40, "enc 8: weight   enc 1: size", t.Gray)
 	f.StyledText(10, 80, fmt.Sprintf("%s @ %.0fpt", names[idx], size), t.White, weights[idx], size)
 	f.TextScaled(10, 130, "TextScaled 2x", t.White, 2)
+}
+
+// drawHelvetica is a static grid (no encoder input) covering every
+// StyledText combination in one glance — weight x size x color — so the
+// Helvetica Neue swap can be eyeballed on real hardware without dialing
+// each case in one at a time.
+func (m *Module) drawHelvetica(f *module.Frame, w, h int, t module.Theme) {
+	weights := [4]module.Weight{module.Regular, module.Bold, module.Italic, module.BoldItalic}
+	names := [4]string{"Regular", "Bold", "Italic", "BoldItalic"}
+	sizes := [2]float64{14, 22}
+	colors := [4]color.NRGBA{t.White, t.DirColor, t.OnColor, t.Gray}
+
+	rowH := (h - 20 - 18) / len(weights)
+	for row, wgt := range weights {
+		y := 20 + row*rowH
+		x := 10
+		for _, size := range sizes {
+			s := fmt.Sprintf("%s %.0fpt", names[row], size)
+			f.StyledText(x, y+rowH-6, s, colors[row], wgt, size)
+			x += int(size)*len(s)/2 + 40
+		}
+	}
 }
 
 func (m *Module) drawEnvelope(f *module.Frame, w, h int, t module.Theme) {

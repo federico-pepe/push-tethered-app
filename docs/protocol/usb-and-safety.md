@@ -101,9 +101,12 @@ Push's own User Mode is engaged (see
 
 ## Drawing constraint
 
-**ASCII only on screen.** `core/gfx/text` uses `basicfont.Face7x13`; non-ASCII
-renders as a missing-glyph box. The host also sanitises text as defence in
-depth.
+**ASCII only on screen.** `core/gfx/text`'s basic face (Tamzen7x13r, embedded
+as an outline font) and its styled faces (Helvetica Neue, via `NewFace`) both
+sanitize to ASCII themselves before drawing — an antialiased outline font's
+glyph coverage isn't a free ASCII guarantee the way the old fixed
+`basicfont.Face7x13` bitmap was, so the package can't rely on the font alone
+to reject non-ASCII. The host also sanitises text as defence in depth.
 
 **Look at the screen, not just the logs** when debugging.
 

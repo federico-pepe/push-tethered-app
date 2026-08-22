@@ -36,6 +36,7 @@ import (
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
 	"github.com/federico-pepe/push-tethered-app/modules/seq"
 	"github.com/federico-pepe/push-tethered-app/modules/thru"
+	uitextdemo "github.com/federico-pepe/push-tethered-app/modules/ui-text-demo"
 	"github.com/federico-pepe/push-tethered-app/modules/uidemo"
 )
 
@@ -53,6 +54,7 @@ func available() []module.Module {
 		remap.New(),
 		beatcount.New(),
 		uidemo.New(),
+		uitextdemo.New(),
 	}
 }
 

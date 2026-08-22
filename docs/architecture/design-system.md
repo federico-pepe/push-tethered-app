@@ -1,7 +1,7 @@
 # Design system
 
 **Status:** implemented (basics; visual polish is a deliberately later pass)
-**Last verified:** 2026-08-21
+**Last verified:** 2026-08-22
 **Authoritative code:** [`core/gfx/`](https://github.com/federico-pepe/ableton-push-hack/tree/main/core/gfx)
 (ableton-push-hack), [`internal/module/frame.go`](../../internal/module/frame.go),
 [`internal/renderframe/`](../../internal/renderframe/)
@@ -17,9 +17,9 @@ module or hack actually calls it. Roadmap and status:
 
 ```
 core/gfx            rect fill, icon compositing — no font, no widgets
-core/gfx/text        Draw/Width (Face7x13 bitmap, default)
-                     DrawScaled/WidthScaled (integer upscale of Face7x13)
-                     NewFace/DrawWith/WidthWith (opt-in antialiased outline fonts)
+core/gfx/text        Draw/Width (Tamzen7x13r, the basic face, default)
+                     DrawScaled/WidthScaled (integer upscale of the basic face)
+                     NewFace/DrawWith/WidthWith (opt-in Helvetica Neue, antialiased)
 core/gfx/layout      8-column grid, top/bottom bar content rect
 core/gfx/widgets     composite components built on the three packages above
 internal/module      the ABI: Frame's typed methods build an Op display list
@@ -79,17 +79,19 @@ JS/anything else puts in `{"kind": "...", "params": {...}}` — see
 | `DrawPadGrid` | `PadGrid` | `padgrid` | `cols x rows` cell grid, row 0 at the bottom |
 | `DrawBorder`/`HLine`/`VLine` | `Border`/`HLine`/`VLine` | `border`/`hline`/`vline` | 1px outline / lines |
 | — (escape hatch) | `Image` | `image` | Blit an arbitrary `*image.NRGBA` |
-| `text.Draw`/`DrawScaled` | `Text`/`TextScaled` | `text` | Face7x13, optionally integer-upscaled (`Scale`) |
-| `text.DrawWith` | `StyledText` | `styledtext` | Antialiased outline font, `Weight` + point `Size` |
+| `text.Draw`/`DrawScaled` | `Text`/`TextScaled` | `text` | Basic face (Tamzen7x13r), uppercased, optionally integer-upscaled (`Scale`) |
+| `text.DrawWith` | `StyledText` | `styledtext` | Helvetica Neue, `Weight` + point `Size` |
 
 Two things every one of these gets from the host for free, so a module
 never has to think about them:
 
 - **ASCII enforcement.** `internal/renderframe` sanitizes every string field
-  before it reaches `core/gfx/text` — Face7x13 has no glyph past ASCII and
-  draws a missing-glyph box instead, so a non-ASCII byte becomes `?` (or
-  `.` for a truncation ellipsis) rather than a silent rendering bug. Write
-  ASCII; don't rely on the substitution to look good.
+  before it reaches `core/gfx/text`, and `core/gfx/text` sanitizes again
+  itself (both the basic and styled faces are outline fonts now, so neither
+  gets the old fixed bitmap's free "no glyph past ASCII" guarantee) — a
+  non-ASCII byte becomes `?` (or `.` for a truncation ellipsis) rather than
+  a silent rendering bug. Write ASCII; don't rely on the substitution to
+  look good.
 - **Theme.** `Header`, `KVRows`, `List`, `HList`, `BotStrip`, `Breadcrumb`,
   `StatusBar` all take colors from `Host.Theme()` (`widgets.Theme`,
   starting point `widgets.Default`) rather than literal colors, so a
@@ -118,22 +120,59 @@ Two things IDEAS.md asked for turned out not to need new drawing code:
 
 ## Fonts and sizing
 
-`Face7x13` (fixed 7x13 bitmap) is the default everywhere and stays that
-way — cheap, deterministic, and the reason ASCII-only is enforceable at
-all (the font has no other glyphs). Two opt-in extensions, both additive:
+Two font families, different distribution stories since only one is
+freely redistributable:
 
-- **`TextScaled`** — integer nearest-neighbor upscaling of Face7x13 itself
-  (each source pixel becomes an NxN block, no blur). Cheap, no new
-  dependency, but only integer multiples of the one bitmap size. Used by
-  `modules/remap`'s editor to make the value being dialed in read as the
+- **Basic face — Tamzen7x13r** (`text.Draw`/`DrawScaled`/`Width`), the
+  default everywhere. Freely licensed (Scott Fial's Tamsyn/Tamzen), so
+  it's **embedded** (`//go:embed` from `core/gfx/text/assets/`, no system
+  font install). Replaced the old fixed `basicfont.Face7x13` bitmap
+  2026-08-22: an outline font (`font/opentype`, `HintingFull`) rendered at
+  13pt/72dpi to match the old 7x13 cell exactly (`Width` still hardcodes a
+  7px advance). **Always drawn uppercase** — `text.Draw` uppercases its
+  input before sanitizing, since Tamzen at this size reads better all-caps
+  than its lowercase, which has no true descenders drawn in the cell.
+  `DrawHeader`/`DrawStatusBar`'s baseline offsets (`primitives.go`) were
+  retuned for Tamzen's ink shape, which sits differently in its em box than
+  the old bitmap's did — don't assume the two fonts share a baseline
+  constant if you add a new bar widget.
+- **Styled face — Helvetica Neue** (`NewFace`/`DrawWith`/`WidthWith`,
+  `Frame.StyledText`), opt-in, arbitrary point size. `Weight` maps
+  Regular→Thin, Bold→Medium, Italic→ThinItalic, BoldItalic→MediumItalic
+  (`core/gfx/text/face.go`). **Not embedded and not committed** —
+  Helvetica Neue's `.otf` files are Apple/Monotype-licensed and both repos
+  are public. `source()` reads the four files at runtime from
+  `PUSHAPP_STYLED_FONT_DIR` (a developer-populated, gitignored local
+  directory — see this repo's own `/assets`, gitignored the same way) and
+  falls back to the original vendored `gofont` TTFs when that env var or
+  file is missing, so a fresh clone or CI still builds and renders, just
+  with the generic weights. Built with `font.HintingNone`: Helvetica Neue's
+  OTF (CFF/PostScript outlines) carries no TrueType hint program, so
+  `HintingFull` was a no-op hint pass that made antialiasing look worse, not
+  better, on Push's low-res, coarse-color-depth (BGR565) panel — `HintingNone`
+  lets the rasterizer's true coverage-based AA through instead. Used by
+  `modules/remap`'s editor (`TextScaled`, integer nearest-neighbor upscale of
+  the basic face, not Helvetica) to make the dialed-in value read as the
   important number, not just a different color from its label.
-- **`StyledText`** — antialiased outline fonts at an arbitrary point size,
-  via `golang.org/x/image`'s already-vendored gofont TTFs
-  (`Regular`/`Bold`/`Italic`/`BoldItalic`) through `font/opentype`. No new
-  dependency, no font file to ship. Since an outline face *can* render
-  more than Face7x13 can, `core/gfx/text.DrawWith`/`WidthWith` sanitize to
-  ASCII themselves rather than relying on font coverage for the guarantee
-  Face7x13 gave for free.
+
+`modules/ui-text-demo` is a live tuning bench for both faces — every
+encoder drives one parameter (face, weight, size, palette color, margin) so
+a rendering change can be dialed in and eyeballed on real hardware instead
+of guessing constants and rebuilding `cmd/screensim` scenes each time; see
+its package doc for the full control map.
+
+### Color
+
+`core/push3.Palette`/`ColorForIndex` (added alongside the font swap, for
+the same "screen and LEDs should agree" reason) resolves a raw 0-127
+hardware palette index to its RGBA, sorted and rounded down to the nearest
+of the 90 named entries in `NamedColors` — the same SysEx-sourced table
+`internal/midi`'s pad/button LED writes already use by index. A widget or
+module that wants to *preview* an LED color on screen, or offer "cycle
+through the palette" as a single control instead of raw RGB sliders,
+should read from this table rather than hand-copying hex values — see
+[docs/protocol/led-output.md](../protocol/led-output.md) and
+`modules/ui-text-demo`'s color encoder for the pattern.
 
 ## Previewing without hardware
 

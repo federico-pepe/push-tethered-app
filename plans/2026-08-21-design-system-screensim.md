@@ -16,18 +16,40 @@ Decisions: `ableton-push-hack`'s `DESIGN.md`.
 
 `modules/uidemo` is the hardware-verification module this plan's last
 step asked for — one page per widget cluster, each driven by a real
-control (D-Pad, encoders, pads, soft-buttons). It's built, tested, and
-rendered through every page via `cmd/screensim -scene mod:ui-demo:<N>`
-(catching and fixing three real layout bugs before hardware), but **not
-yet run on real Push hardware** — that verification step is still open,
-per this project's own hardware-test-loop discipline (Live closed, eyeball
-the actual screen; a clean `go build`/render is not proof it looks right
-on the panel). Run `go run ./cmd/pushapp -module ui-demo` to do that.
+control (D-Pad, encoders, pads, soft-buttons). It's built, tested,
+rendered through every page via `cmd/screensim -scene mod:ui-demo:<N>`,
+and **run on real Push 3 hardware, confirmed 2026-08-22** — the open item
+this status block used to flag is closed.
+
+**2026-08-22 update:** the outline-font path this plan's "Font questions"
+section only recommended is now actually adopted as every module's real
+on-screen look: the basic face swapped from `basicfont.Face7x13` to an
+embedded Tamzen7x13r outline font (freely licensed, drawn uppercase), and
+the styled face swapped from `gofont`'s generic
+Regular/Bold/Italic/BoldItalic to Helvetica Neue
+(Thin/Medium/ThinItalic/MediumItalic) — Regular/Bold/Italic/BoldItalic at
+the `Weight` level, but the concrete face is now Helvetica Neue rather
+than gofont wherever it's available. Helvetica Neue is **not** embedded or
+committed (Apple/Monotype-licensed, both repos public): it loads at
+runtime from a gitignored local directory
+(`PUSHAPP_STYLED_FONT_DIR`), falling back to the original `gofont` TTFs
+when absent, so a fresh clone or CI still builds — the styled face is a
+fallback-gated opt-in for the font *file*, even though `StyledText` itself
+remains an unconditional part of the API. Both faces sanitize to ASCII
+themselves now, same reasoning this plan already called out.
+`modules/ui-text-demo`
+is a new module built specifically to dial in this swap live on hardware
+(face/weight/size/palette-color/margin, one per encoder) — the widget
+author this old status paragraph said hadn't shown up yet. Full detail:
+[docs/architecture/design-system.md](../docs/architecture/design-system.md#fonts-and-sizing).
+Also added: `core/push3.Palette`/`ColorForIndex`, resolving a raw hardware
+LED palette index to RGBA for on-screen preview — same "screen and LEDs
+should agree" motivation, done alongside the font work since
+`ui-text-demo` needed a color control and hand-rolling a second RGB table
+next to `NamedColors` was the wrong move.
 
 Not done: visual polish (deliberately deferred — basics first, per this
-round's own instruction), and no widget author beyond this plan's own
-work has adopted the outline-font path yet (Face7x13 stays every
-existing module's actual look).
+round's own instruction).
 
 ## Context
 

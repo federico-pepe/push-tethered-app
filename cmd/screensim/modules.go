@@ -18,6 +18,7 @@ import (
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
 	"github.com/federico-pepe/push-tethered-app/modules/seq"
 	"github.com/federico-pepe/push-tethered-app/modules/thru"
+	uitextdemo "github.com/federico-pepe/push-tethered-app/modules/ui-text-demo"
 	"github.com/federico-pepe/push-tethered-app/modules/uidemo"
 )
 
@@ -25,11 +26,12 @@ import (
 // than a shared instance: each scene render should start from a fresh,
 // unconfigured module, the same as a real activation would.
 var compiledModules = map[string]func() module.Module{
-	"monitor":   func() module.Module { return monitor.New() },
-	"seq":       func() module.Module { return seq.New() },
-	"thru":      func() module.Module { return thru.New() },
-	"beatcount": func() module.Module { return beatcount.New() },
-	"remap":     func() module.Module { return remap.New() },
+	"monitor":      func() module.Module { return monitor.New() },
+	"seq":          func() module.Module { return seq.New() },
+	"thru":         func() module.Module { return thru.New() },
+	"beatcount":    func() module.Module { return beatcount.New() },
+	"remap":        func() module.Module { return remap.New() },
+	"ui-text-demo": func() module.Module { return uitextdemo.New() },
 	// ui-demo is intentionally not here: it has one page per widget
 	// cluster, cycled with D-Pad right, so it gets its own per-page scenes
 	// below instead of only ever showing page 0.

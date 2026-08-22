@@ -67,7 +67,12 @@ Push 3 firmware):
 
 `core/push3/colors.go` `NamedColors` map matches that table. Use palette
 **indices** for pad LEDs; screen draw colours are separate RGBA values in module
-draw ops.
+draw ops — but the same file's `Palette`/`ColorForIndex` gives the RGBA a
+palette index resolves to, for a module that wants to *preview* an LED
+colour on screen (`ColorForIndex` rounds a raw 0-127 index down to the
+nearest of the 90 named entries, since not all 128 raw indices have a name;
+see `modules/ui-text-demo` for a live example driving both a swatch and its
+name off one encoder).
 
 Common values:
 

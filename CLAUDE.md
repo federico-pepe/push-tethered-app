@@ -125,6 +125,9 @@ modules/remap/    user-editable overrides on top of thru's passthrough default
 modules/beatcount/ minimal NeedsMIDIIn reference: counts an external MIDI clock
 modules/uidemo/   every design-system widget, one page per cluster, driven by
                    real hardware controls — run this to verify the widget set
+modules/ui-text-demo/ live font-tuning bench: encoders drive face/weight/size/
+                   palette-color/margin — dial in a text-rendering change on
+                   real hardware instead of guessing constants
 examples/modules/ process-loaded example modules (Python, Node.js)
 tools/            macOS-only Swift probes (midimon, ledtest)
 ```
