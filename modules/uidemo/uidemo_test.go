@@ -106,12 +106,37 @@ func TestEncoderAccumulates(t *testing.T) {
 	m.Handle(module.Encoder{Index: 99, Delta: 5}) // out of range, must not panic or write elsewhere
 }
 
-func TestClampedFracWrapsAndStaysInRange(t *testing.T) {
+// TestEncoderStopsAtLimitAndReversesImmediately guards the endless-encoder
+// contract: turning past the max pins the value at 100 instead of wrapping,
+// and turning back immediately decreases it — it must not have to unwind an
+// accumulator that kept climbing past the limit.
+func TestEncoderStopsAtLimitAndReversesImmediately(t *testing.T) {
+	m, _ := newTest(t)
+	m.Handle(module.Encoder{Index: 0, Delta: 500}) // way past the 0-100 range
+	if m.enc[0] != 100 {
+		t.Errorf("enc[0] = %d, want 100 (clamped at max, not wrapped)", m.enc[0])
+	}
+	m.Handle(module.Encoder{Index: 0, Delta: -1})
+	if m.enc[0] != 99 {
+		t.Errorf("enc[0] = %d, want 99 (reversal should respond immediately)", m.enc[0])
+	}
+}
+
+func TestClampedFracClampsAndStaysInRange(t *testing.T) {
 	for _, raw := range []int{0, 50, 99, 100, 150, -1, -50, -150} {
 		f := clampedFrac(raw)
-		if f < 0 || f >= 1 {
-			t.Errorf("clampedFrac(%d) = %v, want in [0,1)", raw, f)
+		if f < 0 || f > 1 {
+			t.Errorf("clampedFrac(%d) = %v, want in [0,1]", raw, f)
 		}
+	}
+	// An endless encoder stops at the control's limit rather than wrapping
+	// past it: going over 100 or under 0 pins at 1 or 0, it doesn't roll
+	// back around.
+	if f := clampedFrac(150); f != 1 {
+		t.Errorf("clampedFrac(150) = %v, want 1 (clamped at max, not wrapped)", f)
+	}
+	if f := clampedFrac(-50); f != 0 {
+		t.Errorf("clampedFrac(-50) = %v, want 0 (clamped at min, not wrapped)", f)
 	}
 }
 

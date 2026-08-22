@@ -94,6 +94,18 @@ func Render(f *module.Frame, dst *image.NRGBA, t module.Theme) RenderStats {
 	return st
 }
 
+// ── color defaulting ────────────────────────────────────────────────────────
+
+// defaultColor returns c, or white if a module left c at its JSON zero
+// value (color.NRGBA{}, fully transparent black) — an omitted "c"/"fg"/"bg"
+// field should read as "no color chosen yet", not as invisible.
+func defaultColor(c color.NRGBA) color.NRGBA {
+	if c == (color.NRGBA{}) {
+		return widgets.Default.White
+	}
+	return c
+}
+
 // ── ASCII enforcement ──────────────────────────────────────────────────────
 
 // asciiOnly replaces characters basicfont.Face7x13 cannot draw.
@@ -141,7 +153,7 @@ func init() {
 		if err := json.Unmarshal(p, &v); err != nil {
 			return err
 		}
-		gfx.FillRect(dst, v.X, v.Y, v.W, v.H, v.C)
+		gfx.FillRect(dst, v.X, v.Y, v.W, v.H, defaultColor(v.C))
 		return nil
 	})
 
@@ -154,7 +166,7 @@ func init() {
 		if scale <= 0 {
 			scale = 1
 		}
-		text.DrawScaled(dst, v.X, v.Baseline, scale, asciiOnly(v.S), v.C)
+		text.DrawScaled(dst, v.X, v.Baseline, scale, asciiOnly(v.S), defaultColor(v.C))
 		return nil
 	})
 
@@ -170,7 +182,7 @@ func init() {
 		// asciiOnly first, same defense-in-depth as every other text op —
 		// DrawWith's own sanitizing is real but this keeps one place
 		// responsible for what a module's raw string becomes on screen.
-		text.DrawWith(dst, v.X, v.Baseline, asciiOnly(v.S), v.C, face)
+		text.DrawWith(dst, v.X, v.Baseline, asciiOnly(v.S), defaultColor(v.C), face)
 		return nil
 	})
 
@@ -179,7 +191,7 @@ func init() {
 		if err := json.Unmarshal(p, &v); err != nil {
 			return err
 		}
-		widgets.DrawBorder(dst, v.X, v.Y, v.W, v.H, v.C)
+		widgets.DrawBorder(dst, v.X, v.Y, v.W, v.H, defaultColor(v.C))
 		return nil
 	})
 
@@ -188,7 +200,7 @@ func init() {
 		if err := json.Unmarshal(p, &v); err != nil {
 			return err
 		}
-		widgets.DrawHLine(dst, v.X, v.Y, v.N, v.C)
+		widgets.DrawHLine(dst, v.X, v.Y, v.N, defaultColor(v.C))
 		return nil
 	})
 
@@ -197,7 +209,7 @@ func init() {
 		if err := json.Unmarshal(p, &v); err != nil {
 			return err
 		}
-		widgets.DrawVLine(dst, v.X, v.Y, v.N, v.C)
+		widgets.DrawVLine(dst, v.X, v.Y, v.N, defaultColor(v.C))
 		return nil
 	})
 
@@ -206,7 +218,7 @@ func init() {
 		if err := json.Unmarshal(p, &v); err != nil {
 			return err
 		}
-		widgets.DrawMeter(dst, v.X, v.Y, v.W, v.H, v.Frac, v.FG, v.BG)
+		widgets.DrawMeter(dst, v.X, v.Y, v.W, v.H, v.Frac, defaultColor(v.FG), defaultColor(v.BG))
 		return nil
 	})
 
@@ -215,7 +227,7 @@ func init() {
 		if err := json.Unmarshal(p, &v); err != nil {
 			return err
 		}
-		widgets.DrawMeterV(dst, v.X, v.Y, v.W, v.H, v.Frac, v.FG, v.BG)
+		widgets.DrawMeterV(dst, v.X, v.Y, v.W, v.H, v.Frac, defaultColor(v.FG), defaultColor(v.BG))
 		return nil
 	})
 
@@ -224,7 +236,7 @@ func init() {
 		if err := json.Unmarshal(p, &v); err != nil {
 			return err
 		}
-		widgets.DrawArc(dst, v.CX, v.CY, v.R, v.Frac, v.C)
+		widgets.DrawArc(dst, v.CX, v.CY, v.R, v.Frac, defaultColor(v.C))
 		return nil
 	})
 
@@ -240,9 +252,9 @@ func init() {
 		cols := len(v.Colors[0])
 		widgets.DrawPadGrid(dst, v.X, v.Y, v.Cell, cols, rows, func(col, row int) color.NRGBA {
 			if row >= len(v.Colors) || col >= len(v.Colors[row]) {
-				return color.NRGBA{}
+				return widgets.Default.White
 			}
-			return v.Colors[row][col]
+			return defaultColor(v.Colors[row][col])
 		})
 		return nil
 	})
@@ -282,7 +294,7 @@ func init() {
 		if err := json.Unmarshal(p, &v); err != nil {
 			return err
 		}
-		widgets.DrawEnvelope(dst, v.X, v.Y, v.W, v.H, v.Points, v.C)
+		widgets.DrawEnvelope(dst, v.X, v.Y, v.W, v.H, v.Points, defaultColor(v.C))
 		return nil
 	})
 

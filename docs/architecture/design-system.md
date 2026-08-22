@@ -71,11 +71,11 @@ JS/anything else puts in `{"kind": "...", "params": {...}}` — see
 | `DrawKVRows` | `KVRows` | `kvrows` | Label:value rows |
 | `DrawBotStrip` | `BotStrip` | `botstrip` | The 8 under-screen soft-buttons + a hint |
 | `DrawMeter` / `DrawMeterV` | `Meter` / `MeterV` | `meter` / `meterv` | Horizontal / vertical level bar |
-| `DrawArc` | `Arc` | `arc` | Raw circular arc primitive |
-| `DrawKnob` | `Knob` | `knob` | Radial-progress knob (arc sweep + value + label) |
-| `DrawKnobFull` | `KnobFull` | `knobfull` | Rotary-pointer knob (full circle + angle pointer) |
+| `DrawArc` | `Arc` | `arc` | Raw circular arc primitive, anti-aliased |
+| `DrawKnob` | `Knob` | `knob` | Radial-progress knob (arc sweep + value + label), 2px anti-aliased stroke |
+| `DrawKnobFull` | `KnobFull` | `knobfull` | Rotary-pointer knob (full circle + angle pointer), 2px anti-aliased stroke |
 | `DrawFader` | `Fader` | `fader` | Vertical linear control, handle + value |
-| `DrawEnvelope` | `Envelope` | `envelope` | Polyline through normalized points |
+| `DrawEnvelope` | `Envelope` | `envelope` | Polyline through normalized points, anti-aliased |
 | `DrawPadGrid` | `PadGrid` | `padgrid` | `cols x rows` cell grid, row 0 at the bottom |
 | `DrawBorder`/`HLine`/`VLine` | `Border`/`HLine`/`VLine` | `border`/`hline`/`vline` | 1px outline / lines |
 | — (escape hatch) | `Image` | `image` | Blit an arbitrary `*image.NRGBA` |
@@ -95,7 +95,15 @@ never has to think about them:
 - **Theme.** `Header`, `KVRows`, `List`, `HList`, `BotStrip`, `Breadcrumb`,
   `StatusBar` all take colors from `Host.Theme()` (`widgets.Theme`,
   starting point `widgets.Default`) rather than literal colors, so a
-  module's UI matches whatever palette the host is running.
+  module's UI matches whatever palette the host is running. Every entry in
+  `widgets.Default` (and `widgets.groupColors`, the soft-button group
+  underline colors) is itself resolved through `push3.Palette`/
+  `ColorForIndex` rather than a hand-picked RGB literal — see Color below.
+- **Color defaulting.** Any color-bearing op field a module leaves at its
+  JSON zero value (`color.NRGBA{}`, i.e. omitted) renders **white**, not
+  invisible transparent black — `internal/renderframe.defaultColor`
+  applies this to every `rect`/`text`/`styledtext`/`border`/`hline`/
+  `vline`/`meter`/`meterv`/`arc`/`padgrid`/`envelope` op before drawing.
 
 ## Grouping and pagination — conventions, not widgets
 
@@ -173,6 +181,32 @@ through the palette" as a single control instead of raw RGB sliders,
 should read from this table rather than hand-copying hex values — see
 [docs/protocol/led-output.md](../protocol/led-output.md) and
 `modules/ui-text-demo`'s color encoder for the pattern.
+
+**Rule: no raw RGB literals in the design system (2026-08-22).**
+`widgets.Default` and `widgets.groupColors` (`core/gfx/widgets/theme.go`,
+`softbutton.go`) build every color via `push3.ColorByName`/`ColorForIndex`
+instead of a hand-picked `color.NRGBA{...}` — each entry is the closest
+palette match to the original hand-picked value. A widget or module adding
+a new named color should do the same: pick the nearest `push3.Palette`
+entry rather than inventing a new RGB triple, so every color on screen
+stays traceable to a real, named Push color. This is a convention, not an
+enforced type — nothing stops a literal `color.NRGBA{}`, it just shouldn't
+be added going forward.
+
+### Anti-aliasing (2026-08-22)
+
+`DrawArc` and the package-private `drawLine` (`core/gfx/widgets/
+primitives.go`) are anti-aliased by default — coverage-based alpha
+blending against a signed distance to the arc's radius or the line
+segment, not the original step-along-the-shape-and-round-to-a-pixel
+approach. This is a default for every caller, not a knob-only mode:
+`DrawEnvelope` gets it for free since it already calls `drawLine` per
+segment, and any hack calling `widgets.DrawArc` directly picks it up too.
+`DrawKnob`/`DrawKnobFull` additionally draw at `knobStroke = 2` px instead
+of the shared 1px default, via the same width-parameterized
+`drawArcWidth`/`drawLineWidth` helpers `DrawArc`/`drawLine` wrap. See
+`ableton-push-hack/DESIGN.md`'s "Anti-aliased primitives" section for the
+full rationale.
 
 ## Previewing without hardware
 

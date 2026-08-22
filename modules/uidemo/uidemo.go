@@ -48,9 +48,11 @@ type Module struct {
 
 	page int
 
-	// enc[i] is encoder i's raw accumulated delta — signed, unclamped;
-	// each page interprets whichever encoders it uses however it needs to
-	// (a knob wants a clamped 0-100 range, an envelope point wants 0-1).
+	// enc[i] is encoder i's accumulated delta, clamped to [0,100] at write
+	// time in Handle — an endless encoder should stop at a control's limit,
+	// not wrap past it. Each page reads it through clampedFrac to project
+	// onto whatever range it needs (a knob's 0-100, an envelope point's
+	// 0-1, a list cursor's 0-rows).
 	enc [8]int
 
 	pads [8][8]bool // pad-grid page's toggle state, [row][col]
@@ -117,7 +119,12 @@ func (m *Module) Handle(ev module.Event) {
 
 	case module.Encoder:
 		if e.Index >= 0 && e.Index < len(m.enc) {
-			m.enc[e.Index] += e.Delta
+			// Clamp at write time, not just at draw time: otherwise turning
+			// past the end keeps accumulating past 100 and the encoder has
+			// to be wound all the way back before the display starts
+			// moving again — clamping here means a reversal responds
+			// immediately, matching a real endless encoder hitting a wall.
+			m.enc[e.Index] = push3.ClampInt(m.enc[e.Index]+e.Delta, 0, 100)
 		}
 	}
 }
@@ -131,15 +138,13 @@ func (m *Module) handleSoftButton(i int) {
 	}
 }
 
-// clampedFrac maps an encoder's raw accumulated delta onto [0,1], wrapping
-// every 100 clicks — a demo range, not a claim about real encoder
-// sensitivity, which every module tunes for its own control.
+// clampedFrac maps an encoder's raw accumulated delta onto [0,1] against a
+// 0-100 demo range, stopping at either end rather than wrapping — an
+// endless encoder should feel like it hits a wall at a control's min/max,
+// not roll over past it. 100 is a demo range, not a claim about real
+// encoder sensitivity, which every module tunes for its own control.
 func clampedFrac(raw int) float64 {
-	v := raw % 100
-	if v < 0 {
-		v += 100
-	}
-	return float64(v) / 100
+	return float64(push3.ClampInt(raw, 0, 100)) / 100
 }
 
 // ── drawing ──────────────────────────────────────────────────────────────

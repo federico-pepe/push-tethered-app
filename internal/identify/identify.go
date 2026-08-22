@@ -64,9 +64,10 @@ func SanitizeLabel(s string) string {
 // already in flight, without claiming the display a second time — Flash
 // claims fresh, this overlays onto a connection the caller already holds.
 func PaintMarker(img *image.NRGBA, label string, swatch color.NRGBA, phase int) {
-	bg, fg := swatch, color.NRGBA{0, 0, 0, 255}
+	black := push3.ColorForIndex(0).RGB // "off" — the only palette entry black maps to
+	bg, fg := swatch, black
 	if phase%2 == 1 {
-		bg, fg = color.NRGBA{0, 0, 0, 255}, swatch
+		bg, fg = black, swatch
 	}
 	gfx.FillRect(img, 0, 0, push3.VisW, push3.VisH, bg)
 

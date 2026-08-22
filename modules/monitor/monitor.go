@@ -180,7 +180,7 @@ func (m *Module) Draw(f *module.Frame) {
 	for i, line := range m.log {
 		c := t.White
 		if i < len(m.log)-1 {
-			c = color.NRGBA{150, 150, 150, 255}
+			c = t.Gray
 		}
 		f.Text(lx, 50+i*15, text.Truncate(line, 40), c)
 	}

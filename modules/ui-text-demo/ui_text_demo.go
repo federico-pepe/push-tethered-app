@@ -92,12 +92,31 @@ func (m *Module) Handle(ev module.Event) {
 	case module.Encoder:
 		if e.Index >= 0 && e.Index < len(m.enc) {
 			m.enc[e.Index] += e.Delta
+			// Encoders 3, 5, 6 drive bounded values (size, x/y margin): clamp
+			// at write time so an endless encoder stops at the limit instead
+			// of wrapping, and a reversal past the limit responds
+			// immediately instead of having to unwind however far past the
+			// edge it had accumulated. Encoders 1, 2, 4 (face/weight/color)
+			// are discrete pickers meant to cycle, so they stay unclamped
+			// and wrap in Draw below.
+			switch e.Index {
+			case 2: // size: 8-48pt, raw+12 in [0,40]
+				m.enc[2] = push3.ClampInt(m.enc[2], -12, 28)
+			case 4: // margin X: default 10, raw+10 in [0,199]
+				m.enc[4] = push3.ClampInt(m.enc[4], -10, 189)
+			case 5: // margin Y: -60..+60, raw+60 in [0,120]
+				m.enc[5] = push3.ClampInt(m.enc[5], -60, 60)
+			}
 		}
 	}
 }
 
 // wrap folds raw into [0, mod), taking the sign of Go's % into account —
-// encoder deltas are unclamped and can go negative.
+// encoder deltas are unclamped and can go negative. For a discrete picker
+// (face, weight, color) cycling back around is the expected behavior of
+// "turn to the next option"; for a bounded value (size, margin) use
+// push3.ClampInt instead so the endless encoder stops at the limit rather
+// than wrapping past it.
 func wrap(raw, mod int) int {
 	v := raw % mod
 	if v < 0 {
@@ -118,15 +137,15 @@ func (m *Module) Draw(f *module.Frame) {
 	// text — not black-on-black pinned off the top edge.
 	basic := wrap(m.enc[0]/8, 2) == 0
 	weightIdx := wrap(m.enc[1]/4, 4)
-	size := float64(8 + wrap(m.enc[2]+12, 41)) // 8-48pt, default 20
+	size := float64(8 + push3.ClampInt(m.enc[2]+12, 0, 40)) // 8-48pt, default 20
 	// +120 so the resting position (all-zero encoders) lands on palette
 	// index 120 ("white") instead of 0 ("off") — same reasoning as size and
 	// margin below, just a starting offset into the 0-127 cycle, not a
 	// different range.
 	colorIdx := wrap(m.enc[3]+120, 128)
 	pe := push3.ColorForIndex(byte(colorIdx))
-	marginX := wrap(m.enc[4]+10, 200) // default 10
-	marginY := wrap(m.enc[5]+60, 121) - 60
+	marginX := push3.ClampInt(m.enc[4]+10, 0, 199) // default 10
+	marginY := push3.ClampInt(m.enc[5]+60, 0, 120) - 60
 
 	col := pe.RGB
 	s := samples[m.sample]

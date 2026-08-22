@@ -7,6 +7,21 @@ between minor versions).
 
 ## [Unreleased]
 
+### Changed
+
+- Design system visual polish: `widgets.Default`/`widgets.groupColors`
+  (in `ableton-push-hack`'s `core/gfx/widgets`) now resolve every color
+  through `push3.Palette`/`ColorForIndex` instead of raw RGB literals; a
+  module `Frame` op's unset color field now renders white instead of
+  invisible transparent black; `DrawArc`/`drawLine` are anti-aliased by
+  default (so `DrawKnob`, `DrawKnobFull`, and `DrawEnvelope` all render
+  smoothly), and `DrawKnob`/`DrawKnobFull` draw a 2px stroke instead of
+  1px. See [docs/architecture/design-system.md](docs/architecture/design-system.md).
+- Endless-encoder handling in `modules/uidemo` and `modules/ui-text-demo`
+  now clamps at the accumulator (`push3.ClampInt`) instead of wrapping —
+  turning past a bounded control's limit stops there and reverses
+  immediately, rather than rolling back around to the minimum.
+
 ## [0.1.1-alpha] - 2026-08-20
 
 ### Added

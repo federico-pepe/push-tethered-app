@@ -48,8 +48,30 @@ should agree" motivation, done alongside the font work since
 `ui-text-demo` needed a color control and hand-rolling a second RGB table
 next to `NamedColors` was the wrong move.
 
-Not done: visual polish (deliberately deferred — basics first, per this
-round's own instruction).
+**2026-08-22 update (visual polish, first pass):** three targeted
+follow-ups, done together since they touched the same knob/arc/line code:
+`widgets.Default` and `widgets.groupColors` now resolve every color
+through `push3.Palette`/`ColorForIndex` instead of hand-picked RGB
+literals (nearest palette match to each original value), so every color a
+built-in widget draws is traceable to a real, named Push color; an unset
+`color.NRGBA{}` on any module `Frame` op now renders white
+(`internal/renderframe.defaultColor`) instead of invisible transparent
+black; and `DrawArc`/`drawLine` (`core/gfx/widgets/primitives.go`) are now
+anti-aliased by default via coverage-based blending
+(`blendPixel`/`drawArcWidth`/`drawLineWidth`) rather than the original
+step-and-round approach, so every caller — `DrawKnob`, `DrawKnobFull`,
+`DrawEnvelope`, and any hack calling the primitives directly — gets a
+smooth edge instead of a stair-stepped one. `DrawKnob`/`DrawKnobFull` also
+draw at `knobStroke = 2` px instead of 1. Full rationale:
+`ableton-push-hack/DESIGN.md`'s "Anti-aliased primitives" and updated
+"Palette" sections. Endless-encoder handling in `modules/uidemo` and
+`modules/ui-text-demo` was also fixed alongside this to clamp
+(`push3.ClampInt`) at the write-time accumulator rather than wrapping —
+turning past a bounded control's limit now stops there and reverses
+immediately, instead of rolling back to the minimum.
+
+Not done: further visual polish beyond this pass (color/AA/stroke-width)
+— deliberately deferred, per this round's own instruction.
 
 ## Context
 
