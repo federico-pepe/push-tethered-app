@@ -7,6 +7,56 @@ between minor versions).
 
 ## [Unreleased]
 
+### Added
+
+- `Frame.KnobArc` / op `"knobarc"`: a third knob composition alongside
+  `Knob`/`KnobFull` — a 300° gauge arc from 7 o'clock (min) through 12 to
+  5 o'clock (max), 60° gap at the bottom. Same `Knob` param shape as the
+  other two. See [docs/architecture/design-system.md](docs/architecture/design-system.md).
+- `Knob.Color`: assign any color (e.g. a `push3.Palette` entry) to an
+  individual knob's fill/pointer instead of every knob sharing the host
+  Theme's `Select` color. Unset falls back to `Theme.Select` as before —
+  it does not default to white, since white is a valid `Color` choice in
+  its own right. Applies to `Knob`, `KnobFull`, `KnobArc`, and `Fader`
+  (all four share the `Knob` param type).
+- `SoftButton.Color`: assign any color to an individual soft-button's
+  label, overriding whatever `State` would otherwise pick
+  (`White`/`OnColor`/`OffColor`). Unset falls back to `State`'s own
+  default, not white, same reasoning as `Knob.Color`.
+- Documented a standing invariant for `core/gfx/widgets` (in
+  `ableton-push-hack`'s package doc, `theme.go`): every color-bearing
+  widget, existing or future, must support the full Push palette as a
+  real parameter, with a sensible fallback when unset — not hardcode a
+  color or leave it a per-widget afterthought. `DrawFader` and
+  `SoftButton` were the two gaps found auditing against this rule (both
+  fixed to match — see the `Fader`/`SoftButton` entries above).
+- `modules/uidemo`'s buttons page now also exercises `SoftButton.Color`
+  (an 8th button, PINK) alongside the existing exclusive/independent
+  groups, so every design-system color path is verified on real hardware,
+  not just in `cmd/screensim`.
+- `cmd/genpalette`: writes `core/push3.Palette` out as `palette.json` into
+  every `examples/modules/*` directory that has a `manifest.json` —
+  `byIndex[0..127]` (every raw hardware index, pre-resolved the same way
+  `push3.ColorForIndex` does) and `byName` (the ~90 named entries). A
+  process module (JS, Python, any language) can't import the Go `push3`
+  package, so this is how it looks up a real palette color instead of
+  hand-copying RGB. `go run ./cmd/genpalette` from the repo root
+  regenerates all five example copies after any `push3.Palette` change
+  (rare). See
+  [writing-a-process-module.md](docs/guides/writing-a-process-module.md#colors).
+
+### Fixed
+
+- `examples/modules/{hello,beatcount}-{py,js}` and `knobs-js` had raw RGB
+  literals with no traceable palette source — none imported anything from
+  `core/push3` because a process module can't. All five now load
+  `palette.json` (see `cmd/genpalette` above) and look up colors by name
+  (`paletteColor`/`palette_color`) or by raw index
+  (`paletteById`/`palette_by_id`) instead. `beatcount-{py,js}`'s
+  status-text gray, which used to be `{120,120,120}` and matched no
+  `push3.Palette` entry at all, is now `gray_green` — the same RGB
+  `widgets.Default.Gray` resolves to on the Go side.
+
 ### Changed
 
 - Design system visual polish: `widgets.Default`/`widgets.groupColors`

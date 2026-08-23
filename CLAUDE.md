@@ -106,6 +106,10 @@ cmd/mapcheck/     cross-references captures against the button map
 cmd/midiouttest/  MIDI-out probe: create/attach a port, send, and receive back
 cmd/screensim/    renders named Frame/widget test scenes to PNG — no hardware,
                    no display claim; the fast-iteration tool for the design system
+cmd/genpalette/   writes core/push3.Palette out as palette.json into every
+                   examples/modules/* directory, so a process module in any
+                   language can look up a palette color by name or 0-127 index
+                   instead of hand-copying RGB — see writing-a-process-module.md
 internal/bootstrap/  hardware-opening sequence shared by cmd/pushapp and -ui
 internal/module/  the ABI: Module, Host, Frame/Op, Event, Meta, Store
 internal/host/    runtime: registry, control API, event fan-out, frame loop
@@ -182,6 +186,7 @@ go run ./cmd/frametest    # claim interface 0, push one frame
 go run ./cmd/midiouttest  # prove MIDI reaches other software
 go run ./cmd/screensim -list-scenes         # design-system scenes, no hardware
 go run ./cmd/screensim -scene <name> -out out.png
+go run ./cmd/genpalette   # regenerate examples/modules/*/palette.json after a push3.Palette change
 go build ./... && go vet ./... && go test ./...
 ```
 

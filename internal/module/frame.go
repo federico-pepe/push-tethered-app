@@ -398,6 +398,14 @@ func (f *Frame) KnobFull(cx, cy, r int, k Knob) {
 	f.add("knobfull", KnobParams{CX: cx, CY: cy, R: r, K: k})
 }
 
+// KnobArc draws a gauge-style knob: a 300-degree arc from 7 o'clock (min)
+// clockwise through 12 to 5 o'clock (max), leaving a 60-degree gap open at
+// the bottom, swept to k's value fraction, value centered inside, label
+// below.
+func (f *Frame) KnobArc(cx, cy, r int, k Knob) {
+	f.add("knobarc", KnobParams{CX: cx, CY: cy, R: r, K: k})
+}
+
 // Fader draws a vertical linear control with a handle at k's value and the
 // value readout above it.
 func (f *Frame) Fader(x, y, w, h int, k Knob) {

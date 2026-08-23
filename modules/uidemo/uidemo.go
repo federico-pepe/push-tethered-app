@@ -270,6 +270,7 @@ func (m *Module) drawButtons(f *module.Frame, w, h int, t module.Theme) {
 		}
 		return widgets.SoftNeutral
 	}
+	pinkIdx, _ := push3.ColorByName("pink_hot")
 	buttons := [8]module.SoftButton{
 		{Label: "1/16", State: state(m.quantize, 0), Group: 1},
 		{Label: "1/8", State: state(m.quantize, 1), Group: 1},
@@ -277,6 +278,11 @@ func (m *Module) drawButtons(f *module.Frame, w, h int, t module.Theme) {
 		{},
 		{Label: "MUTE", State: state(m.toggles, 4), Group: 2},
 		{Label: "SOLO", State: state(m.toggles, 5), Group: 2},
+		{},
+		// A palette Color override, same field/fallback contract as
+		// Knob.Color — exercises the one SoftButton feature the exclusive/
+		// independent groups above don't touch.
+		{Label: "PINK", Color: push3.ColorForIndex(pinkIdx).RGB},
 	}
 	f.BotStrip(h-18, w, w/8, 18, buttons, "")
 }

@@ -13,6 +13,13 @@ history and the "why" behind each choice lives in `ableton-push-hack`'s
 module or hack actually calls it. Roadmap and status:
 [`plans/2026-08-21-design-system-screensim.md`](../../plans/2026-08-21-design-system-screensim.md).
 
+> **Invariant: every widget must support the full Push color palette,
+> with a sensible fallback when unset.** This applies to every widget in
+> `core/gfx/widgets` — existing or future, not just the ones color was
+> retrofitted onto in 2026-08-22. See "Color" below for exactly what that
+> requires and the package doc on `core/gfx/widgets` (`theme.go`) for the
+> full, authoritative statement of the rule.
+
 ## Layering
 
 ```
@@ -74,6 +81,7 @@ JS/anything else puts in `{"kind": "...", "params": {...}}` — see
 | `DrawArc` | `Arc` | `arc` | Raw circular arc primitive, anti-aliased |
 | `DrawKnob` | `Knob` | `knob` | Radial-progress knob (arc sweep + value + label), 2px anti-aliased stroke |
 | `DrawKnobFull` | `KnobFull` | `knobfull` | Rotary-pointer knob (full circle + angle pointer), 2px anti-aliased stroke |
+| `DrawKnobArc` | `KnobArc` | `knobarc` | Gauge knob: 300° arc, 7 o'clock to 5 o'clock, 60° gap at the bottom |
 | `DrawFader` | `Fader` | `fader` | Vertical linear control, handle + value |
 | `DrawEnvelope` | `Envelope` | `envelope` | Polyline through normalized points, anti-aliased |
 | `DrawPadGrid` | `PadGrid` | `padgrid` | `cols x rows` cell grid, row 0 at the bottom |
@@ -81,6 +89,18 @@ JS/anything else puts in `{"kind": "...", "params": {...}}` — see
 | — (escape hatch) | `Image` | `image` | Blit an arbitrary `*image.NRGBA` |
 | `text.Draw`/`DrawScaled` | `Text`/`TextScaled` | `text` | Basic face (Tamzen7x13r), uppercased, optionally integer-upscaled (`Scale`) |
 | `text.DrawWith` | `StyledText` | `styledtext` | Helvetica Neue, `Weight` + point `Size` |
+
+`DrawKnob`, `DrawKnobFull`, `DrawKnobArc`, and `DrawFader` all share the
+`Knob` param type (`Label`, `Value`/`Min`/`Max`, and `Color`) — `Color` is
+the fill/pointer color (`knob`'s sweep, `knobfull`'s pointer line,
+`knobarc`'s fill arc, `fader`'s filled bar); its zero value falls back to
+`Theme.Select`, **not** white — unlike every other color-bearing op param
+(see "Color defaulting" below), since white is itself a valid, deliberate
+`Color` choice a module might make and would otherwise be indistinguishable
+from "unset." `examples/modules/knobs-js` gives every knob its own
+palette `Color` to demonstrate the override; `cmd/screensim -scene
+controls` does the same for `KnobArc` and `Fader` side by side with two
+Theme-default knobs.
 
 Two things every one of these gets from the host for free, so a module
 never has to think about them:
@@ -193,6 +213,36 @@ stays traceable to a real, named Push color. This is a convention, not an
 enforced type — nothing stops a literal `color.NRGBA{}`, it just shouldn't
 be added going forward.
 
+**Rule: no raw RGB in process modules either (2026-08-22).** A JS/Python
+module can't import `push3` — it's a Go package — so `cmd/genpalette`
+generates `palette.json` (all 128 raw indices, resolved via
+`push3.ColorForIndex`, plus a `byName` map of the named entries) into
+every `examples/modules/*` directory that has a `manifest.json`. Load it
+and look up by name or by 0-127 index instead of hand-copying RGB — see
+[writing-a-process-module.md](../guides/writing-a-process-module.md#colors)
+for the loader snippet in both languages, and `knobs-js`/`hello-{js,py}`/
+`beatcount-{js,py}` for working examples. Regenerate with
+`go run ./cmd/genpalette` after any change to `push3.Palette` itself
+(rare); it's a checked-in generated file, not a build step.
+
+**Rule: every widget must accept a color, not hardcode one (2026-08-22).**
+This is the invariant called out at the top of this page — full statement
+lives on `core/gfx/widgets`' package doc (`theme.go`). In short: a widget's
+color must be a `color.NRGBA` parameter (directly, or via a field like
+`Knob.Color`/`SoftButton.Color`), any `push3.Palette` entry must be
+usable, and an unset color must still render something sensible rather
+than nothing — white for widgets with no natural per-instance default
+(see "Color defaulting" below), the widget's own existing default
+otherwise: `Theme.Select` for `Knob`/`KnobFull`/`KnobArc`/`Fader`, the
+`State`-picked color (`White`/`OnColor`/`OffColor`) for `SoftButton`.
+`DrawFader` and `SoftButton` were the two gaps found auditing against this
+rule — `DrawFader` hardcoded `t.Select`/`t.White` despite already taking a
+`Knob` param with a `Color` field sitting unused; `SoftButton` had no
+per-button color override at all, only the closed `State` enum. Both
+fixed 2026-08-22. `groupColors` (the `Group` underline cue, a fixed
+4-color cycle keyed by group number) is deliberately exempt — see
+`ableton-push-hack/DESIGN.md`'s "Soft-button groups" section.
+
 ### Anti-aliasing (2026-08-22)
 
 `DrawArc` and the package-private `drawLine` (`core/gfx/widgets/
@@ -202,9 +252,11 @@ segment, not the original step-along-the-shape-and-round-to-a-pixel
 approach. This is a default for every caller, not a knob-only mode:
 `DrawEnvelope` gets it for free since it already calls `drawLine` per
 segment, and any hack calling `widgets.DrawArc` directly picks it up too.
-`DrawKnob`/`DrawKnobFull` additionally draw at `knobStroke = 2` px instead
-of the shared 1px default, via the same width-parameterized
-`drawArcWidth`/`drawLineWidth` helpers `DrawArc`/`drawLine` wrap. See
+`DrawKnob`/`DrawKnobFull`/`DrawKnobArc` additionally draw at
+`knobStroke = 2` px instead of the shared 1px default, via the same
+width-parameterized `drawArcWidth`/`drawLineWidth` helpers (and, for
+`DrawKnobArc`'s arbitrary start angle, the more general
+`drawArcSpanWidth` both of those wrap). See
 `ableton-push-hack/DESIGN.md`'s "Anti-aliased primitives" section for the
 full rationale.
 

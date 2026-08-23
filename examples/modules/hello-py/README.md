@@ -9,6 +9,11 @@ Only ever receives requests (`init`, `handle`, `draw`, `close`) and sends
 one notification (`set_pad`). Doesn't need `"needs_midi_out"` in
 `manifest.json`.
 
+Its two screen colors (white, black) come from `palette.json`
+(`cmd/genpalette`-generated from `core/push3.Palette`) via
+`palette_color` and `palette_by_id`, one of each lookup style — see
+[writing-a-process-module.md](../../../docs/guides/writing-a-process-module.md#colors).
+
 ```bash
 go run ./cmd/pushapp -install examples/modules/hello-py
 go run ./cmd/pushapp -module hello-py

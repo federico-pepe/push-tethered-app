@@ -16,7 +16,9 @@ Controls:
 - The 8 pads: toggle cells on the pad-grid page, mirrored to their own
   LEDs via `Host.SetPad`
 - The 8 under-screen soft-buttons: toggle an exclusive (radio) group and
-  an independent-toggle group on the buttons page
+  an independent-toggle group on the buttons page; the 8th button (PINK)
+  shows a `SoftButton.Color` palette override next to the two State-driven
+  groups
 
 Not exercised: the jog wheel, the touch strip, MPE, and the top-row
 buttons — none of those have a widget in the catalog yet to verify.

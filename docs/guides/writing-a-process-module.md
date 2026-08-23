@@ -45,6 +45,42 @@ Build an array of ops mirroring Go types:
 
 Check `supported_ops` from `init` before using ops the host might not know.
 
+### Colors
+
+Every screen op's color param must trace back to a real
+`core/push3.Palette` entry — see
+[docs/architecture/design-system.md](../architecture/design-system.md)'s
+color invariant. A process module can't import the Go `push3` package, so
+`cmd/genpalette` (run from the repo root: `go run ./cmd/genpalette`)
+generates `palette.json` into every directory under `examples/modules/`
+that has a `manifest.json`, resolving all 128 raw hardware indices to
+RGBA from `core/push3.Palette`. Copy `palette.json` into your own module's
+directory (`cmd/pushapp -install` copies whatever files are there,
+`palette.json` included, so it travels with the module) and load it at
+startup:
+
+```js
+const PALETTE = JSON.parse(fs.readFileSync(path.join(__dirname, "palette.json"), "utf8"));
+// PALETTE.byName["sky"]   -> {index, name, r, g, b, a} — the ~90 named colors
+// PALETTE.byIndex[42]     -> same shape, any raw 0-127 hardware index
+```
+
+```python
+with open(os.path.join(os.path.dirname(__file__), "palette.json")) as f:
+    PALETTE = json.load(f)
+# PALETTE["byName"]["sky"]  -> {"index", "name", "r", "g", "b", "a"}
+# PALETTE["byIndex"][42]    -> same shape, any raw 0-127 hardware index
+```
+
+Both lookups return the same shape; `byIndex` pre-resolves every one of
+the 128 raw indices to its nearest defined entry, the same "nearest at or
+below" guarantee `push3.ColorForIndex` makes on the Go side, so a module
+never has to reimplement that search. Rebuild `palette.json` only when
+`core/push3.Palette` itself changes (rare — it's a fixed, SysEx-sourced
+hardware table); it's a checked-in generated file, not something built on
+every run. See `examples/modules/hello-{js,py}`, `beatcount-{js,py}`, and
+`knobs-js` for working examples of both lookup styles.
+
 ## Host calls from child
 
 Notifications (no `id`):

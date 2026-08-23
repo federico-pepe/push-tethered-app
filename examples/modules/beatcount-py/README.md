@@ -10,6 +10,11 @@ is a Go `[]byte`, which `encoding/json` encodes as a base64 **string**,
 not a JSON array of numbers — `"data": {"raw": "+A=="}` is a single 0xF8
 clock tick.
 
+Its screen colors (black, gray, white) come from `palette.json`
+(`cmd/genpalette`-generated from `core/push3.Palette`) via
+`palette_color` — see
+[writing-a-process-module.md](../../../docs/guides/writing-a-process-module.md#colors).
+
 ```bash
 go run ./cmd/pushapp -install examples/modules/beatcount-py
 go run ./cmd/pushapp -module beatcount-py -ext-midi-in "<your clock source>"

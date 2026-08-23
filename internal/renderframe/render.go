@@ -279,6 +279,16 @@ func init() {
 		return nil
 	})
 
+	RegisterOp("knobarc", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
+		var v module.KnobParams
+		if err := json.Unmarshal(p, &v); err != nil {
+			return err
+		}
+		v.K.Label = asciiOnly(v.K.Label)
+		widgets.DrawKnobArc(dst, t, v.CX, v.CY, v.R, v.K)
+		return nil
+	})
+
 	RegisterOp("fader", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
 		var v module.FaderParams
 		if err := json.Unmarshal(p, &v); err != nil {

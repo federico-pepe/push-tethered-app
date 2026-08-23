@@ -86,6 +86,10 @@ def draw(state):
 ```
 
 Screen colours are RGBA dicts. Pad LED colours are separate palette indices.
+Don't hand-copy RGB for a screen colour — load `palette.json`
+(`cmd/genpalette`-generated, lives next to `run.py`) and look up by name
+or by the same 0-127 index `set_pad` uses:
+[writing-a-process-module.md](writing-a-process-module.md#colors).
 
 ## Close
 

@@ -9,6 +9,7 @@ import (
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/layout"
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/text"
 	"github.com/federico-pepe/ableton-push-hack/core/gfx/widgets"
+	"github.com/federico-pepe/ableton-push-hack/core/push3"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 )
 
@@ -117,18 +118,35 @@ func sceneButtonGroups(f *module.Frame) {
 		{},
 		{Label: "MUTE", State: state(toggles, 4), Group: 2},
 		{Label: "SOLO", State: state(toggles, 5), Group: 2},
+		{},
+		// A palette Color override, same field/fallback contract as
+		// Knob.Color — proves SoftButton isn't stuck with State's three
+		// fixed label colors (White/OnColor/OffColor).
+		{Label: "CUSTOM", Color: scenePaletteColor("cyan_lt")},
 	}
 	f.BotStrip(140, 960, 120, 20, buttons, "")
 }
 
-// sceneControls shows one of each new basic control: a radial-progress
-// knob, a rotary-pointer knob, a fader, and an envelope curve.
+// scenePaletteColor looks up a push3.Palette color by name for a scene to
+// use as a widget's Color override — every color-bearing widget must
+// support any palette entry (core/gfx/widgets' package doc), so scenes
+// exercise that with named palette colors rather than raw RGB literals.
+func scenePaletteColor(name string) color.NRGBA {
+	idx, _ := push3.ColorByName(name)
+	return push3.ColorForIndex(idx).RGB
+}
+
+// sceneControls shows one of each basic control: a radial-progress knob
+// (Theme default color, unset), a rotary-pointer knob (Theme default), a
+// gauge-arc knob and a fader (each given a custom palette Color, proving
+// that field overrides the Theme default), and an envelope curve.
 func sceneControls(f *module.Frame) {
 	f.Rect(0, 0, 960, 160, widgets.Default.Black)
-	f.Knob(100, 80, 40, module.Knob{Label: "CUTOFF", Value: 65, Min: 0, Max: 100})
-	f.KnobFull(280, 80, 40, module.Knob{Label: "RESO", Value: 30, Min: 0, Max: 100})
-	f.Fader(440, 20, 24, 110, module.Knob{Label: "VOL", Value: 80, Min: 0, Max: 100})
-	f.Envelope(560, 20, 360, 110,
+	f.Knob(80, 80, 35, module.Knob{Label: "CUTOFF", Value: 65, Min: 0, Max: 100})
+	f.KnobFull(210, 80, 35, module.Knob{Label: "RESO", Value: 30, Min: 0, Max: 100})
+	f.KnobArc(340, 80, 35, module.Knob{Label: "GAIN", Value: 45, Min: 0, Max: 100, Color: scenePaletteColor("orange")})
+	f.Fader(480, 20, 24, 110, module.Knob{Label: "VOL", Value: 80, Min: 0, Max: 100, Color: scenePaletteColor("mint")})
+	f.Envelope(600, 20, 320, 110,
 		[]float64{0, 1, 0.6, 0.6, 0}, widgets.Default.OnColor)
 }
 
