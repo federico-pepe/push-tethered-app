@@ -7,6 +7,8 @@ between minor versions).
 
 ## [Unreleased]
 
+## [0.1.2-alpha] - 2026-08-23
+
 ### Added
 
 - `Frame.KnobArc` / op `"knobarc"`: a third knob composition alongside
@@ -114,6 +116,7 @@ libusb alongside the binary (no Homebrew required on the end-user machine);
 CI's `build.yml`/`diagnostics.yml` cache apt packages, npm modules, and the
 MSYS2 toolchain to cut Actions minutes on the free tier.
 
-[Unreleased]: https://github.com/federico-pepe/push-tethered-app/compare/v0.1.1-alpha...HEAD
+[Unreleased]: https://github.com/federico-pepe/push-tethered-app/compare/v0.1.2-alpha...HEAD
+[0.1.2-alpha]: https://github.com/federico-pepe/push-tethered-app/compare/v0.1.1-alpha...v0.1.2-alpha
 [0.1.1-alpha]: https://github.com/federico-pepe/push-tethered-app/compare/v0.1.0-alpha...v0.1.1-alpha
 [0.1.0-alpha]: https://github.com/federico-pepe/push-tethered-app/releases/tag/v0.1.0-alpha
