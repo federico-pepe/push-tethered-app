@@ -110,6 +110,9 @@ cmd/genpalette/   writes core/push3.Palette out as palette.json into every
                    examples/modules/* directory, so a process module in any
                    language can look up a palette color by name or 0-127 index
                    instead of hand-copying RGB — see writing-a-process-module.md
+internal/applog/  shared log.SetOutput wrapper: timestamps every log.Printf line
+                   (RFC3339-ish, microseconds, no zone) and a startup banner —
+                   used by both cmd/pushapp and cmd/pushapp-ui
 internal/bootstrap/  hardware-opening sequence shared by cmd/pushapp and -ui
 internal/module/  the ABI: Module, Host, Frame/Op, Event, Meta, Store
 internal/host/    runtime: registry, control API, event fan-out, frame loop

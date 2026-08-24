@@ -23,6 +23,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"github.com/federico-pepe/push-tethered-app/internal/applog"
 	"github.com/federico-pepe/push-tethered-app/internal/bootstrap"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/modules/beatcount"
@@ -63,18 +64,25 @@ func availableModules() []module.Module {
 
 func main() {
 	log.SetFlags(0)
+	log.SetOutput(applog.Wrap(os.Stderr))
 
 	// Every log.Printf in this binary and in internal/bootstrap goes through
 	// the standard logger, so redirecting it here covers both — see
 	// logfile.go's doc comment for why this exists. A failure to open the
 	// log file is not fatal to the app; it just means diagnosing this run
 	// falls back to whatever terminal happened to launch it, same as before.
+	logPath := ""
 	if path, f, err := openLogFile(); err != nil {
 		log.Printf("log file: %v (continuing without one)", err)
 	} else {
 		defer f.Close()
-		log.SetOutput(io.MultiWriter(os.Stderr, f))
-		log.Printf("logging to %s", path)
+		log.SetOutput(applog.Wrap(io.MultiWriter(os.Stderr, f)))
+		logPath = path
+	}
+
+	applog.Banner()
+	if logPath != "" {
+		log.Printf("logging to %s", logPath)
 	}
 
 	// A context the host loop runs under, cancelled once the window closes or

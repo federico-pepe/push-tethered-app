@@ -26,6 +26,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/federico-pepe/push-tethered-app/internal/applog"
 	"github.com/federico-pepe/push-tethered-app/internal/bootstrap"
 	"github.com/federico-pepe/push-tethered-app/internal/display"
 	"github.com/federico-pepe/push-tethered-app/internal/host/procmod"
@@ -82,6 +83,8 @@ func main() {
 	flag.Parse()
 
 	log.SetFlags(0)
+	log.SetOutput(applog.Wrap(os.Stderr))
+	applog.Banner()
 
 	if *showVersion {
 		fmt.Println(version.Version)
