@@ -116,7 +116,16 @@ a generic status-bar hint used to sit) rather than relying on the widget's
 own gray, one-size label. Same module also demonstrates positioning knobs
 by physical encoder column (`960/8 = 120px` per column, same convention the
 pad grid's own 8 columns use) instead of spreading them evenly across the
-full width — 6 knobs in columns 0-5, columns 6-7 left empty.
+full width — one knob per column, all 8 used.
+
+`Knob` also has `Bipolar` (`bool`), `DrawKnobArc`-only: changes its fill
+from "grows from `Min`" to "grows from the middle of `[Min,Max]` outward,
+in whichever direction `Value` moved" — nothing drawn at all when `Value`
+sits exactly at the middle. False (the zero value) is the original
+behavior. Added 2026-08-24 for a pan/detune/LFO-offset-style control, where
+a symmetric range's untouched (center) value should read as an empty ring,
+not a permanently half-full one — `examples/modules/knobs-js`'s "PAN 1"/
+"PAN 2" (range -50..+50, starting at 0) demonstrate it.
 
 Two things every one of these gets from the host for free, so a module
 never has to think about them:

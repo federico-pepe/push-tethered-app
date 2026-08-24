@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // knobs-js — two knobs of each composition the design system has (knob,
-// knobfull, knobarc), each driven by its own encoder, each 0-100. Built as
-// a quick test bench for knob rendering
+// knobfull, knobarc), plus two more knobarc knobs on a signed -50..+50
+// range ("PAN 1"/"PAN 2"), each driven by its own encoder. Built as a
+// quick test bench for knob rendering
 // (docs/architecture/design-system.md's Knob/KnobFull/KnobArc rows —
 // anti-aliased arc, knobStroke=2 by default as of 2026-08-22). Not a port
 // of anything; exists purely to turn every encoder and eyeball the
@@ -9,9 +10,15 @@
 //
 // Each of the 8 columns lines up with its own physical encoder above the
 // pad grid (960/8 = 120px per column, same convention the pad grid itself
-// uses) — 6 knobs in columns 0-5, columns 6-7 left empty rather than
-// spreading all 6 evenly across the full width. Encoders 7-8 (0-indexed
-// 6-7) are unused, reserved for a future fourth pair.
+// uses) — one knob per column, all 8 used.
+//
+// PAN 1/2 start at 0, the middle of their -50..+50 range, with Bipolar set
+// on their k object: at the middle of [Min,Max], knobarc draws nothing at
+// all — not a half-full ring — and turning left or right grows a fill from
+// 12 o'clock outward in that direction, toward 7 o'clock (min) or 5
+// o'clock (max). See widgets.Knob.Bipolar's own doc (ableton-push-hack) for
+// the angle math; this is what makes a pan/detune/LFO-offset-style knob
+// read as "untouched" at rest instead of permanently half-lit.
 //
 // Same protocol as hello-js (see that module's comment for the full
 // envelope shape). Each knob is given its own Color (widgets.Knob's fill/
@@ -20,10 +27,10 @@
 // this field existed), so this module deliberately sets one on every knob
 // to prove the override, rather than relying on the fallback.
 //
-// Endless-encoder convention: clamp the accumulator itself to [0,100] on
-// every delta, same as modules/uidemo and modules/ui-text-demo — turning
-// past a knob's limit stops there and reverses immediately, it doesn't
-// wrap back to 0. See CHANGELOG.md's 2026-08-22 entry.
+// Endless-encoder convention: clamp the accumulator itself to its own
+// [min,max] on every delta, same as modules/uidemo and modules/ui-text-demo
+// — turning past a knob's limit stops there and reverses immediately, it
+// doesn't wrap back around. See CHANGELOG.md's 2026-08-22 entry.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -47,17 +54,19 @@ function paletteById(id) {
 const NUM_ENCODERS = 8;
 const VALUE_SCALE = 2;
 
-// One entry per drawn knob — op kind, label prefix, and fill Color, two
-// encoders per composition (knob 1/2 -> KNOB 1/2, encoder 3/4 -> FULL 1/2,
-// encoder 5/6 -> ARC 1/2). Encoders 6 and 7 (0-indexed) have no entry, so
-// they're tracked in state.value like any other but never drawn.
+// One entry per drawn knob — op kind, label prefix, fill Color, and this
+// knob's own [min,max] (Min/Max drive both the displayed number and the
+// fill/pointer position, via widgets.Knob.frac() — see PAN 1/2's comment
+// above for why a symmetric range is what makes 0 land at 12 o'clock).
 const KNOBS = [
-  { kind: "knob", label: "KNOB 1", color: paletteColor("sky") },
-  { kind: "knob", label: "KNOB 2", color: paletteColor("lime") },
-  { kind: "knobfull", label: "FULL 1", color: paletteColor("violet") },
-  { kind: "knobfull", label: "FULL 2", color: paletteColor("pink_hot") },
-  { kind: "knobarc", label: "ARC 1", color: paletteColor("orange") },
-  { kind: "knobarc", label: "ARC 2", color: paletteColor("amber") },
+  { kind: "knob", label: "KNOB 1", color: paletteColor("sky"), min: 0, max: 100 },
+  { kind: "knob", label: "KNOB 2", color: paletteColor("lime"), min: 0, max: 100 },
+  { kind: "knobfull", label: "FULL 1", color: paletteColor("violet"), min: 0, max: 100 },
+  { kind: "knobfull", label: "FULL 2", color: paletteColor("pink_hot"), min: 0, max: 100 },
+  { kind: "knobarc", label: "ARC 1", color: paletteColor("orange"), min: 0, max: 100 },
+  { kind: "knobarc", label: "ARC 2", color: paletteColor("amber"), min: 0, max: 100 },
+  { kind: "knobarc", label: "PAN 1", color: paletteColor("green"), min: -50, max: 50, bipolar: true },
+  { kind: "knobarc", label: "PAN 2", color: paletteColor("forest"), min: -50, max: 50, bipolar: true },
 ];
 
 function send(obj) {
@@ -74,8 +83,12 @@ function respondError(id, message) {
 }
 
 const state = {
-  // value[i] is encoder i's accumulated value, clamped to [0,100] at write
-  // time so a reversal past the limit responds immediately.
+  // value[i] is encoder i's accumulated value, clamped to KNOBS[i]'s own
+  // [min,max] at write time so a reversal past the limit responds
+  // immediately. 0 is every knob's starting value regardless of range —
+  // for KNOB/FULL/ARC 1-2 (min 0) that's their own minimum; for PAN 1/2
+  // (min -50, max 50) it's the middle, which is the whole point (see
+  // PAN 1/2's comment above the KNOBS declaration).
   value: new Array(NUM_ENCODERS).fill(0),
 };
 
@@ -85,8 +98,9 @@ function clamp(v, lo, hi) {
 
 function handleEncoder(data) {
   const { index, delta } = data;
-  if (index >= 0 && index < NUM_ENCODERS) {
-    state.value[index] = clamp(state.value[index] + delta, 0, 100);
+  const k = KNOBS[index];
+  if (k) {
+    state.value[index] = clamp(state.value[index] + delta, k.min, k.max);
   }
 }
 
@@ -95,7 +109,7 @@ function handleEncoder(data) {
 // ("knob", "knobfull", "knobarc" — same param shape, different renderer),
 // and widgets.Knob (the "k" object's type, in ableton-push-hack) has no
 // json tags of its own, so its wire keys are its literal Go field names —
-// Value/Min/Max/Color/ValueScale, capitalized — same reasoning as
+// Value/Min/Max/Color/ValueScale/Bipolar, capitalized — same reasoning as
 // color.NRGBA's R/G/B/A in the other example modules. Label is left unset
 // here on purpose — see the label-row comment below.
 //
@@ -121,9 +135,9 @@ function draw() {
   const r = 30;
   const cy = 80; // vertical center of the content band between the header (0-20) and the label row (140-158)
 
-  KNOBS.forEach(({ kind, label, color }, i) => {
-    // Column i's center, not an even spread across all 6 — each knob lines
-    // up under its own physical encoder, with columns 6-7 left empty.
+  KNOBS.forEach(({ kind, label, color, min, max, bipolar }, i) => {
+    // Column i's center — each knob lines up under its own physical
+    // encoder, not spread evenly across the full width.
     const cx = Math.round(i * COL_W + COL_W / 2);
     ops.push({
       kind,
@@ -131,7 +145,14 @@ function draw() {
         cx,
         cy,
         r,
-        k: { Value: state.value[i], Min: 0, Max: 100, Color: color, ValueScale: VALUE_SCALE },
+        k: {
+          Value: state.value[i],
+          Min: min,
+          Max: max,
+          Color: color,
+          ValueScale: VALUE_SCALE,
+          Bipolar: !!bipolar,
+        },
       },
     });
     // Drawn ourselves in the row the old "turn encoders..." status hint
