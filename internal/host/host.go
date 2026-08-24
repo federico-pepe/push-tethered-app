@@ -32,12 +32,22 @@ import (
 // interesting fact is the drop count, not the events.
 const eventBuf = 1024
 
+// FrameSink receives every frame the frame loop draws, the same tap
+// Recorder uses (before the USB write, so it costs no extra USB traffic and
+// cannot disturb what the panel shows). Must not retain img past the call —
+// same convention as capture.Recorder.Frame. Used for optional side
+// channels like internal/mirror's live HTTP stream.
+type FrameSink interface {
+	Frame(img *image.NRGBA)
+}
+
 // Options configures a Runtime.
 type Options struct {
 	FPS       int
 	NoDisplay bool
 	NoLEDs    bool
 	Recorder  capture.Recorder
+	Mirror    FrameSink
 
 	// OpenMIDIOut obtains the output port, called at most once and only when a
 	// module that declares NeedsMIDIOut is activated.
@@ -427,6 +437,9 @@ func (r *Runtime) drawFrame(ctx context.Context) error {
 			log.Printf("capture: %v — recording stopped", err)
 			r.opts.Recorder = nil
 		}
+	}
+	if r.opts.Mirror != nil {
+		r.opts.Mirror.Frame(r.img)
 	}
 
 	if r.dev == nil {

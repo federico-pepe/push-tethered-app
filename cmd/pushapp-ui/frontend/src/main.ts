@@ -24,6 +24,59 @@ const autoBtn = document.getElementById("auto-btn") as HTMLButtonElement;
 
 const sessionListEl = document.getElementById("session-list") as HTMLUListElement;
 
+// mirrorAddr must match cmd/pushapp-ui/main.go's own mirrorAddr constant —
+// see its doc comment for why this is hardcoded rather than fetched.
+const mirrorAddr = "localhost:7071";
+
+// openMirrors holds the live-screen overlay for each session currently
+// showing one, keyed by session key. Deliberately appended to document.body
+// rather than into a session card: session cards are rebuilt wholesale every
+// 2s poll (see renderSessions), and recreating the <img> each time would
+// restart its MJPEG connection every 2s instead of streaming continuously.
+const openMirrors = new Map<string, HTMLDivElement>();
+
+function openMirror(session: SessionInfo): void {
+    if (openMirrors.has(session.key)) return;
+
+    const overlay = document.createElement("div");
+    overlay.className = "mirror-overlay";
+
+    const panel = document.createElement("div");
+    panel.className = "mirror-panel";
+
+    const header = document.createElement("div");
+    header.className = "mirror-panel-header";
+    const title = document.createElement("span");
+    title.textContent = session.midiIn.inName || session.unit;
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "mirror-close";
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("click", () => closeMirror(session.key));
+    header.append(title, closeBtn);
+
+    const img = document.createElement("img");
+    img.className = "mirror-image";
+    img.width = 960;
+    img.height = 160;
+    img.src = `http://${mirrorAddr}/screen/${session.key}`;
+
+    panel.append(header, img);
+    overlay.appendChild(panel);
+    overlay.addEventListener("click", (ev) => {
+        if (ev.target === overlay) closeMirror(session.key);
+    });
+
+    document.body.appendChild(overlay);
+    openMirrors.set(session.key, overlay);
+}
+
+function closeMirror(key: string): void {
+    const overlay = openMirrors.get(key);
+    if (!overlay) return;
+    overlay.remove();
+    openMirrors.delete(key);
+}
+
 // globalBusy covers connect/disconnect/pair/install — all mutate shared
 // process-wide state, so serialising them avoids a user's second click racing
 // the first one's effects. busySessions covers per-session activate/uninstall
@@ -86,6 +139,10 @@ async function refresh(): Promise<void> {
     statusEl.textContent = hasSessions
         ? `${sessions.length} unit${sessions.length === 1 ? "" : "s"} connected`
         : "Not connected";
+
+    for (const key of openMirrors.keys()) {
+        if (!sessions.some((s) => s.key === key)) closeMirror(key);
+    }
 
     renderPairing(sessions, units, midiUnits, overview.unitErrors ?? {});
     await renderSessions(sessions);
@@ -373,6 +430,19 @@ async function renderSessionCard(session: SessionInfo): Promise<HTMLLIElement> {
         identifyBtn.addEventListener("click", () => identifySession(session));
         buttons.appendChild(identifyBtn);
     }
+
+    const mirrorBtn = document.createElement("button");
+    mirrorBtn.className = "pairing-identify";
+    mirrorBtn.textContent = openMirrors.has(session.key) ? "Hide live screen" : "Live screen";
+    mirrorBtn.addEventListener("click", () => {
+        if (openMirrors.has(session.key)) {
+            closeMirror(session.key);
+        } else {
+            openMirror(session);
+        }
+        mirrorBtn.textContent = openMirrors.has(session.key) ? "Hide live screen" : "Live screen";
+    });
+    buttons.appendChild(mirrorBtn);
 
     const disconnectBtn = document.createElement("button");
     disconnectBtn.className = "session-disconnect";

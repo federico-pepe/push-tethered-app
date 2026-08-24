@@ -437,6 +437,60 @@ html, body {
     opacity: 0.4;
 }
 
+.mirror-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.mirror-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    max-width: 90vw;
+}
+
+.mirror-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.mirror-close {
+    font-size: 18px;
+    line-height: 1;
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.mirror-close:hover {
+    border-color: #e57373;
+    color: #e57373;
+}
+
+.mirror-image {
+    display: block;
+    width: 960px;
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    background: #000;
+}
+
 .session-error {
     font-size: 12px;
     color: #e57373;

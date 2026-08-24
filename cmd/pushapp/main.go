@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -29,6 +30,7 @@ import (
 	"github.com/federico-pepe/push-tethered-app/internal/display"
 	"github.com/federico-pepe/push-tethered-app/internal/host/procmod"
 	"github.com/federico-pepe/push-tethered-app/internal/midi"
+	"github.com/federico-pepe/push-tethered-app/internal/mirror"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/internal/version"
 	"github.com/federico-pepe/push-tethered-app/modules/beatcount"
@@ -70,6 +72,7 @@ func main() {
 	noExtMIDIIn := flag.Bool("no-ext-midi-in", false, "do not open an external MIDI input port")
 	capturePath := flag.String("capture", "", "record the screen to a file (.mp4, .mov or .gif)")
 	captureRaw := flag.Bool("capture-raw", false, "record the source image instead of panel-accurate BGR565 colour")
+	mirrorAddr := flag.String("mirror-addr", "", "serve a live MJPEG mirror of the screen at http://<addr>/screen (e.g. localhost:7071); empty disables it. Avoid :7000/:5000 — macOS's AirPlay Receiver squats both by default.")
 	installDir := flag.String("install", "", "install the module directory at this path (manifest.json + executable), then exit")
 	uninstallID := flag.String("uninstall", "", "uninstall the process-loaded module with this id, then exit")
 	listDevices := flag.Bool("devices", false, "list connected Push units and their MIDI ports, then exit")
@@ -180,6 +183,19 @@ func main() {
 		return
 	}
 
+	var mirrorHub *mirror.Hub
+	if *mirrorAddr != "" {
+		mirrorHub = mirror.NewHub()
+		mux := http.NewServeMux()
+		mux.Handle("/screen", mirrorHub)
+		go func() {
+			if err := http.ListenAndServe(*mirrorAddr, mux); err != nil {
+				log.Printf("mirror: %v — live mirror unavailable", err)
+			}
+		}()
+		log.Printf("mirror: serving http://%s/screen", *mirrorAddr)
+	}
+
 	rt, cleanup, err := bootstrap.Open(bootstrap.Options{
 		FPS:           *fps,
 		NoDisplay:     *noDisplay,
@@ -192,6 +208,7 @@ func main() {
 		NoExtMIDIIn:   *noExtMIDIIn,
 		CapturePath:   *capturePath,
 		CaptureRaw:    *captureRaw,
+		Mirror:        mirrorHub,
 		Modules:       mods,
 	})
 	if err != nil {

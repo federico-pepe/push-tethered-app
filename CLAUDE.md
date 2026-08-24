@@ -121,6 +121,10 @@ internal/display/ USB transport: claim interface 0, frame header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
 internal/midiout/ owns a named MIDI out port for modules (create or attach)
 internal/midiin/  owns a named MIDI in port for modules (create or attach) — raw bytes only, no decoding
+internal/mirror/  live HTTP/MJPEG screen mirror — taps the same render output as
+                   internal/capture (no extra USB traffic) but fans out to any
+                   number of browser clients instead of writing a file; a Hub
+                   costs nothing when no client is connected
 internal/pushmap/ Push 2 map deltas + shared CC/touch name tables
 modules/monitor/  control-surface monitor; the reference module
 modules/thru/     forwards pads/encoders/buttons out as MIDI
@@ -197,6 +201,11 @@ go build ./... && go vet ./... && go test ./...
 `module.ExternalMIDI`; unlike MIDI-out, missing input is never fatal to
 activation, see `internal/module/module.go`'s `Meta.NeedsMIDIIn` doc),
 `-capture`, `-capture-raw`,
+`-mirror-addr <addr>` (serves a live MJPEG mirror of the screen at
+`http://<addr>/screen`, e.g. `localhost:7071`; empty/omitted disables it —
+avoid `:7000`/`:5000`, macOS's AirPlay Receiver squats both by default, see
+`internal/mirror`; `pushapp-ui` always serves its own sessions' mirrors at
+`localhost:7071/screen/<session key>`, no flag needed),
 `-install <dir>`, `-uninstall <id>` (filesystem-only, no Push needed),
 `-version` (prints `internal/version.Version`, "dev" unless built with the
 release workflow's `-ldflags`), `-devices` (lists every attached Push unit

@@ -74,6 +74,33 @@ on something you care about, run the **Beat Counter** module — it does
 nothing but light one pad and show a number (1-4) per beat, the simplest
 possible proof a clock is actually arriving.
 
+## Live screen mirror
+
+Both `pushapp` and `pushapp-ui` can stream an exact, live copy of what's on
+Push's screen to a browser — useful for demoing without the physical device
+in frame, or for debugging a module's drawing without craning your neck at
+the hardware.
+
+**In `pushapp-ui`:** each connected session's card has a **Live screen**
+button. Click it to open a live view right in the app window; click **Hide
+live screen** (or the × on the overlay) to close it. Under the hood this is
+served at `http://localhost:7071/screen/<session key>`, so you can also open
+that URL directly in any browser tab — handy for screen-sharing just the
+Push display during a demo.
+
+**In `pushapp` (CLI):** pass `-mirror-addr`, e.g.:
+
+```bash
+go run ./cmd/pushapp -mirror-addr localhost:7071
+```
+
+then open `http://localhost:7071/screen` in a browser. Off by default —
+only enabled when you pass the flag.
+
+The stream costs nothing when no one is watching — nothing is encoded until
+a browser tab actually opens it, and closing the tab stops the encoding
+again immediately.
+
 ## Troubleshooting
 
 **"display interface is claimed by another process (Live?)"** — something

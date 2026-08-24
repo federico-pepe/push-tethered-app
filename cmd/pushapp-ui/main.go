@@ -15,8 +15,10 @@ import (
 	"embed"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -32,6 +34,16 @@ import (
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+// mirrorAddr is where every session's live screen stream is served, one
+// path per session key (http://localhost:7071/screen/<key>) — see
+// hostManager.mirrorHub and the /screen/ handler below. Hardcoded rather
+// than a flag: this is a local dev/monitoring convenience, not a
+// user-facing setting, and the frontend needs the same address to build its
+// <img> src (see main.ts). Not :7000 or :5000: both are squatted by
+// default by macOS's AirPlay Receiver (confirmed live — a request to :7000
+// silently landed on ControlCenter's AirTunes server instead of ours).
+const mirrorAddr = "localhost:7071"
 
 // availableModules must list the same set cmd/pushapp does. Kept as a
 // separate literal, not a shared function, because the two binaries are
@@ -87,6 +99,27 @@ func main() {
 	if _, err := mgr.connect(ConnectRequest{}); err != nil {
 		log.Printf("MIDI: auto-detect failed, waiting for manual pairing: %v", err)
 	}
+
+	// One shared server, routed by session key, rather than one listener per
+	// session — session count changes over a run's lifetime and a listener
+	// per session would mean picking and tracking a port for each. A 404 for
+	// an unknown or disconnected key needs no special-casing: mirrorHub's
+	// second return value already covers that.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/screen/", func(w http.ResponseWriter, r *http.Request) {
+		key := strings.TrimPrefix(r.URL.Path, "/screen/")
+		hub, ok := mgr.mirrorHub(key)
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		hub.ServeHTTP(w, r)
+	})
+	go func() {
+		if err := http.ListenAndServe(mirrorAddr, mux); err != nil {
+			log.Printf("mirror: %v — live screen mirror unavailable", err)
+		}
+	}()
 
 	app := application.New(application.Options{
 		Name:        "Push Tethered App",
