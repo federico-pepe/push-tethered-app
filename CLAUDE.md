@@ -202,10 +202,13 @@ go build ./... && go vet ./... && go test ./...
 activation, see `internal/module/module.go`'s `Meta.NeedsMIDIIn` doc),
 `-capture`, `-capture-raw`,
 `-mirror-addr <addr>` (serves a live MJPEG mirror of the screen at
-`http://<addr>/screen`, e.g. `localhost:7071`; empty/omitted disables it —
-avoid `:7000`/`:5000`, macOS's AirPlay Receiver squats both by default, see
-`internal/mirror`; `pushapp-ui` always serves its own sessions' mirrors at
-`localhost:7071/screen/<session key>`, no flag needed),
+`http://<addr>/screen`; on by default at `localhost:3000`, pass
+`-mirror-addr=""` to disable — avoid `:7000`/`:5000`, macOS's AirPlay
+Receiver squats both by default, see `internal/mirror`; `pushapp-ui` always
+serves the same way at `localhost:3000/screen/<session key>`, no flag
+needed — one Hub per session, not shared, since more than one Push can be
+connected there at once; `PushService.OpenMirror` opens a session's URL in
+the system browser via Wails' `Browser.OpenURL`),
 `-install <dir>`, `-uninstall <id>` (filesystem-only, no Push needed),
 `-version` (prints `internal/version.Version`, "dev" unless built with the
 release workflow's `-ldflags`), `-devices` (lists every attached Push unit
@@ -307,6 +310,18 @@ and [docs/architecture/stack-and-layout.md](docs/architecture/stack-and-layout.m
   apart when pairing manually. `cmd/pushapp` itself stays single-device; use
   `-devices`/`-device`/`-midi-in`. Detail:
   [plans/2026-08-19-multi-device.md](plans/2026-08-19-multi-device.md).
+- **Two sessions drawing text at once used to crash the whole process** —
+  fixed 2026-08-24 in `ableton-push-hack/core/gfx/text` (this repo's own
+  code never touched the bug). `golang.org/x/image/font.Face` is documented
+  as not safe for concurrent use, but `core/gfx/text` handed out one shared
+  `Face` singleton (and one per cached weight/size) to every caller; with
+  `pushapp-ui` running one render goroutine per connected session, two Push
+  units drawing text at the same moment corrupted the font rasterizer's
+  internal buffers — confirmed live with two real units connected
+  simultaneously, reproduced deterministically under `go test -race`.
+  Fixed with a package-level mutex serializing every call into a shared
+  `Face`; see `core/gfx/text/text.go`'s `faceMu` and
+  `TestConcurrentDrawNoRace` in that package for the regression guard.
 - **Disconnect detection.** `cmd/pushapp-ui` notices when a Push is unplugged
   mid-session (`display.ErrDisconnected` bubbles up through
   `host.Runtime.Run` to `hostManager`, which tears that session down and

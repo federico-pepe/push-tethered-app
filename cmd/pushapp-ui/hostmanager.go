@@ -36,7 +36,7 @@ type session struct {
 	unit string
 
 	rt      *host.Runtime
-	mirror  *mirror.Hub // live screen stream for this session, see PushService's mirror route
+	mirror  *mirror.Hub // live screen stream for this session, see PushService.OpenMirror
 	cleanup func()
 	cancel  context.CancelFunc
 	stopped chan struct{} // closed by watch once Run has returned and teardown is done
@@ -171,8 +171,8 @@ func (m *hostManager) session(key string) (*host.Runtime, bool) {
 	return s.rt, true
 }
 
-// mirrorHub looks up a connected session's live-screen Hub by key, for the
-// HTTP mirror route wired up in main.go.
+// mirrorHub looks up a connected session's live-screen Hub by key, for
+// PushService.OpenMirror.
 func (m *hostManager) mirrorHub(key string) (*mirror.Hub, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -255,8 +255,8 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 	key := fmt.Sprintf("s%d", n)
 
 	// One Hub per session, not shared: each session's screen is its own
-	// stream, routed by session key (see mirrorHub / main.go's /screen/
-	// handler). An idle Hub costs nothing (mirror.Hub.Frame no-ops with no
+	// stream, routed by session key (see mirrorHub / PushService.OpenMirror).
+	// An idle Hub costs nothing (mirror.Hub.Frame no-ops with no
 	// subscribers), so this is unconditional rather than gated by a flag.
 	hub := mirror.NewHub()
 

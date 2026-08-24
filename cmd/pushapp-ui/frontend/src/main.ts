@@ -11,11 +11,12 @@ import type { PortRef, Unit as MIDIUnit } from "../bindings/github.com/federico-
 // overrides), still edited by hand-editing the config file the host logs on
 // activation, same as from the CLI.
 
-const EXPECTED_API_VERSION = 2;
+const EXPECTED_API_VERSION = 3;
 
 const statusEl = document.getElementById("status") as HTMLParagraphElement;
 const installBtn = document.getElementById("install-btn") as HTMLButtonElement;
 
+const mainContainerEl = document.getElementById("main-container") as HTMLElement;
 const pairingViewEl = document.getElementById("pairing-view") as HTMLElement;
 const usbListEl = document.getElementById("usb-unit-list") as HTMLUListElement;
 const midiListEl = document.getElementById("midi-unit-list") as HTMLUListElement;
@@ -24,9 +25,34 @@ const autoBtn = document.getElementById("auto-btn") as HTMLButtonElement;
 
 const sessionListEl = document.getElementById("session-list") as HTMLUListElement;
 
+// settingsBtn/settingsOverlayEl: once at least one device is connected,
+// pairingViewEl (unmodified — same element, same renderPairing logic) is
+// reparented from its inline spot in main-container into this modal instead
+// of taking up space in the main window permanently. See refresh()'s
+// hasSessions branch.
+const settingsBtn = document.getElementById("settings-btn") as HTMLButtonElement;
+const settingsOverlayEl = document.getElementById("settings-overlay") as HTMLElement;
+const settingsCloseBtn = document.getElementById("settings-close-btn") as HTMLButtonElement;
+const settingsPanelBodyEl = document.getElementById("settings-panel-body") as HTMLElement;
+
+settingsBtn.addEventListener("click", () => {
+    settingsOverlayEl.hidden = false;
+});
+settingsCloseBtn.addEventListener("click", () => {
+    settingsOverlayEl.hidden = true;
+});
+settingsOverlayEl.addEventListener("click", (ev) => {
+    if (ev.target === settingsOverlayEl) settingsOverlayEl.hidden = true;
+});
+
+// collapsedSessions holds session keys whose module list is folded away —
+// see renderSessionCard's toggle triangle. Module-level, not per-render
+// state, so it survives the 2s poll's full session-list rebuild.
+const collapsedSessions = new Set<string>();
+
 // mirrorAddr must match cmd/pushapp-ui/main.go's own mirrorAddr constant —
 // see its doc comment for why this is hardcoded rather than fetched.
-const mirrorAddr = "localhost:7071";
+const mirrorAddr = "localhost:3000";
 
 // openMirrors holds the live-screen overlay for each session currently
 // showing one, keyed by session key. Deliberately appended to document.body
@@ -128,11 +154,26 @@ async function refresh(): Promise<void> {
     const midiUnits = overview.midiUnits ?? [];
 
     const hasSessions = sessions.length > 0;
-    const hasUnpairedUnits =
-        units.some((u) => !sessions.some((s) => s.displaySel === u.id)) ||
-        midiUnits.some((mu) => mu.ports.some((p) => !sessions.some((s) => s.midiIn.inNum === p.inNum)));
 
-    pairingViewEl.hidden = !hasUnpairedUnits && hasSessions;
+    // Before any device is connected, pairing stays inline — it's the only
+    // thing to show. Once at least one is connected, it moves into the
+    // Settings overlay instead of permanently taking up main-window space;
+    // the overlay's own hidden attribute (toggled by settingsBtn) controls
+    // visibility from there, not pairingViewEl.hidden.
+    if (hasSessions) {
+        if (pairingViewEl.parentElement !== settingsPanelBodyEl) {
+            settingsPanelBodyEl.appendChild(pairingViewEl);
+        }
+        pairingViewEl.hidden = false;
+        settingsBtn.hidden = false;
+    } else {
+        if (pairingViewEl.parentElement !== mainContainerEl) {
+            mainContainerEl.insertBefore(pairingViewEl, sessionListEl);
+        }
+        pairingViewEl.hidden = false;
+        settingsBtn.hidden = true;
+        settingsOverlayEl.hidden = true;
+    }
     sessionListEl.hidden = !hasSessions;
     installBtn.hidden = !hasSessions;
 
@@ -422,15 +463,6 @@ async function renderSessionCard(session: SessionInfo): Promise<HTMLLIElement> {
 
     const busy = busySessions.has(session.key);
 
-    if (session.displaySel) {
-        const identifyBtn = document.createElement("button");
-        identifyBtn.className = "pairing-identify";
-        identifyBtn.textContent = "Identify";
-        identifyBtn.disabled = busy;
-        identifyBtn.addEventListener("click", () => identifySession(session));
-        buttons.appendChild(identifyBtn);
-    }
-
     const mirrorBtn = document.createElement("button");
     mirrorBtn.className = "pairing-identify";
     mirrorBtn.textContent = openMirrors.has(session.key) ? "Hide live screen" : "Live screen";
@@ -443,6 +475,12 @@ async function renderSessionCard(session: SessionInfo): Promise<HTMLLIElement> {
         mirrorBtn.textContent = openMirrors.has(session.key) ? "Hide live screen" : "Live screen";
     });
     buttons.appendChild(mirrorBtn);
+
+    const openBrowserBtn = document.createElement("button");
+    openBrowserBtn.className = "pairing-identify";
+    openBrowserBtn.textContent = "Open in browser";
+    openBrowserBtn.addEventListener("click", () => openMirrorInBrowser(session.key));
+    buttons.appendChild(openBrowserBtn);
 
     const disconnectBtn = document.createElement("button");
     disconnectBtn.className = "session-disconnect";
@@ -467,24 +505,44 @@ async function renderSessionCard(session: SessionInfo): Promise<HTMLLIElement> {
 
     const list = document.createElement("ul");
     list.className = "module-list";
+    list.hidden = collapsedSessions.has(session.key);
     for (const m of modules) {
         list.appendChild(renderModuleRow(session.key, m, busy));
     }
     li.appendChild(list);
 
+    // Prepended after list exists (rather than declared inline in the
+    // header block above) so the click handler can close over the real
+    // <ul> element directly instead of re-querying the DOM.
+    const toggleBtn = document.createElement("button");
+    toggleBtn.className = "session-toggle";
+    toggleBtn.setAttribute("aria-label", "Toggle module list");
+    toggleBtn.classList.toggle("is-collapsed", collapsedSessions.has(session.key));
+    toggleBtn.addEventListener("click", () => {
+        if (collapsedSessions.has(session.key)) {
+            collapsedSessions.delete(session.key);
+        } else {
+            collapsedSessions.add(session.key);
+        }
+        list.hidden = collapsedSessions.has(session.key);
+        toggleBtn.classList.toggle("is-collapsed", collapsedSessions.has(session.key));
+    });
+    // Grouped with title (not a separate header child) so session-header's
+    // gap applies between this group and the buttons, not between the
+    // triangle and the device name.
+    const left = document.createElement("span");
+    left.className = "session-left";
+    left.append(toggleBtn, title);
+    header.prepend(left);
+
     return li;
 }
 
-async function identifySession(session: SessionInfo): Promise<void> {
-    if (busySessions.has(session.key)) return;
-    busySessions.add(session.key);
+async function openMirrorInBrowser(sessionKey: string): Promise<void> {
     try {
-        await PushService.IdentifyUnit(session.displaySel);
+        await PushService.OpenMirror(sessionKey);
     } catch (err) {
-        statusEl.textContent = `Could not identify: ${err}`;
-    } finally {
-        busySessions.delete(session.key);
-        await refresh();
+        statusEl.textContent = `Could not open live screen: ${err}`;
     }
 }
 

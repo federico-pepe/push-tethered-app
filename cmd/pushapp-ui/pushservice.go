@@ -14,7 +14,7 @@ import (
 // checks this once at startup (see main.ts) and asks for a reload on
 // mismatch, rather than this file carrying old and new method shims side by
 // side.
-const apiVersion = 2
+const apiVersion = 3
 
 // errNoSession is what every session-scoped method returns for an unknown or
 // no-longer-connected session key.
@@ -166,6 +166,20 @@ func (s *PushService) ActivateModule(sessionKey, id string) error {
 		return errNoSession
 	}
 	return rt.Activate(id)
+}
+
+// OpenMirror opens the given session's live screen mirror in the system's
+// default browser — the same stream the in-app "Live screen" overlay shows,
+// just outside the app window (handy for screen-sharing just the Push
+// display during a demo). Errors (no such session, no default browser
+// configured) surface to the caller rather than being swallowed, since
+// there's no other feedback path for a failed OS-level open.
+func (s *PushService) OpenMirror(sessionKey string) error {
+	if _, ok := s.mgr.mirrorHub(sessionKey); !ok {
+		return errNoSession
+	}
+	url := fmt.Sprintf("http://%s/screen/%s", mirrorAddr, sessionKey)
+	return application.Get().Browser.OpenURL(url)
 }
 
 // InstallModulePrompt opens a native "choose a folder" dialog and installs

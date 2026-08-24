@@ -36,14 +36,15 @@ import (
 var assets embed.FS
 
 // mirrorAddr is where every session's live screen stream is served, one
-// path per session key (http://localhost:7071/screen/<key>) — see
-// hostManager.mirrorHub and the /screen/ handler below. Hardcoded rather
-// than a flag: this is a local dev/monitoring convenience, not a
-// user-facing setting, and the frontend needs the same address to build its
-// <img> src (see main.ts). Not :7000 or :5000: both are squatted by
-// default by macOS's AirPlay Receiver (confirmed live — a request to :7000
-// silently landed on ControlCenter's AirTunes server instead of ours).
-const mirrorAddr = "localhost:7071"
+// path per session key (http://localhost:3000/screen/<key>) — see
+// hostManager.mirrorHub, the /screen/ handler below, and
+// PushService.OpenMirror. Hardcoded rather than a flag: this is a local
+// dev/monitoring convenience, not a user-facing setting, and the frontend
+// needs the same address to build its <img> src (see main.ts). Not :7000 or
+// :5000: both are squatted by default by macOS's AirPlay Receiver
+// (confirmed live — a request to :7000 silently landed on ControlCenter's
+// AirTunes server instead of ours).
+const mirrorAddr = "localhost:3000"
 
 // availableModules must list the same set cmd/pushapp does. Kept as a
 // separate literal, not a shared function, because the two binaries are
