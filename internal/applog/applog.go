@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
+	"sync"
 	"time"
 )
 
@@ -14,6 +16,16 @@ import (
 // no timezone offset: every reader of this log is on the machine that wrote
 // it, so a zone conversion would only cost clarity.
 const timeLayout = "2006-01-02T15:04:05.000000"
+
+// target is the raw (unwrapped) writer Wrap was last given — Errorf/Fatalf
+// write straight to it with their own "error" tag, since the standard
+// logger (and this package's Wrap) only ever tags a line "info". Guarded
+// by mu since it's set once at startup but read from whatever goroutine
+// calls Errorf.
+var (
+	mu     sync.Mutex
+	target io.Writer = os.Stderr
+)
 
 // wrapWriter prepends "<timestamp>: info: " to every write it receives.
 // Safe as log.SetOutput's target: the standard logger issues exactly one
@@ -40,6 +52,9 @@ func (w *wrapWriter) Write(p []byte) (int, error) {
 // Pair with log.SetFlags(0): this package only owns the output writer, not
 // the logger attached to it.
 func Wrap(out io.Writer) io.Writer {
+	mu.Lock()
+	target = out
+	mu.Unlock()
 	return &wrapWriter{out: out}
 }
 
@@ -52,4 +67,28 @@ func Banner() {
 	log.Print(rule)
 	log.Print("Push Tethered App")
 	log.Print(rule)
+}
+
+// Errorf logs a formatted message tagged "error" instead of "info" —
+// log.Printf (and everything using it, which is most of this codebase)
+// always comes out "info" via Wrap, so an actual failure needs this
+// instead to read as one in the log. Writes straight to whatever writer
+// the last Wrap call was given, bypassing the standard logger entirely.
+func Errorf(format string, args ...any) {
+	writeLevel("error", fmt.Sprintf(format, args...))
+}
+
+// Fatalf is Errorf followed by os.Exit(1) — log.Fatalf's shape, tagged
+// "error" instead of "info".
+func Fatalf(format string, args ...any) {
+	Errorf(format, args...)
+	os.Exit(1)
+}
+
+func writeLevel(level, msg string) {
+	line := fmt.Sprintf("%s: %s: %s\n", time.Now().Format(timeLayout), level, msg)
+	mu.Lock()
+	out := target
+	mu.Unlock()
+	_, _ = out.Write([]byte(line))
 }

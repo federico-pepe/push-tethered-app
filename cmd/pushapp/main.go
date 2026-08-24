@@ -97,14 +97,14 @@ func main() {
 	if *installDir != "" {
 		man, err := procmod.Install(*installDir)
 		if err != nil {
-			log.Fatalf("%v", err)
+			applog.Fatalf("%v", err)
 		}
 		fmt.Printf("installed %q (%s)\n", man.ID, man.Name)
 		return
 	}
 	if *uninstallID != "" {
 		if err := procmod.Uninstall(*uninstallID); err != nil {
-			log.Fatalf("%v", err)
+			applog.Fatalf("%v", err)
 		}
 		fmt.Printf("uninstalled %q\n", *uninstallID)
 		return
@@ -118,7 +118,7 @@ func main() {
 	if *listDevices {
 		units, err := display.List()
 		if err != nil {
-			log.Fatalf("listing USB units: %v", err)
+			applog.Fatalf("listing USB units: %v", err)
 		}
 		if len(units) == 0 {
 			fmt.Println("no Push units found on USB")
@@ -215,13 +215,13 @@ func main() {
 		Modules:       mods,
 	})
 	if err != nil {
-		log.Fatalf("%v", err)
+		applog.Fatalf("%v", err)
 	}
 	defer cleanup()
 
 	if *modID != "" {
 		if err := rt.Activate(*modID); err != nil {
-			log.Fatalf("host: %v (see -list)", err)
+			applog.Fatalf("host: %v (see -list)", err)
 		}
 	}
 
@@ -232,6 +232,6 @@ func main() {
 	fmt.Println()
 	rt.Shutdown()
 	if runErr != nil {
-		log.Fatalf("host: %v", runErr)
+		applog.Fatalf("host: %v", runErr)
 	}
 }

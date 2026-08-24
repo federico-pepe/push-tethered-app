@@ -179,6 +179,6 @@ func main() {
 	mgr.shutdownAll()
 
 	if appErr != nil {
-		log.Fatalf("ui: %v", appErr)
+		applog.Fatalf("ui: %v", appErr)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/federico-pepe/push-tethered-app/internal/applog"
 	"github.com/federico-pepe/push-tethered-app/internal/bootstrap"
 	"github.com/federico-pepe/push-tethered-app/internal/host"
 	"github.com/federico-pepe/push-tethered-app/internal/identify"
@@ -317,6 +318,7 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 	m.sessions[key] = sess
 	m.order = append(m.order, key)
 	delete(m.lastErrs, unit)
+	log.Printf("session %s: connected (unit=%s, module=%s)", key, unit, moduleID)
 
 	// watch is the sole reader of runDone. It fires whether Run stopped on its
 	// own (e.g. the device was unplugged) or because disconnect/shutdownAll
@@ -351,7 +353,9 @@ func (m *hostManager) watch(sess *session, runDone chan error) {
 	}
 	if err != nil && !sess.deliberate {
 		m.lastErrs[sess.unit] = err
-		log.Printf("host: session %s (%s) disconnected: %v", sess.key, sess.unit, err)
+		applog.Errorf("session %s (%s) disconnected: %v", sess.key, sess.unit, err)
+	} else {
+		log.Printf("session %s (%s): disconnected", sess.key, sess.unit)
 	}
 }
 
