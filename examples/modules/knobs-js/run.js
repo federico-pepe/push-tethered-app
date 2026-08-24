@@ -5,7 +5,13 @@
 // (docs/architecture/design-system.md's Knob/KnobFull/KnobArc rows —
 // anti-aliased arc, knobStroke=2 by default as of 2026-08-22). Not a port
 // of anything; exists purely to turn every encoder and eyeball the
-// result. Encoders 7-8 are unused, reserved for a future fourth pair.
+// result.
+//
+// Each of the 8 columns lines up with its own physical encoder above the
+// pad grid (960/8 = 120px per column, same convention the pad grid itself
+// uses) — 6 knobs in columns 0-5, columns 6-7 left empty rather than
+// spreading all 6 evenly across the full width. Encoders 7-8 (0-indexed
+// 6-7) are unused, reserved for a future fourth pair.
 //
 // Same protocol as hello-js (see that module's comment for the full
 // envelope shape). Each knob is given its own Color (widgets.Knob's fill/
@@ -39,6 +45,7 @@ function paletteById(id) {
 }
 
 const NUM_ENCODERS = 8;
+const VALUE_SCALE = 2;
 
 // One entry per drawn knob — op kind, label prefix, and fill Color, two
 // encoders per composition (knob 1/2 -> KNOB 1/2, encoder 3/4 -> FULL 1/2,
@@ -88,8 +95,21 @@ function handleEncoder(data) {
 // ("knob", "knobfull", "knobarc" — same param shape, different renderer),
 // and widgets.Knob (the "k" object's type, in ableton-push-hack) has no
 // json tags of its own, so its wire keys are its literal Go field names —
-// Label/Value/Min/Max/Color, capitalized — same reasoning as color.NRGBA's
-// R/G/B/A in the other example modules.
+// Value/Min/Max/Color/ValueScale, capitalized — same reasoning as
+// color.NRGBA's R/G/B/A in the other example modules. Label is left unset
+// here on purpose — see the label-row comment below.
+//
+// VALUE_SCALE draws the value readout bigger (text.DrawScaled — same font,
+// integer nearest-neighbor upscaled) instead of leaving ValueScale unset
+// (1x, every knob's look before this field existed). Applied to every
+// knob here to make it easy to eyeball on real hardware; a module would
+// normally only set this on the controls where a bigger number actually
+// earns its space.
+const COLS = 8; // 960/8 = 120px per column, the same width the pad grid's own 8 columns use
+const COL_W = 960 / COLS;
+const LABEL_BASELINE = 153; // matches DrawStatusBar's own y+h-5 for the y=140,h=18 band this replaces
+const CHAR_W = 7; // text.Width's per-char pixel width at 1x (core/gfx/text.Width), for centering labels ourselves
+
 function draw() {
   const black = paletteById(0); // "off" — demonstrates the by-index lookup, paletteColor("off") works identically
 
@@ -99,24 +119,30 @@ function draw() {
   ];
 
   const r = 30;
-  const cy = 80; // vertical center of the content band between the header (0-20) and status bar (140-158)
-  const spacing = 960 / KNOBS.length;
+  const cy = 80; // vertical center of the content band between the header (0-20) and the label row (140-158)
+
   KNOBS.forEach(({ kind, label, color }, i) => {
-    const cx = Math.round(spacing * i + spacing / 2);
+    // Column i's center, not an even spread across all 6 — each knob lines
+    // up under its own physical encoder, with columns 6-7 left empty.
+    const cx = Math.round(i * COL_W + COL_W / 2);
     ops.push({
       kind,
       params: {
         cx,
         cy,
         r,
-        k: { Label: label, Value: state.value[i], Min: 0, Max: 100, Color: color },
+        k: { Value: state.value[i], Min: 0, Max: 100, Color: color, ValueScale: VALUE_SCALE },
       },
     });
-  });
-
-  ops.push({
-    kind: "statusbar",
-    params: { y: 140, w: 960, h: 18, s: "turn encoders 1-6 (7-8 unused)", is_error: false },
+    // Drawn ourselves in the row the old "turn encoders..." status hint
+    // used to occupy, instead of via k.Label: the widget's own label sits
+    // directly below the knob, which at ValueScale > 1 collides with
+    // DrawKnobFull's now-taller value line — and k.Label always draws
+    // t.Gray, which can't match each knob's own Color the way this does.
+    // A generic hint isn't needed here either: each knob's own label,
+    // right under it, already says what it is.
+    const labelX = cx - Math.round((label.length * CHAR_W) / 2);
+    ops.push({ kind: "text", params: { x: labelX, baseline: LABEL_BASELINE, s: label, c: color } });
   });
 
   return { ops, failed: 0 };
