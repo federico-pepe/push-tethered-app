@@ -83,19 +83,29 @@ Windows names ports differently from CoreMIDI/ALSA — see
 
 ## MPE
 
-**Assume MPE is always on by default on Push 3.** Pad note-ons arrive on
-per-note channels 2–16, round-robining across them. Channel 1 all-pads
-behavior has been observed in the past on this same hardware with nothing
-deliberately changed, but a 2026-08-18 A/B (fresh session, reconnect-only,
-full power-cycle) never reproduced it — MPE stayed on and round-robining
-through all three. Given that, "always on" is the working assumption rather
-than something the decoder needs to detect and branch on.
+**Correction, 2026-08-25: "MPE always on" does not hold.** A live capture
+this session (`pushapp`, Live closed, co-existence mode) had every pad
+arrive on **channel 1** for the whole session — matching the
+previously-unresolved contradiction this section used to wave away (see
+`docs/archive/feasibility.md` §9.5, frozen). Sending the standard MIDI MPE
+Configuration Message (RPN 6, lower zone, 15 member channels) on activation
+did **not** turn MPE on — ruling out the simplest "we just need to ask for
+it" theory. The more likely gate is
+[live-handshake.md](live-handshake.md)'s undocumented Ableton vendor SysEx
+(`F0 00 21 1D 01 01 <cmd> ...`), only observed on the wire while Live itself
+is running — i.e. MPE may require Live's own proprietary handshake, not
+anything in the standard MIDI spec. Unconfirmed; not chased further yet.
 
-The decoder still handles channel 1 pads too (Push 2 has no MPE and always
-uses it), so nothing breaks if a Push 3 session ever does show up on channel
-1 — it's just not expected.
+**Practical consequence: do not assume MPE, branch-free code paths must work
+on plain channel 1.** The decoder already handled channel 1 pads (Push 2 has
+no MPE and always uses it), so nothing was broken by this — but any new code
+assuming per-note channels 2-16 (and therefore per-note slide/bend) will
+silently do nothing on a Push 3 session in this state, which per the above
+may be the common case, not a fallback. `modules/padpointer` was designed
+around this: pad row (coarse) + Channel Pressure only, no MPE dependency.
 
-Not measured: whether MPE can be disabled via SysEx.
+Not measured: whether MPE can be disabled/enabled via SysEx, or what
+specifically triggers it turning on when it does.
 
 ## Decode order
 
@@ -109,7 +119,23 @@ Not measured: whether MPE can be disabled via SysEx.
 
 - 8×8 grid, notes **36** (bottom-left) to **99** (top-right)
 - Push 2: pads on channel 1 (no MPE)
-- Push 3: MPE, assumed always on (see above)
+- Push 3: MPE sometimes on, sometimes not — see above; do not assume either
+
+**Channel Pressure (`0xD0`) works on channel 1, MPE or not.** Confirmed
+2026-08-25 on real Push 3 hardware: a held pad sends continuous Channel
+Pressure, ramping smoothly with how hard it's pressed (not positional — a
+controlled test pressed harder without moving and the value tracked force,
+not location). This was previously only decoded on MPE member channels
+(2-16, `Expression{Kind:"pressure"}`); channel 1 messages were silently
+dropped. Fixed in `internal/midi/midi.go`'s `DecodeFor` — now decoded on
+channel 1 too. With MPE off there is no per-note channel to attribute a
+reading to when multiple pads are held at once; a module has to pick its own
+attribution rule (e.g. `modules/padpointer` and `modules/paddebug` both
+attribute it to whichever pad was pressed most recently).
+
+Per-note `slide` (CC 74) and `bend` (pitch bend) remain MPE-only — CC 74 on
+channel 1 is claimed by Encoder 4 (see Decode order below), so there is no
+unambiguous channel-1 equivalent for them the way there is for pressure.
 
 ## Encoders
 
