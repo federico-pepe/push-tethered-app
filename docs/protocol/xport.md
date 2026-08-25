@@ -1,7 +1,9 @@
 # xPort (interface 6) — raw observations, not decoded
 
-**Status:** early — one passive read confirmed real, structured, unprompted
-traffic; byte layout not decoded
+**Status:** early — passive reads confirm real, structured, unprompted
+traffic; byte layout not decoded; a first touch-correlation attempt was
+inconclusive (see below) — a real confound in the test method, not a
+dead end
 **Last verified:** 2026-08-25 (Push 3, macOS, controller mode, Live not
 running)
 **Authoritative code:** none yet — this is capture evidence only
@@ -67,12 +69,35 @@ capacitive/pressure sensor values and region 3 an idle channel scan; region
 2's incrementing counter would be the heartbeat's own sequence number. All
 three are plausible reads of the bytes, not proven ones.
 
+## Touch-correlation attempt, 2026-08-25 — inconclusive, real confound found
+
+Tried the "touch a pad while capturing" step below: three sequential
+6-round/1s captures (idle, then press-and-hold one pad, then release),
+diffed by byte offset. First look was promising — several offsets showed
+a suspiciously clean, evenly-spaced pattern (every 4 bytes) with distinct
+mean values per phase (idle≈64.5, held≈21.5, released≈0). **Did not hold
+up under closer inspection:** the raw per-round values *within* a single
+phase are themselves noisy (e.g. one offset read `[0, 0, 129, 129, 129,
+0]` across 6 idle-only rounds — the same `0x81` value from region 3 above
+cycling in and out on its own). With phases run one after another in
+wall-clock time and only 6 rounds each, "value differs between phase 1
+and phase 2" is confounded with "value differs because the packet's own
+rotating content moved on between phase 1 and phase 2" (region 2's own
+incrementing counter already proves this rotation is real) — there's no
+way to tell which caused what from three separate time blocks.
+
+**Real methodological lesson, not just a failed attempt:** a valid test
+needs rapid interleaved touch/release *within one continuous capture*, so
+adjacent rounds are compared at the same point in the packet's own
+rotation, not three blocks separated by real time. Not done yet.
+
 ## Next steps (not started)
 
-- **Touch a pad while capturing** and diff against this idle baseline — if
-  a specific byte offset changes in step with touching a specific pad,
-  that's a real, falsifiable confirmation of the touch-sensor theory, not
-  just a plausible-looking hypothesis.
+- **Touch-correlation, done properly this time:** one continuous capture,
+  alternating touch/release every round or two (not three separate
+  time-blocked captures — see the confound found above), so adjacent
+  rounds share the same point in the packet's own rotation and only the
+  touch state differs between them.
 - **Correlate the `FF FF FF 3F <counter>` marker's cadence** against the
   "~3-5/sec" heartbeat rate already documented from the standalone side —
   if the counter increments at a matching rate, that's a strong link
