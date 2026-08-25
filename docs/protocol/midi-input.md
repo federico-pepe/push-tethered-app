@@ -90,11 +90,28 @@ previously-unresolved contradiction this section used to wave away (see
 `docs/archive/feasibility.md` §9.5, frozen). Sending the standard MIDI MPE
 Configuration Message (RPN 6, lower zone, 15 member channels) on activation
 did **not** turn MPE on — ruling out the simplest "we just need to ask for
-it" theory. The more likely gate is
-[live-handshake.md](live-handshake.md)'s undocumented Ableton vendor SysEx
-(`F0 00 21 1D 01 01 <cmd> ...`), only observed on the wire while Live itself
-is running — i.e. MPE may require Live's own proprietary handshake, not
-anything in the standard MIDI spec. Unconfirmed; not chased further yet.
+it" theory.
+
+**Architecture context, updated 2026-08-25 after live SSH inspection**
+(`ableton-push-hack`'s `push3-internals.md`): Push 3's external USB
+personality is very likely the internal XMOS co-processor's own USB
+device presenting directly to whichever side currently has it (external
+tethered computer, or the SoC itself in standalone mode) — an initial
+"the SoC composes a Linux gadget" theory, based on the kernel config
+alone, was tested live on the device and killed (no gadget instance or
+UDC exists at runtime). Whatever decides MPE on/off is still most likely
+mediated by the onboard `Push3` process rather than fixed firmware, since
+that process is confirmed to be a real, stateful participant in a
+negotiation protocol — just proven via a *different* channel than
+expected: `push3-internals.md` found the three `/data` Unix-socket IPC
+channels real and actively connected, but only while Push was in
+**standalone mode** with its own bundled Live running — that channel
+can't reach an externally-tethered computer's Live at all (no Unix socket
+across a USB tether). So for push-tethered-app's case specifically, an
+equivalent negotiation would have to happen over the MIDI wire itself —
+putting `docs/protocol/live-handshake.md`'s recurring vendor SysEx back in
+play as a candidate, alongside the "it's just a periodic heartbeat" theory
+that doc also records. Neither confirmed; genuinely still open.
 
 **Practical consequence: do not assume MPE, branch-free code paths must work
 on plain channel 1.** The decoder already handled channel 1 pads (Push 2 has

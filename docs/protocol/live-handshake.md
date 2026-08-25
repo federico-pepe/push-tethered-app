@@ -4,6 +4,35 @@
 **Last verified:** 2026-08-20 (Push 3, macOS, Live 12 Suite)
 **Authoritative code:** none yet — this is capture evidence only
 
+> **Possible explanation, 2026-08-25** (still not byte-decoded, and now
+> genuinely contested by a second finding — see update below): one theory
+> is this isn't a Live↔Push handshake at all, but Push 3's own onboard
+> heartbeat. `ableton-push-hack/docs/push3-internals.md` (SSH access to
+> the device itself) documents, independently of this capture, that
+> "Push3 sends periodic SysEx heartbeats (~3-5/sec) including LED state
+> and touch sensor data" — same manufacturer ID (`00 21 1D`), same rough
+> cadence, same "independent of pad/button activity" character recorded
+> below.
+>
+> **Update, same day:** an initial theory that Push 3's external USB
+> personality is a Linux-gadget-composed device (which would have made
+> the onboard `Push3` process an obvious author for *any* SysEx on that
+> link, heartbeat or handshake) was tested live on the device and killed —
+> no gadget/UDC exists at runtime; the external personality is more likely
+> the internal XMOS co-processor's own USB device presenting directly, not
+> anything the SoC composes. That doesn't kill the heartbeat theory (the
+> onboard `Push3` app still plausibly authors SysEx over the ALSA MIDI
+> path either way), but it does mean the "obviously it's this process"
+> reasoning was weaker than it looked. Genuinely open between "it's an
+> unconditional heartbeat, only routed to Live Port while Live holds the
+> connection" and "it's a real negotiation, possibly the mechanism that
+> also gates MPE" (see [midi-input.md](midi-input.md)'s MPE section) —
+> the on-device Live↔Push3 IPC sockets that might have settled this turned
+> out to be standalone-mode-only, unreachable from an externally-tethered
+> Live, so this remains the most direct wire-level lead for the tethered
+> case specifically. The `0x3A`/`0x38` command bytes below still aren't
+> decoded against a real payload.
+
 This page exists to not lose the raw evidence. Nothing here is a confirmed
 protocol fact the way the rest of `docs/protocol/` is — treat every command
 below as "observed, uninterpreted" until decoded.
@@ -71,6 +100,12 @@ Not relied on for anything yet; C1's ranking (process presence primary,
 
 ## Next steps (not started)
 
+- Test the "unconditional heartbeat, routed only when Live holds the
+  connection" theory above directly: capture with `pushapp` alone (no
+  Live) in both regular and User Mode, since User Mode is the one state
+  already confirmed to change Live-Port/User-Port routing — if the
+  heartbeat appears there too, it's unconditional and the "only when Live
+  is running" observation was about routing, not emission.
 - Correlate the `0x3A`/`0x38` commands against the upstream command table at
   [ableton-push-hack](https://github.com/federico-pepe/ableton-push-hack) if
   one exists there.
