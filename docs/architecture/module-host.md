@@ -45,7 +45,10 @@ Reference implementation: [modules/monitor/](../../modules/monitor/).
    `Host.SupportedOps()` lists what this host knows.
 5. **`NeedsMIDIOut`** in `Meta` — host refuses activation if no output port
    can be opened.
-6. **`Store()`** — per-module persisted JSON ([internal/host/store.go](../../internal/host/store.go)).
+6. **`Store()`** — persisted JSON, keyed by module ID and, when a display is
+   claimed, by device (`display.Info.ID`) — so two `pushapp-ui` sessions
+   running the same module against different Push units never share one
+   file ([internal/host/store.go](../../internal/host/store.go)).
 
 ## Host API (`module.Host`)
 

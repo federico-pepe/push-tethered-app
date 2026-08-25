@@ -278,7 +278,7 @@ func (r *Runtime) Activate(id string) error {
 	// A module only ever sees Store.Get/Set, never a path — but until a config
 	// UI exists, a user editing settings by hand needs to know where the file
 	// is. Purely informational: printed whether or not the file exists yet.
-	if p, err := configFilePath(id); err == nil {
+	if p, err := configFilePath(id, r.deviceID()); err == nil {
 		log.Printf("module %s: config at %s", id, p)
 	}
 	return nil
@@ -597,6 +597,16 @@ type moduleHost struct {
 	id string
 }
 
+// deviceID is the key config files are namespaced by — see configFilePath.
+// Empty when running -no-display (r.dev is never opened), which keeps the
+// pre-namespacing "<moduleID>.json" filename for that single-device case.
+func (r *Runtime) deviceID() string {
+	if r.dev == nil {
+		return ""
+	}
+	return r.dev.Info().ID
+}
+
 func (h *moduleHost) Device() pushmap.Device { return h.rt.port.Device() }
 func (h *moduleHost) Theme() module.Theme    { return h.rt.opts.Theme }
 func (h *moduleHost) SupportedOps() []string { return renderframe.SupportedOps() }
@@ -683,7 +693,7 @@ func (h *moduleHost) SendStop() error {
 
 // Store gives the module its own JSON document, one file per module ID under
 // the OS config directory. See store.go.
-func (h *moduleHost) Store() module.Store { return newStore(h.id) }
+func (h *moduleHost) Store() module.Store { return newStore(h.id, h.rt.deviceID()) }
 
 // ── Event translation ──────────────────────────────────────────────────────
 

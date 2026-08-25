@@ -24,7 +24,7 @@ type doc struct {
 
 func TestStoreRoundTrips(t *testing.T) {
 	withTempConfigDir(t)
-	s := newStore("thing")
+	s := newStore("thing", "")
 
 	if err := s.Set(doc{Name: "a", N: 1}); err != nil {
 		t.Fatalf("Set: %v", err)
@@ -42,7 +42,7 @@ func TestStoreRoundTrips(t *testing.T) {
 // stored yet is not an error, and the caller's pre-set defaults must survive.
 func TestStoreMissingFileLeavesDefaults(t *testing.T) {
 	withTempConfigDir(t)
-	s := newStore("never-saved")
+	s := newStore("never-saved", "")
 
 	got := doc{Name: "default", N: 42}
 	if err := s.Get(&got); err != nil {
@@ -56,8 +56,8 @@ func TestStoreMissingFileLeavesDefaults(t *testing.T) {
 // TestStoreIsPerModule — two modules must never see each other's document.
 func TestStoreIsPerModule(t *testing.T) {
 	withTempConfigDir(t)
-	a := newStore("module-a")
-	b := newStore("module-b")
+	a := newStore("module-a", "")
+	b := newStore("module-b", "")
 
 	if err := a.Set(doc{Name: "a's data"}); err != nil {
 		t.Fatal(err)
@@ -71,16 +71,43 @@ func TestStoreIsPerModule(t *testing.T) {
 	}
 }
 
+// TestStoreIsPerDevice — the same module active on two different Push units
+// (pushapp-ui running two sessions) must not share one config document.
+func TestStoreIsPerDevice(t *testing.T) {
+	withTempConfigDir(t)
+	a := newStore("seq", "serial:AAA")
+	b := newStore("seq", "serial:BBB")
+
+	if err := a.Set(doc{Name: "unit a's data"}); err != nil {
+		t.Fatal(err)
+	}
+	var got doc
+	if err := b.Get(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Name == "unit a's data" {
+		t.Error("unit b read unit a's stored document")
+	}
+
+	pathA, err := configFilePath("seq", "serial:AAA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(pathA) != "seq-serial_AAA.json" {
+		t.Errorf("config path = %s, want seq-serial_AAA.json", filepath.Base(pathA))
+	}
+}
+
 // TestStoreSetIsAtomic checks the write goes through a temp file and rename,
 // so a reader never sees a half-written document.
 func TestStoreSetIsAtomic(t *testing.T) {
 	dir := withTempConfigDir(t)
-	s := newStore("atomic")
+	s := newStore("atomic", "")
 	if err := s.Set(doc{Name: "x"}); err != nil {
 		t.Fatal(err)
 	}
 
-	path, err := configFilePath("atomic")
+	path, err := configFilePath("atomic", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +124,7 @@ func TestStoreSetIsAtomic(t *testing.T) {
 
 func TestStoreOverwrites(t *testing.T) {
 	withTempConfigDir(t)
-	s := newStore("thing")
+	s := newStore("thing", "")
 
 	_ = s.Set(doc{Name: "first", N: 1})
 	_ = s.Set(doc{Name: "second", N: 2})
@@ -119,7 +146,7 @@ func TestConfigDirFailureDegradesToMemStore(t *testing.T) {
 	userConfigDir = func() (string, error) { return "", os.ErrPermission }
 	t.Cleanup(func() { userConfigDir = prev })
 
-	s := newStore("whatever")
+	s := newStore("whatever", "")
 	if _, ok := s.(memStore); !ok {
 		t.Fatalf("newStore with a failing userConfigDir = %T, want memStore", s)
 	}

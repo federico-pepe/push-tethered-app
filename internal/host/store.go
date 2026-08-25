@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 )
@@ -31,12 +32,37 @@ func configDir() (string, error) {
 // requiring it to exist yet. Used only for the informational log line on
 // activation — modules themselves never see a path, only Store.Get/Set — so
 // that a user can find and hand-edit the file before any config UI exists.
-func configFilePath(moduleID string) (string, error) {
+//
+// deviceID is the unit's display.Info.ID ("serial:..." or "usb:BUS.ADDR"),
+// so that pushapp-ui running the same module against two Push units at once
+// gives each its own file instead of both reading and writing one shared
+// document. Empty deviceID (cmd/pushapp's single-device case, or -no-display)
+// keeps the old bare "<moduleID>.json" name — no device to disambiguate
+// against, and it preserves existing config files from before this existed.
+func configFilePath(moduleID, deviceID string) (string, error) {
 	dir, err := configDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, moduleID+".json"), nil
+	name := moduleID
+	if deviceID != "" {
+		name += "-" + sanitizeDeviceID(deviceID)
+	}
+	return filepath.Join(dir, name+".json"), nil
+}
+
+// sanitizeDeviceID makes a display.Info.ID safe to use as a filename
+// component on all three target OSes — Windows in particular rejects ":" in
+// filenames, which "serial:XXXX" and "usb:BUS.ADDR" both contain.
+func sanitizeDeviceID(id string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+			return r
+		default:
+			return '_'
+		}
+	}, id)
 }
 
 // fileStore is a module.Store backed by one JSON file.
@@ -44,12 +70,13 @@ type fileStore struct {
 	path string
 }
 
-// newStore returns a Store for the given module. If the config directory
-// cannot be resolved (no HOME, a locked-down container, ...), it degrades to
-// an in-memory store rather than failing module activation over something a
-// module's actual job never depends on.
-func newStore(moduleID string) module.Store {
-	path, err := configFilePath(moduleID)
+// newStore returns a Store for the given module and device (see
+// configFilePath for deviceID). If the config directory cannot be resolved
+// (no HOME, a locked-down container, ...), it degrades to an in-memory store
+// rather than failing module activation over something a module's actual job
+// never depends on.
+func newStore(moduleID, deviceID string) module.Store {
+	path, err := configFilePath(moduleID, deviceID)
 	if err != nil {
 		return memStore{}
 	}
