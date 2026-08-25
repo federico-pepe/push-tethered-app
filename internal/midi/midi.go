@@ -168,6 +168,18 @@ func DecodeFor(d pushmap.Device, b []byte) Event {
 		name, _ := pushmap.ButtonNameFor(d, b[1])
 		return Button{CC: b[1], Name: name, Pressed: b[2] > 0}
 
+	case 0xD0:
+		// Channel (not per-note) pressure — present even without MPE
+		// (confirmed 2026-08-25 on real Push 3 hardware: continuous, ramps
+		// smoothly while a pad is held, distinct from the pad's Velocity at
+		// note-on). With MPE off there is no per-note channel to attribute
+		// this to, so it applies to whichever pad(s) are currently held —
+		// a module has to decide how to attribute it itself.
+		if len(b) < 2 {
+			return nil
+		}
+		return Expression{Channel: ch, Kind: "pressure", Value: int(b[1])}
+
 	case 0x90, 0x80:
 		if len(b) < 3 {
 			return nil

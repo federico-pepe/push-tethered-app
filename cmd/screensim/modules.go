@@ -15,6 +15,7 @@ import (
 	"github.com/federico-pepe/push-tethered-app/internal/renderframe"
 	"github.com/federico-pepe/push-tethered-app/modules/beatcount"
 	"github.com/federico-pepe/push-tethered-app/modules/monitor"
+	"github.com/federico-pepe/push-tethered-app/modules/padpointer"
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
 	"github.com/federico-pepe/push-tethered-app/modules/seq"
 	"github.com/federico-pepe/push-tethered-app/modules/thru"
@@ -27,6 +28,7 @@ import (
 // unconfigured module, the same as a real activation would.
 var compiledModules = map[string]func() module.Module{
 	"monitor":      func() module.Module { return monitor.New() },
+	"padpointer":   func() module.Module { return padpointer.New() },
 	"seq":          func() module.Module { return seq.New() },
 	"thru":         func() module.Module { return thru.New() },
 	"beatcount":    func() module.Module { return beatcount.New() },

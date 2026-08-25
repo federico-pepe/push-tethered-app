@@ -51,6 +51,29 @@ func TestChannelIsDecodedBeforeCC(t *testing.T) {
 	}
 }
 
+// TestChannelPressureOnChannel1 pins a real hardware finding (2026-08-25,
+// live Push 3 capture): with MPE off, pads round-robin to channel 1 (not
+// 2-16), and Push still sends continuous Channel Pressure (0xD0) there —
+// confirmed present on real hardware even without MPE, unlike CC 74
+// slide/pitch-bend, which are ambiguous with the encoders on channel 1 and
+// were never observed there.
+func TestChannelPressureOnChannel1(t *testing.T) {
+	ev := Decode([]byte{0xD0, 0x2A})
+	exp, ok := ev.(Expression)
+	if !ok {
+		t.Fatalf("ch1 channel pressure = %T, want Expression", ev)
+	}
+	if exp.Kind != "pressure" {
+		t.Errorf("ch1 channel pressure kind = %q, want \"pressure\"", exp.Kind)
+	}
+	if exp.Channel != 1 {
+		t.Errorf("ch1 channel pressure channel = %d, want 1", exp.Channel)
+	}
+	if exp.Value != 0x2A {
+		t.Errorf("ch1 channel pressure value = %d, want %d", exp.Value, 0x2A)
+	}
+}
+
 // TestCC15AndCC111PerDevice covers the two CCs that mean different things on the
 // two devices. Resolving these device-agnostically is a real bug: on Push 2,
 // CC 15 is the Swing encoder, so decoding it as a button turns every turn into
