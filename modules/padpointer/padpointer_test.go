@@ -143,7 +143,7 @@ func TestCrosshairPageLightTouchMovesCursorButDoesNotAnimate(t *testing.T) {
 func TestCrosshairPageFirmPressTriggersAnimation(t *testing.T) {
 	m, _ := newTest(t)
 	m.page = 1
-	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Pressed: true})
+	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Channel: 1, Pressed: true})
 
 	m.Handle(module.Expression{Channel: 1, Kind: "pressure", Value: clickThreshold - 1})
 	if m.animFrame < animFrames {
@@ -159,7 +159,7 @@ func TestCrosshairPageFirmPressTriggersAnimation(t *testing.T) {
 func TestCrosshairPageFiresOnlyOncePerHold(t *testing.T) {
 	m, _ := newTest(t)
 	m.page = 1
-	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Pressed: true})
+	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Channel: 1, Pressed: true})
 	m.Handle(module.Expression{Channel: 1, Kind: "pressure", Value: clickThreshold})
 
 	// Advance the animation partway, then send more high-pressure readings
@@ -171,8 +171,8 @@ func TestCrosshairPageFiresOnlyOncePerHold(t *testing.T) {
 	}
 
 	// Releasing and pressing again must allow it to fire once more.
-	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Pressed: false})
-	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Pressed: true})
+	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Channel: 1, Pressed: false})
+	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Channel: 1, Pressed: true})
 	m.Handle(module.Expression{Channel: 1, Kind: "pressure", Value: clickThreshold})
 	if m.animFrame != 0 {
 		t.Errorf("a new hold should be able to trigger the animation again, animFrame = %d, want 0", m.animFrame)
@@ -185,6 +185,97 @@ func TestCrosshairPageIgnoresMenuPagePad(t *testing.T) {
 	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Pressed: true})
 	if m.haveCursor {
 		t.Error("a menu-page pad press should not set crosshair state")
+	}
+}
+
+func TestCrosshairPadOnMPEChannelEnablesFinePosition(t *testing.T) {
+	m, _ := newTest(t)
+	m.page = 1
+	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Channel: 5, Pressed: true})
+
+	if !m.crosshairMPE {
+		t.Error("a pad on an MPE member channel (5) should enable fine positioning")
+	}
+	if m.crosshairChan != 5 {
+		t.Errorf("crosshairChan = %d, want 5", m.crosshairChan)
+	}
+	if m.crosshairBend != bendCenter || m.crosshairSlide != slideCenter {
+		t.Errorf("bend/slide should reset to center on a fresh press, got bend=%d slide=%d", m.crosshairBend, m.crosshairSlide)
+	}
+}
+
+func TestCrosshairPadOnChannel1IsNotMPE(t *testing.T) {
+	m, _ := newTest(t)
+	m.page = 1
+	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Channel: 1, Pressed: true})
+
+	if m.crosshairMPE {
+		t.Error("a pad on channel 1 (no MPE) must not enable fine positioning")
+	}
+}
+
+func TestCrosshairExpressionUpdatesBendAndSlideWhenMPE(t *testing.T) {
+	m, _ := newTest(t)
+	m.page = 1
+	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Channel: 5, Pressed: true})
+
+	m.Handle(module.Expression{Channel: 5, Kind: "bend", Value: 12000})
+	m.Handle(module.Expression{Channel: 5, Kind: "slide", Value: 100})
+
+	if m.crosshairBend != 12000 {
+		t.Errorf("crosshairBend = %d, want 12000", m.crosshairBend)
+	}
+	if m.crosshairSlide != 100 {
+		t.Errorf("crosshairSlide = %d, want 100", m.crosshairSlide)
+	}
+}
+
+func TestCrosshairExpressionIgnoredOnWrongChannel(t *testing.T) {
+	m, _ := newTest(t)
+	m.page = 1
+	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Channel: 5, Pressed: true})
+
+	// A stray Expression from a different pad's MPE channel must not leak in.
+	m.Handle(module.Expression{Channel: 6, Kind: "bend", Value: 12000})
+
+	if m.crosshairBend != bendCenter {
+		t.Errorf("crosshairBend changed from a non-matching channel, got %d, want %d", m.crosshairBend, bendCenter)
+	}
+}
+
+func TestCrosshairBendSlideIgnoredWithoutMPE(t *testing.T) {
+	m, _ := newTest(t)
+	m.page = 1
+	// Channel 1: no MPE, coarse fallback only.
+	m.Handle(module.Pad{Note: 60, Col: 5, Row: 2, Channel: 1, Pressed: true})
+	m.Handle(module.Expression{Channel: 1, Kind: "bend", Value: 12000})
+
+	if m.crosshairBend != bendCenter {
+		t.Errorf("bend must not apply on a non-MPE hold, got %d, want %d", m.crosshairBend, bendCenter)
+	}
+}
+
+func TestBendCalibrationWidensButNeverShrinks(t *testing.T) {
+	m, _ := newTest(t)
+	m.page = 1
+	if m.bendMin != bendCenter || m.bendMax != bendCenter {
+		t.Fatalf("fresh module bendMin/bendMax = %d/%d, want both %d", m.bendMin, m.bendMax, bendCenter)
+	}
+
+	m.Handle(module.Pad{Note: 60, Col: 3, Row: 2, Channel: 5, Pressed: true})
+	m.Handle(module.Expression{Channel: 5, Kind: "bend", Value: 9000})
+	m.Handle(module.Expression{Channel: 5, Kind: "bend", Value: 7000})
+	if m.bendMax != 9000 {
+		t.Errorf("bendMax = %d, want 9000", m.bendMax)
+	}
+	if m.bendMin != 7000 {
+		t.Errorf("bendMin = %d, want 7000", m.bendMin)
+	}
+
+	// A reading back toward center must not shrink the calibrated range.
+	m.Handle(module.Expression{Channel: 5, Kind: "bend", Value: 8200})
+	if m.bendMax != 9000 || m.bendMin != 7000 {
+		t.Errorf("calibration shrank: bendMin/bendMax = %d/%d, want unchanged 7000/9000", m.bendMin, m.bendMax)
 	}
 }
 

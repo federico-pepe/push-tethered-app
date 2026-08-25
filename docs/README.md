@@ -45,6 +45,7 @@ Platform-specific notes: [platform/macos.md](platform/macos.md),
 3. [protocol/led-output.md](protocol/led-output.md) — pad and button LEDs
 4. [protocol/push2-vs-push3.md](protocol/push2-vs-push3.md) — device differences
 5. [protocol/live-handshake.md](protocol/live-handshake.md) — raw SysEx traffic
+6. [protocol/xport.md](protocol/xport.md) — xPort's own raw traffic, read-only capture
    seen whenever Live is running, mechanism not yet decoded
 6. [hardware-reference.md](hardware-reference.md) — upstream button map, palette,
    authoritative code pointers

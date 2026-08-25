@@ -23,15 +23,18 @@
 > anything the SoC composes. That doesn't kill the heartbeat theory (the
 > onboard `Push3` app still plausibly authors SysEx over the ALSA MIDI
 > path either way), but it does mean the "obviously it's this process"
-> reasoning was weaker than it looked. Genuinely open between "it's an
-> unconditional heartbeat, only routed to Live Port while Live holds the
-> connection" and "it's a real negotiation, possibly the mechanism that
-> also gates MPE" (see [midi-input.md](midi-input.md)'s MPE section) —
-> the on-device Live↔Push3 IPC sockets that might have settled this turned
-> out to be standalone-mode-only, unreachable from an externally-tethered
-> Live, so this remains the most direct wire-level lead for the tethered
-> case specifically. The `0x3A`/`0x38` command bytes below still aren't
-> decoded against a real payload.
+> reasoning was weaker than it looked.
+>
+> **Update, later the same day — the MPE angle is dead.** This traffic is
+> **not** what gates MPE: MPE on/off turned out to be a persistent setting
+> in Push 3's own onboard settings menu (Aftertouch mode), confirmed
+> independent of Live's presence entirely — see
+> [midi-input.md](midi-input.md)'s MPE section, now resolved. This
+> traffic's own mystery is unaffected by that (still genuinely open
+> between "unconditional heartbeat, routed only while Live holds the
+> connection" and "some other real negotiation") — it's just no longer a
+> candidate for the *MPE* question specifically. The `0x3A`/`0x38`
+> command bytes below still aren't decoded against a real payload.
 
 This page exists to not lose the raw evidence. Nothing here is a confirmed
 protocol fact the way the rest of `docs/protocol/` is — treat every command

@@ -55,7 +55,10 @@ across pad boundaries on Push 3. What actually happened, in order:
    (`TestChannelPressureOnChannel1` in `internal/midi/decode_test.go`).
    `docs/protocol/midi-input.md` updated with the finding.
 
-**Where MPE-on actually comes from remains unknown.** The best lead is
+**Where MPE-on actually comes from remains unknown** *(at this point in the
+day — resolved later, see the Open items entry below: it's a device-side
+settings-menu toggle, nothing to do with any of the protocol theories
+chased below)*. The best lead is
 `docs/protocol/live-handshake.md`'s undocumented Ableton vendor SysEx
 (`F0 00 21 1D 01 01 <cmd> ...`), observed only while Live itself is running
 — likely a proprietary handshake, not anything in the standard MIDI spec.
@@ -219,27 +222,145 @@ own plan once an approach is chosen. 2b's bonus finding is a candidate for
 its own small follow-up plan in `ableton-push-hack`, separate from 2a's
 push-tethered-app scope entirely.
 
+## Shipped alongside this, same day: push-manager USB Input checkbox
+
+The keyboard-controls-Live finding above led straight to a small real
+feature in `ableton-push-hack`, not just documentation: `usbhid` isn't
+loaded by default, so `push-manager` (already running as `root` — no
+privilege escalation needed) got a new `/api/input/usbhid` endpoint pair
+(`handleUsbHid`/`handleUsbHidStatus` in the new `usbinput.go`) and a
+checkbox in its System view, same toggle-with-revert-on-failure pattern as
+the existing MIDI Intercept control. Per-session only (no boot
+persistence), `modprobe -r` on uncheck. Also fixed an unrelated
+pre-existing `go.sum` gap that was blocking any build of that module.
+Built, deployed via the real installer, and **confirmed working on
+hardware** — Federico verified the checkbox toggles real keyboard
+availability. Committed: `ableton-push-hack@814950a` (docs),
+`ableton-push-hack@87bb141` (feature).
+
+## Phase 2a — confirmed with real hardware, same day, no new code needed
+
+Push tethered to this Mac (controller mode) while all of the above was
+happening made the first Phase 2a question directly testable, not just a
+plan: plugged a Keychron K2 into the USB-A port and diffed
+`system_profiler SPUSBDataType` before/after. **Confirmed:** the keyboard
+shows up as a sibling of `Ableton Push 3` under the exact same hub
+(`0424:2534` SMSC — same chip model `push3-internals.md` already found
+internal to the SoC, likely the same part used twice in the board design,
+external-facing and internal-facing) — same Location ID prefix
+(`0x0113...`), macOS enumerates it as an entirely ordinary USB keyboard.
+Answers Phase 2a's first question directly: `gousb`/libusb's port-topology
+calls (`Port()`, parent-device lookup) should expose the same parent-hub
+match cross-platform, no OS-specific device-tree code needed to identify
+a hub-child relationship. Phase 2a's second question (reading input from
+that scoped device without hijacking the user's regular mouse/keyboard)
+remains open — this only confirmed *identification*, not *access*.
+
+## xPort — the write-rule's origin, and a first read-only capture
+
+Two separate things, same session:
+
+1. **Why "never write to xPort" exists at all — traced, not just
+   asserted.** Federico asked directly; the answer was in this project's
+   very first commit (`7dfe0b8`, original `docs/feasibility.md` §8.5,
+   written the same day `xPort` was first seen via `cmd/probe`): pure
+   first-principles caution ("undocumented... purpose unknown. Do not
+   send it speculative payloads"), never a reaction to any incident, and
+   specifically about **writing** — reading was never tried or forbidden.
+2. **First read-only test, same day.** Claimed interface 6 only (never
+   interface 0 — display untouched throughout), listened on its IN
+   endpoint, zero writes. Result: real, continuous, structured,
+   unprompted 512-byte packets — not silence, not noise. Full capture and
+   byte-level notes: `docs/protocol/xport.md` (new). Three regions
+   visible: 16-bit value pairs in ADC-sensor range, a recurring
+   `FF FF FF 3F <incrementing counter>` marker (looks like a real
+   sequence number in a structured periodic packet), and long idle runs
+   consistent with an unpressed capacitive sensor scan. Working
+   hypothesis, unconfirmed: this is the same "periodic SysEx heartbeats
+   including LED state and touch sensor data" `push3-internals.md`
+   documents from the standalone side, seen here on the wire instead.
+
+**Stopped here deliberately** — next steps (touch a pad while capturing
+to falsify/confirm the sensor theory, correlate the counter's cadence
+against the documented ~3-5/sec heartbeat rate, light an LED while
+capturing to test the other half of the hypothesis, capture longer to
+find real packet boundaries) are written up in `docs/protocol/xport.md`
+itself, not repeated here.
+
+## MPE resolved, then spent on padpointer: crosshair page now uses real sub-pad position
+
+Once MPE's trigger was found (a Push-side settings-menu toggle, not a
+protocol negotiation — see below), the natural next step was using it:
+`modules/paddebug` was **deleted** (module, both registration points,
+CLAUDE.md entry) — its job (finding the Channel Pressure bug, and this
+MPE investigation) is done. `modules/padpointer`'s crosshair page was
+upgraded to detect MPE per hold (from the pad's own channel: 1 = coarse,
+2-16 = MPE) and use real `slide`/`bend` for sub-pad position instead of
+snapping to the pad cell, with two live-hardware iterations to get it
+feeling right:
+
+1. **First pass** used a fixed symmetric offset (±1.5 cells for bend, ±1
+   cell for slide) from the anchor cell's center. Federico caught two real
+   bugs testing it live: vertical jumped visibly at every pad boundary,
+   and horizontal barely moved at all.
+2. **Root causes, both about wrongly assuming a fixed range:** `slide` is
+   a *per-pad local* sensor reading (each pad's own 0-127 spans just that
+   pad's height, not a grid-wide position) — the symmetric-offset math
+   double-counted range across a cell, causing the boundary jump. `bend`
+   doesn't swing anywhere near its theoretical 14-bit range during a real
+   gesture — assuming it did made real movement register as a tiny
+   fraction of intended.
+3. **Fixes, confirmed working on hardware:** vertical now maps `slide`'s
+   full 0-127 directly across the anchor cell's own height (no radius
+   doubling) — Federico confirmed this "perfect." Horizontal now
+   auto-calibrates against the actual min/max `bend` values ever observed
+   (`Module.bendMin`/`bendMax`, module-lifetime, only ever widens) instead
+   of a fixed constant, and splits available screen space asymmetrically
+   around the anchor column (an edge pad has no room on one side) — per
+   Federico's explicit spec: full bend in either direction should always
+   reach that edge of the screen, from any column. Confirmed working.
+
+Also caught and fixed along the way: two status strings used an em-dash,
+which the project's own ASCII-only drawing rule turns into a broken
+glyph — confirmed visually via `screensim` before and after the fix. Full
+technical writeup, including the exact per-pad-local-slide and
+small-bend-range facts as protocol facts (not just implementation notes):
+`docs/protocol/midi-input.md`'s MPE section.
+
 ## Open items
 
-- **What triggers MPE** — genuinely still open. The IPC-socket lead turned
-  out to be standalone-mode-only (see finding 2 above) and doesn't apply
-  to the tethered case; the vendor-SysEx-heartbeat theory is neither
-  confirmed nor ruled out. No live-testable lead left that doesn't require
-  either decoding the SysEx payload bytes or catching MPE turn on/off with
-  a real Live session tethered (untested combination this whole
-  investigation).
-- **`xPort`'s real function** — theory changed from "relay of an
-  SoC-composed gadget's interface 6" to "is XMOS's own interface 6
-  directly" (since the gadget theory died); still just a theory, same
-  practical answer either way (documented as "Hardware control (LEDs,
-  battery?)"). Rule in `usb-and-safety.md` unchanged regardless.
+- ~~**What triggers MPE**~~ **Resolved, 2026-08-25, same session.** Not a
+  protocol-layer trigger at all — a persistent setting in Push 3's own
+  onboard settings menu (Aftertouch mode: Polyphonic Aftertouch vs. MPE).
+  Confirmed both states on real hardware: with Live 12 Suite running and
+  `Push3.app` confirmed holding the display, pads stayed on channel 1
+  (device was set to Polyphonic Aftertouch at the time — this is the
+  "Live running as control surface ruled out" result recorded earlier the
+  same day, now correctly attributed); switched the device to MPE and
+  reproduced round-robin channels + real `slide`/`bend`/`pressure` data
+  twice — once with Live still running, once with Live fully quit and
+  `pushapp -module monitor` alone driving the display in plain controller
+  mode. Every protocol-layer theory chased earlier the same day (RPN 6,
+  the vendor SysEx heartbeat, the IPC sockets) was chasing the wrong
+  layer — all real findings about other things, none of them the actual
+  answer. Full writeup: `docs/protocol/midi-input.md`'s MPE section.
+- **`xPort`'s real function** — theory unchanged ("is XMOS's own interface
+  6 directly", documented as "Hardware control (LEDs, battery?)"), but no
+  longer untested: a read-only capture found real structured traffic (see
+  `docs/protocol/xport.md`). Not decoded yet — next steps are in that doc.
+  Rule in `usb-and-safety.md` unchanged (still write-only caution).
 - ~~**Mouse/keyboard end-to-end enumeration**~~ **Closed, 2026-08-25.**
   Confirmed working: real keyboard, clean enumeration, unclaimed by Xorg,
   live keystroke capture verified. Remaining detail for a future
   implementation, not a research question: the `ableton` account needs
   `root` or `input`-group membership to read `/dev/input/eventN`.
-- **`modules/paddebug`'s fate** — kept until the MPE question above is
-  understood or deliberately abandoned; revisit then (delete, or keep as a
-  standing diagnostic).
-- **Phase 2a (host-side, push-tethered-app)** — not started; this is now
-  the only remaining half of Phase 2, since 2b is done for this round.
+- ~~**`modules/paddebug`'s fate**~~ **Closed, 2026-08-25.** Deleted — its
+  job (finding the Channel Pressure bug, then this whole MPE
+  investigation) is done, and `modules/padpointer`'s crosshair page now
+  covers live slide/bend visibility for anyone who needs it.
+- **Phase 2a (host-side, push-tethered-app)** — first question (hub-child
+  identification) confirmed with real hardware, no code written yet
+  (`gousb`/libusb port-topology calls, not implemented). Second question
+  (reading input from the scoped device without hijacking the user's
+  regular mouse/keyboard) untouched — still the real open design question
+  for this half of Phase 2.

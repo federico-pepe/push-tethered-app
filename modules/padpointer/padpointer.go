@@ -11,15 +11,16 @@
 //
 // D-Pad left/right switches pages, same convention as modules/uidemo.
 //
-// Both pages work off the pad grid's coarse coordinate space — one screen
-// position per pad, no finer resolution implied. Push does not expose
-// sub-pad XY position over MIDI (confirmed 2026-08-25: Channel Pressure
-// exists and is genuinely continuous, but MPE per-note slide/bend, which
-// would give finer positioning, needs an undocumented Ableton vendor SysEx
-// handshake this app does not send — see docs/protocol/live-handshake.md).
-// This module works the same way on Push 2 and Push 3 as a result: no
-// device branch needed, since neither currently exposes anything beyond one
-// note + channel pressure per gesture.
+// The menu page and the coarse fallback are pad-grid resolution — one
+// screen position per pad. The crosshair page does better when it can:
+// MPE per-note slide (CC 74) and pitch bend give real sub-pad position
+// while a pad is held, confirmed on real hardware 2026-08-25 — but only
+// when the device's own Aftertouch-mode setting is MPE, not Polyphonic
+// Aftertouch (see docs/protocol/midi-input.md's MPE section; there is no
+// way to query which mode a Push is in over MIDI, so this module detects
+// it per hold from the pad's own MPE channel: 1 means Polyphonic
+// Aftertouch/Push 2, 2-16 means MPE). Push 2 has no MPE at all and always
+// gets the coarse path.
 package padpointer
 
 import (
@@ -51,6 +52,29 @@ var pageNames = [numPages]string{"menu", "crosshair"}
 // Draw calls — short enough to read as a pulse, not a lingering state.
 const animFrames = 10
 
+// Pitch bend is 14-bit, centered at 8192 (no bend). Slide (CC 74) is 7-bit,
+// with no inherent center — confirmed live on hardware 2026-08-25 that
+// it's a *per-pad* local reading (each pad's own sensor spans roughly
+// 0-127 across just that pad's own height, high value at the pad's top
+// edge, low at its bottom — not a position relative to the grid as a
+// whole). slideCenter is only the default shown before any Expression
+// message has arrived for the current hold.
+//
+// Bend has no equivalent full-range guarantee: confirmed live 2026-08-25
+// that a real edge-to-edge slide only ever reaches a small slice of the
+// theoretical 0-16383 range, not the extremes — assuming the full 14-bit
+// swing (bendCenter split into two 8192-wide halves) made real gestures
+// register as a tiny fraction of the available screen width. Fixed by
+// auto-calibrating against the actual min/max ever observed (bendMin/
+// bendMax on Module) instead of a fixed constant, so "slide fully right"
+// is defined as "the most-right this Push has actually reported" and
+// converges to true edge-to-edge as it's used, rather than needing a
+// magic constant guessed from one session's readings.
+const (
+	bendCenter  = 8192
+	slideCenter = 64
+)
+
 type Module struct {
 	host module.Host
 	page int
@@ -68,11 +92,24 @@ type Module struct {
 	cursorRow      int
 	crosshairHold  bool // is a pad currently pressed on the crosshair page
 	crosshairNote  byte
+	crosshairChan  int  // MPE member channel of the current hold, for Expression correlation
+	crosshairMPE   bool // this hold is on an MPE channel (2-16), not plain channel 1
+	crosshairBend  int  // raw pitch bend, centered bendCenter until an Expression arrives
+	crosshairSlide int  // raw CC 74 slide, centered slideCenter until an Expression arrives
 	crosshairFired bool // this hold already triggered the animation once
 	animFrame      int  // counts up from 0 while animating; animFrames means "not animating"
+
+	// bendMin/bendMax are the smallest/largest raw bend values ever seen,
+	// module-lifetime (not reset per hold) — the auto-calibration bounds
+	// described above. Both start at bendCenter (no range yet) and only
+	// ever widen.
+	bendMin int
+	bendMax int
 }
 
-func New() *Module { return &Module{cursor: -1, animFrame: animFrames} }
+func New() *Module {
+	return &Module{cursor: -1, animFrame: animFrames, bendMin: bendCenter, bendMax: bendCenter}
+}
 
 func (m *Module) Meta() module.Meta {
 	return module.Meta{
@@ -117,14 +154,13 @@ func (m *Module) Handle(ev module.Event) {
 		m.handleMenuPad(e)
 
 	case module.Expression:
-		if e.Kind != "pressure" {
-			return
-		}
 		switch m.page {
 		case 0:
-			m.handleMenuPressure(e.Value)
+			if e.Kind == "pressure" {
+				m.handleMenuPressure(e.Value)
+			}
 		case 1:
-			m.handleCrosshairPressure(e.Value)
+			m.handleCrosshairExpression(e)
 		}
 	}
 }
@@ -145,15 +181,37 @@ func (m *Module) handleMenuPressure(value int) {
 	m.holding = false
 }
 
-func (m *Module) handleCrosshairPressure(value int) {
-	if !m.crosshairHold || m.crosshairFired || value < clickThreshold {
+func (m *Module) handleCrosshairExpression(e module.Expression) {
+	if !m.crosshairHold || e.Channel != m.crosshairChan {
 		return
 	}
-	m.animFrame = 0 // (re)start the "press detected" animation
-	// One trigger per hold: without this, every Expression message at or
-	// above the threshold (there are many, it's high-rate) would restart
-	// the animation and it would never finish playing.
-	m.crosshairFired = true
+	switch e.Kind {
+	case "pressure":
+		if m.crosshairFired || e.Value < clickThreshold {
+			return
+		}
+		m.animFrame = 0 // (re)start the "press detected" animation
+		// One trigger per hold: without this, every Expression message at
+		// or above the threshold (there are many, it's high-rate) would
+		// restart the animation and it would never finish playing.
+		m.crosshairFired = true
+
+	case "bend":
+		if m.crosshairMPE {
+			m.crosshairBend = e.Value
+			if e.Value < m.bendMin {
+				m.bendMin = e.Value
+			}
+			if e.Value > m.bendMax {
+				m.bendMax = e.Value
+			}
+		}
+
+	case "slide":
+		if m.crosshairMPE {
+			m.crosshairSlide = e.Value
+		}
+	}
 }
 
 func (m *Module) handleMenuPad(e module.Pad) {
@@ -172,6 +230,10 @@ func (m *Module) handleCrosshairPad(e module.Pad) {
 		m.cursorCol, m.cursorRow = e.Col, e.Row
 		m.crosshairHold = true
 		m.crosshairNote = e.Note
+		m.crosshairChan = e.Channel
+		m.crosshairMPE = e.Channel != 1
+		m.crosshairBend = bendCenter
+		m.crosshairSlide = slideCenter
 		m.crosshairFired = false
 	} else if e.Note == m.crosshairNote {
 		m.crosshairHold = false
@@ -221,13 +283,21 @@ func (m *Module) drawMenuPage(f *module.Frame, w, h int, t module.Theme) {
 	f.StatusBar(h-18, w, 18, status, false)
 }
 
-// crosshairXY maps a pad cell to a screen position within the drawable area
-// (below the header, above the status bar), col 0-7 -> left-to-right,
-// row 0-7 (0 = bottom) -> bottom-to-top, so the crosshair moves the same
-// direction on screen as the finger moves on the grid.
+// crosshairGeometry returns the drawable area's top margin (below the
+// header, and the left margin, which are equal) and its usable
+// width/height, shared by crosshairXY and the fine-offset scaling in
+// drawCrosshairPage so both agree on what one pad-cell measures in pixels.
+func crosshairGeometry(w, h int) (top, usableW, usableH int) {
+	const marginTop, marginBottom = 30, 20 // below the header, above the status bar
+	return marginTop, w - 2*marginTop, h - marginTop - marginBottom
+}
+
+// crosshairXY maps a pad cell to a screen position within the drawable area,
+// col 0-7 -> left-to-right, row 0-7 (0 = bottom) -> bottom-to-top, so the
+// crosshair moves the same direction on screen as the finger moves on the
+// grid.
 func crosshairXY(w, h, col, row int) (x, y int) {
-	const top, bottom = 30, 20 // top margin below header, bottom margin above status bar
-	usableW, usableH := w-2*top, h-top-bottom
+	top, usableW, usableH := crosshairGeometry(w, h)
 	x = top + col*usableW/7
 	y = top + (7-row)*usableH/7
 	return x, y
@@ -245,13 +315,55 @@ func lerpColor(a, b color.NRGBA, frac float64) color.NRGBA {
 }
 
 func (m *Module) drawCrosshairPage(f *module.Frame, w, h int, t module.Theme) {
-	status := "move: touch any pad — press firmly to trigger the animation"
+	status := "move: touch any pad - press firmly to trigger the animation"
 	if !m.haveCursor {
 		f.StatusBar(h-18, w, 18, status, false)
 		return
 	}
 
 	cx, cy := crosshairXY(w, h, m.cursorCol, m.cursorRow)
+	if m.crosshairMPE {
+		top, usableW, usableH := crosshairGeometry(w, h)
+		cellW, cellH := usableW/7, usableH/7
+
+		// Slide is a per-pad local reading, not a grid-wide position —
+		// confirmed live 2026-08-25: sliding down within one pad drives it
+		// to its own minimum right at the boundary with the pad below,
+		// which then starts back at its own maximum. So map its full
+		// 0-127 range across just the anchor cell's own height: high
+		// value = this pad's top edge (cy, already that from crosshairXY),
+		// low value = its bottom edge (cy+cellH).
+		slideFrac := float64(m.crosshairSlide) / 127
+		cy += int((1 - slideFrac) * float64(cellH))
+
+		// Bend's own range doesn't shrink near a grid edge, but the
+		// screen does — a pad in the leftmost column has no room to its
+		// left, a middle pad has roughly equal room both ways. Split the
+		// available space asymmetrically around the anchor column instead
+		// of assuming a fixed span in both directions.
+		leftAvail := m.cursorCol * cellW
+		rightAvail := (7 - m.cursorCol) * cellW
+		var bendFrac float64 // -1..+1, against the auto-calibrated range, not a fixed constant
+		if m.crosshairBend >= bendCenter && m.bendMax > bendCenter {
+			bendFrac = float64(m.crosshairBend-bendCenter) / float64(m.bendMax-bendCenter)
+		} else if m.crosshairBend < bendCenter && m.bendMin < bendCenter {
+			bendFrac = float64(m.crosshairBend-bendCenter) / float64(bendCenter-m.bendMin)
+		}
+		if bendFrac > 1 {
+			bendFrac = 1
+		} else if bendFrac < -1 {
+			bendFrac = -1
+		}
+		if bendFrac >= 0 {
+			cx += int(bendFrac * float64(rightAvail))
+		} else {
+			cx += int(bendFrac * float64(leftAvail))
+		}
+
+		cx = push3.ClampInt(cx, top, top+usableW)
+		cy = push3.ClampInt(cy, top, top+usableH)
+		status = "MPE: slide/bend refine position - press firmly to trigger the animation"
+	}
 
 	const arm = 8
 	f.HLine(cx-arm, cy, 2*arm, t.White)

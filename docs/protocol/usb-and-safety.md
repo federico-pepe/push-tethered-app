@@ -24,6 +24,13 @@ Read this before USB experiments or button sweeps on real hardware.
   6, documented there as "Hardware control (LEDs, battery?)", not a relay
   of anything. Doesn't change the rule; still don't touch it without a
   specific, understood reason.
+  **The rule has always been specifically about writing** — traced
+  2026-08-25 to this project's very first commit, pure precaution from
+  day one, never a reaction to any incident. A passive, read-only listen
+  on `xPort`'s own IN endpoint (never interface 0, never a write) was
+  tried the same day and found real, structured, unprompted traffic —
+  see [xport.md](xport.md) for the capture and what's known so far. Still
+  not decoded; still don't write to it.
 - **No firmware operations. Ever.** No DFU, no control transfers with unknown
   vendor requests.
 - **Never run against a Push mid-OS-update.**
@@ -126,3 +133,4 @@ to reject non-ASCII. The host also sanitises text as defence in depth.
 
 - [display.md](display.md) — interface 0 details
 - [push2-vs-push3.md](push2-vs-push3.md) — xPort absent on Push 2
+- [xport.md](xport.md) — the read-only xPort capture and what's known so far

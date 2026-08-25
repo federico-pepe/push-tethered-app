@@ -83,46 +83,79 @@ Windows names ports differently from CoreMIDI/ALSA — see
 
 ## MPE
 
-**Correction, 2026-08-25: "MPE always on" does not hold.** A live capture
-this session (`pushapp`, Live closed, co-existence mode) had every pad
-arrive on **channel 1** for the whole session — matching the
-previously-unresolved contradiction this section used to wave away (see
-`docs/archive/feasibility.md` §9.5, frozen). Sending the standard MIDI MPE
-Configuration Message (RPN 6, lower zone, 15 member channels) on activation
-did **not** turn MPE on — ruling out the simplest "we just need to ask for
-it" theory.
+**Resolved, 2026-08-25: MPE on/off is a persistent setting in Push 3's own
+onboard settings menu** (an Aftertouch mode: Polyphonic Aftertouch vs.
+MPE) — a device-level configuration choice, not something Live negotiates
+over the wire, not gated by any handshake, and not tied to Live's presence
+at all. Confirmed both ways on real hardware, same session: with the
+device set to Polyphonic Aftertouch, pads sat on channel 1 through every
+condition tried (Live closed, Live open and actively holding the display
+as a real control surface — see below); switched to MPE on the device
+itself, pads immediately round-robined across member channels 2-16 with
+real, continuous `slide`/`bend`/`pressure` data — reproduced again with
+Live fully quit, `pushapp -module monitor` alone driving the display in
+plain controller mode, no Live involved at any point. **So "assume MPE is
+always on" (the original claim this section carried) and "MPE is
+sometimes on, trigger unknown" (this section's own correction, earlier
+the same day) were both wrong in the same way — chasing a protocol-layer
+explanation for what turned out to be a simple hardware setting.**
 
-**Architecture context, updated 2026-08-25 after live SSH inspection**
-(`ableton-push-hack`'s `push3-internals.md`): Push 3's external USB
-personality is very likely the internal XMOS co-processor's own USB
-device presenting directly to whichever side currently has it (external
-tethered computer, or the SoC itself in standalone mode) — an initial
-"the SoC composes a Linux gadget" theory, based on the kernel config
-alone, was tested live on the device and killed (no gadget instance or
-UDC exists at runtime). Whatever decides MPE on/off is still most likely
-mediated by the onboard `Push3` process rather than fixed firmware, since
-that process is confirmed to be a real, stateful participant in a
-negotiation protocol — just proven via a *different* channel than
-expected: `push3-internals.md` found the three `/data` Unix-socket IPC
-channels real and actively connected, but only while Push was in
-**standalone mode** with its own bundled Live running — that channel
-can't reach an externally-tethered computer's Live at all (no Unix socket
-across a USB tether). So for push-tethered-app's case specifically, an
-equivalent negotiation would have to happen over the MIDI wire itself —
-putting `docs/protocol/live-handshake.md`'s recurring vendor SysEx back in
-play as a candidate, alongside the "it's just a periodic heartbeat" theory
-that doc also records. Neither confirmed; genuinely still open.
+**What this retires:** every protocol-layer hypothesis chased earlier the
+same day — the MPE Configuration Message (RPN 6) not working, the
+recurring vendor SysEx on Live Port (`docs/protocol/live-handshake.md`),
+the standalone-mode Unix-socket IPC channels, "Live running as control
+surface" as a trigger. None of them were the answer; all were real
+findings about other things (the SysEx traffic and the IPC sockets are
+still genuinely unexplained, just no longer suspected of gating MPE).
 
-**Practical consequence: do not assume MPE, branch-free code paths must work
-on plain channel 1.** The decoder already handled channel 1 pads (Push 2 has
-no MPE and always uses it), so nothing was broken by this — but any new code
-assuming per-note channels 2-16 (and therefore per-note slide/bend) will
-silently do nothing on a Push 3 session in this state, which per the above
-may be the common case, not a fallback. `modules/padpointer` was designed
-around this: pad row (coarse) + Channel Pressure only, no MPE dependency.
+**Practical consequence, unchanged: do not assume either state.** The
+decoder handles pads on channel 1 and MPE member channels 2-16 alike, so
+a module must not assume one or the other — a user's own Push could be
+configured either way, and nothing in the wire protocol announces which.
+There is no way to query the device's current Aftertouch-mode setting
+over MIDI, so a module has to infer it live, per hold, from the pad's own
+channel (1 = Polyphonic Aftertouch/Push 2, 2-16 = MPE) —
+`modules/padpointer`'s crosshair page does exactly this: MPE gets real
+sub-pad `slide`/`bend` positioning, Polyphonic Aftertouch (or Push 2)
+falls back to the coarse per-cell behavior every page always had. A
+module that wants richer per-note data still has to handle the
+Polyphonic-Aftertouch case gracefully, since it's a real, user-chosen
+device state, not a fallback for an edge case.
 
-Not measured: whether MPE can be disabled/enabled via SysEx, or what
-specifically triggers it turning on when it does.
+### `slide`/`bend` behavior, confirmed live 2026-08-25 (once MPE is on)
+
+Building `modules/padpointer`'s crosshair page against real MPE data
+surfaced two non-obvious facts, both load-bearing for anything mapping
+these to screen position:
+
+- **`slide` (CC 74) is a *per-pad local* reading, not a grid-wide
+  position.** Each pad's own sensor spans roughly its own 0-127 range
+  across just that pad's height — sliding a finger down within one pad
+  drives the value to *that pad's own* minimum right at the boundary with
+  the pad below, which then starts back at *its own* maximum. A module
+  must map it against the currently-held pad's own cell, not treat it as
+  an absolute position across the whole strip.
+- **`bend` (pitch bend) does not swing anywhere near its full 14-bit
+  range (0-16383) during a normal within-pad gesture** — confirmed live
+  that a real edge-to-edge slide only reaches a small slice of the
+  theoretical range. Code that assumes the full range (e.g. splitting
+  8192 either side of center) will make real gestures register as a tiny
+  fraction of the intended movement. `padpointer` handles this by
+  auto-calibrating against the actual min/max bend values observed live
+  (`Module.bendMin`/`bendMax`, module-lifetime, monotonically widening)
+  rather than a fixed constant — "slide fully right" is defined as "the
+  most-right this specific Push has actually reported," which converges
+  to true edge-to-edge with use instead of needing a magic number guessed
+  from one capture.
+
+Not measured: the exact menu path on Push's own screen (a future doc
+update, or MANUAL.md, should name it precisely — "Push's settings" is
+what confirmed this, not yet the exact label/location); whether this
+setting is readable or settable over MIDI/SysEx from the host side, which
+would let a module or `pushapp` flag/adapt to the device's current mode
+instead of silently guessing; the actual numeric bounds of `bend`'s
+practical range (auto-calibration sidesteps needing this, but a captured
+number would still be a useful protocol fact).
 
 ## Decode order
 

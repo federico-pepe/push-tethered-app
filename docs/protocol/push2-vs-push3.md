@@ -16,7 +16,7 @@ palette are identical.
 | MIDI ports (OS) | 2 (Live, User) | 3 (+ External) |
 | Audio | none | class-compliant 16×16 |
 | `xPort` (interface 6) | absent | present, undocumented |
-| MPE on pads | no — channel 1 | usually channels 2–16 |
+| MPE on pads | no — always channel 1 | user-configurable (Push's own Aftertouch-mode setting: Polyphonic Aftertouch = channel 1, MPE = channels 2–16 — see [midi-input.md](midi-input.md#mpe)) |
 | Button CC map | 75/80 CC + 12/14 touch | 87/87 CC + 13/13 touch |
 
 ## Map deltas (Push 2 only)

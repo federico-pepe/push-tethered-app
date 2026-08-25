@@ -139,13 +139,11 @@ modules/uidemo/   every design-system widget, one page per cluster, driven by
 modules/ui-text-demo/ live font-tuning bench: encoders drive face/weight/size/
                    palette-color/margin — dial in a text-rendering change on
                    real hardware instead of guessing constants
-modules/paddebug/ throwaway diagnostic: live per-pad slide/bend/pressure
-                   MPE readout, used to characterize what's real hardware
-                   data vs. Live-only smoothing — see docs/protocol/midi-input.md's MPE section
 modules/padpointer/ pad-grid-driven pointer: pad row moves a cursor onto an
-                   8-item menu, Channel Pressure clicks — coarse (no sub-pad
-                   XY; MPE slide/bend needs an undocumented Ableton vendor
-                   SysEx handshake this app doesn't send, see docs/protocol/live-handshake.md)
+                   8-item menu, Channel Pressure clicks; crosshair page adds
+                   sub-pad XY via MPE slide/bend when the device's Aftertouch
+                   mode is set to MPE (Polyphonic Aftertouch coarse-cell
+                   fallback otherwise — see docs/protocol/midi-input.md's MPE section)
 examples/modules/ process-loaded example modules (Python, Node.js)
 tools/            macOS-only Swift probes (midimon, ledtest)
 ```

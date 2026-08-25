@@ -36,7 +36,6 @@ import (
 	"github.com/federico-pepe/push-tethered-app/internal/version"
 	"github.com/federico-pepe/push-tethered-app/modules/beatcount"
 	"github.com/federico-pepe/push-tethered-app/modules/monitor"
-	"github.com/federico-pepe/push-tethered-app/modules/paddebug"
 	"github.com/federico-pepe/push-tethered-app/modules/padpointer"
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
 	"github.com/federico-pepe/push-tethered-app/modules/seq"
@@ -60,7 +59,6 @@ func available() []module.Module {
 		beatcount.New(),
 		uidemo.New(),
 		uitextdemo.New(),
-		paddebug.New(),
 		padpointer.New(),
 	}
 }
