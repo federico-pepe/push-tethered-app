@@ -83,19 +83,79 @@ Windows names ports differently from CoreMIDI/ALSA — see
 
 ## MPE
 
-**Assume MPE is always on by default on Push 3.** Pad note-ons arrive on
-per-note channels 2–16, round-robining across them. Channel 1 all-pads
-behavior has been observed in the past on this same hardware with nothing
-deliberately changed, but a 2026-08-18 A/B (fresh session, reconnect-only,
-full power-cycle) never reproduced it — MPE stayed on and round-robining
-through all three. Given that, "always on" is the working assumption rather
-than something the decoder needs to detect and branch on.
+**Resolved, 2026-08-25: MPE on/off is a persistent setting in Push 3's own
+onboard settings menu** (an Aftertouch mode: Polyphonic Aftertouch vs.
+MPE) — a device-level configuration choice, not something Live negotiates
+over the wire, not gated by any handshake, and not tied to Live's presence
+at all. Confirmed both ways on real hardware, same session: with the
+device set to Polyphonic Aftertouch, pads sat on channel 1 through every
+condition tried (Live closed, Live open and actively holding the display
+as a real control surface — see below); switched to MPE on the device
+itself, pads immediately round-robined across member channels 2-16 with
+real, continuous `slide`/`bend`/`pressure` data — reproduced again with
+Live fully quit, `pushapp -module monitor` alone driving the display in
+plain controller mode, no Live involved at any point. **So "assume MPE is
+always on" (the original claim this section carried) and "MPE is
+sometimes on, trigger unknown" (this section's own correction, earlier
+the same day) were both wrong in the same way — chasing a protocol-layer
+explanation for what turned out to be a simple hardware setting.**
 
-The decoder still handles channel 1 pads too (Push 2 has no MPE and always
-uses it), so nothing breaks if a Push 3 session ever does show up on channel
-1 — it's just not expected.
+**What this retires:** every protocol-layer hypothesis chased earlier the
+same day — the MPE Configuration Message (RPN 6) not working, the
+recurring vendor SysEx on Live Port (`docs/protocol/live-handshake.md`),
+the standalone-mode Unix-socket IPC channels, "Live running as control
+surface" as a trigger. None of them were the answer; all were real
+findings about other things (the SysEx traffic and the IPC sockets are
+still genuinely unexplained, just no longer suspected of gating MPE).
 
-Not measured: whether MPE can be disabled via SysEx.
+**Practical consequence, unchanged: do not assume either state.** The
+decoder handles pads on channel 1 and MPE member channels 2-16 alike, so
+a module must not assume one or the other — a user's own Push could be
+configured either way, and nothing in the wire protocol announces which.
+There is no way to query the device's current Aftertouch-mode setting
+over MIDI, so a module has to infer it live, per hold, from the pad's own
+channel (1 = Polyphonic Aftertouch/Push 2, 2-16 = MPE) —
+`modules/padpointer`'s crosshair page does exactly this: MPE gets real
+sub-pad `slide`/`bend` positioning, Polyphonic Aftertouch (or Push 2)
+falls back to the coarse per-cell behavior every page always had. A
+module that wants richer per-note data still has to handle the
+Polyphonic-Aftertouch case gracefully, since it's a real, user-chosen
+device state, not a fallback for an edge case.
+
+### `slide`/`bend` behavior, confirmed live 2026-08-25 (once MPE is on)
+
+Building `modules/padpointer`'s crosshair page against real MPE data
+surfaced two non-obvious facts, both load-bearing for anything mapping
+these to screen position:
+
+- **`slide` (CC 74) is a *per-pad local* reading, not a grid-wide
+  position.** Each pad's own sensor spans roughly its own 0-127 range
+  across just that pad's height — sliding a finger down within one pad
+  drives the value to *that pad's own* minimum right at the boundary with
+  the pad below, which then starts back at *its own* maximum. A module
+  must map it against the currently-held pad's own cell, not treat it as
+  an absolute position across the whole strip.
+- **`bend` (pitch bend) does not swing anywhere near its full 14-bit
+  range (0-16383) during a normal within-pad gesture** — confirmed live
+  that a real edge-to-edge slide only reaches a small slice of the
+  theoretical range. Code that assumes the full range (e.g. splitting
+  8192 either side of center) will make real gestures register as a tiny
+  fraction of the intended movement. `padpointer` handles this by
+  auto-calibrating against the actual min/max bend values observed live
+  (`Module.bendMin`/`bendMax`, module-lifetime, monotonically widening)
+  rather than a fixed constant — "slide fully right" is defined as "the
+  most-right this specific Push has actually reported," which converges
+  to true edge-to-edge with use instead of needing a magic number guessed
+  from one capture.
+
+Not measured: the exact menu path on Push's own screen (a future doc
+update, or MANUAL.md, should name it precisely — "Push's settings" is
+what confirmed this, not yet the exact label/location); whether this
+setting is readable or settable over MIDI/SysEx from the host side, which
+would let a module or `pushapp` flag/adapt to the device's current mode
+instead of silently guessing; the actual numeric bounds of `bend`'s
+practical range (auto-calibration sidesteps needing this, but a captured
+number would still be a useful protocol fact).
 
 ## Decode order
 
@@ -109,7 +169,23 @@ Not measured: whether MPE can be disabled via SysEx.
 
 - 8×8 grid, notes **36** (bottom-left) to **99** (top-right)
 - Push 2: pads on channel 1 (no MPE)
-- Push 3: MPE, assumed always on (see above)
+- Push 3: MPE sometimes on, sometimes not — see above; do not assume either
+
+**Channel Pressure (`0xD0`) works on channel 1, MPE or not.** Confirmed
+2026-08-25 on real Push 3 hardware: a held pad sends continuous Channel
+Pressure, ramping smoothly with how hard it's pressed (not positional — a
+controlled test pressed harder without moving and the value tracked force,
+not location). This was previously only decoded on MPE member channels
+(2-16, `Expression{Kind:"pressure"}`); channel 1 messages were silently
+dropped. Fixed in `internal/midi/midi.go`'s `DecodeFor` — now decoded on
+channel 1 too. With MPE off there is no per-note channel to attribute a
+reading to when multiple pads are held at once; a module has to pick its own
+attribution rule (e.g. `modules/padpointer` and `modules/paddebug` both
+attribute it to whichever pad was pressed most recently).
+
+Per-note `slide` (CC 74) and `bend` (pitch bend) remain MPE-only — CC 74 on
+channel 1 is claimed by Encoder 4 (see Decode order below), so there is no
+unambiguous channel-1 equivalent for them the way there is for pressure.
 
 ## Encoders
 

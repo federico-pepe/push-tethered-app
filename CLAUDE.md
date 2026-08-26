@@ -110,6 +110,9 @@ cmd/genpalette/   writes core/push3.Palette out as palette.json into every
                    examples/modules/* directory, so a process module in any
                    language can look up a palette color by name or 0-127 index
                    instead of hand-copying RGB — see writing-a-process-module.md
+internal/applog/  shared log.SetOutput wrapper: timestamps every log.Printf line
+                   (RFC3339-ish, microseconds, no zone) and a startup banner —
+                   used by both cmd/pushapp and cmd/pushapp-ui
 internal/bootstrap/  hardware-opening sequence shared by cmd/pushapp and -ui
 internal/module/  the ABI: Module, Host, Frame/Op, Event, Meta, Store
 internal/host/    runtime: registry, control API, event fan-out, frame loop
@@ -121,6 +124,10 @@ internal/display/ USB transport: claim interface 0, frame header, XOR, refresh
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
 internal/midiout/ owns a named MIDI out port for modules (create or attach)
 internal/midiin/  owns a named MIDI in port for modules (create or attach) — raw bytes only, no decoding
+internal/mirror/  live HTTP/MJPEG screen mirror — taps the same render output as
+                   internal/capture (no extra USB traffic) but fans out to any
+                   number of browser clients instead of writing a file; a Hub
+                   costs nothing when no client is connected
 internal/pushmap/ Push 2 map deltas + shared CC/touch name tables
 modules/monitor/  control-surface monitor; the reference module
 modules/thru/     forwards pads/encoders/buttons out as MIDI
@@ -132,6 +139,11 @@ modules/uidemo/   every design-system widget, one page per cluster, driven by
 modules/ui-text-demo/ live font-tuning bench: encoders drive face/weight/size/
                    palette-color/margin — dial in a text-rendering change on
                    real hardware instead of guessing constants
+modules/padpointer/ pad-grid-driven pointer: pad row moves a cursor onto an
+                   8-item menu, Channel Pressure clicks; crosshair page adds
+                   sub-pad XY via MPE slide/bend when the device's Aftertouch
+                   mode is set to MPE (Polyphonic Aftertouch coarse-cell
+                   fallback otherwise — see docs/protocol/midi-input.md's MPE section)
 examples/modules/ process-loaded example modules (Python, Node.js)
 tools/            macOS-only Swift probes (midimon, ledtest)
 ```
@@ -197,6 +209,14 @@ go build ./... && go vet ./... && go test ./...
 `module.ExternalMIDI`; unlike MIDI-out, missing input is never fatal to
 activation, see `internal/module/module.go`'s `Meta.NeedsMIDIIn` doc),
 `-capture`, `-capture-raw`,
+`-mirror-addr <addr>` (serves a live MJPEG mirror of the screen at
+`http://<addr>/screen`; on by default at `localhost:3000`, pass
+`-mirror-addr=""` to disable — avoid `:7000`/`:5000`, macOS's AirPlay
+Receiver squats both by default, see `internal/mirror`; `pushapp-ui` always
+serves the same way at `localhost:3000/screen/<session key>`, no flag
+needed — one Hub per session, not shared, since more than one Push can be
+connected there at once; `PushService.OpenMirror` opens a session's URL in
+the system browser via Wails' `Browser.OpenURL`),
 `-install <dir>`, `-uninstall <id>` (filesystem-only, no Push needed),
 `-version` (prints `internal/version.Version`, "dev" unless built with the
 release workflow's `-ldflags`), `-devices` (lists every attached Push unit
@@ -298,6 +318,18 @@ and [docs/architecture/stack-and-layout.md](docs/architecture/stack-and-layout.m
   apart when pairing manually. `cmd/pushapp` itself stays single-device; use
   `-devices`/`-device`/`-midi-in`. Detail:
   [plans/2026-08-19-multi-device.md](plans/2026-08-19-multi-device.md).
+- **Two sessions drawing text at once used to crash the whole process** —
+  fixed 2026-08-24 in `ableton-push-hack/core/gfx/text` (this repo's own
+  code never touched the bug). `golang.org/x/image/font.Face` is documented
+  as not safe for concurrent use, but `core/gfx/text` handed out one shared
+  `Face` singleton (and one per cached weight/size) to every caller; with
+  `pushapp-ui` running one render goroutine per connected session, two Push
+  units drawing text at the same moment corrupted the font rasterizer's
+  internal buffers — confirmed live with two real units connected
+  simultaneously, reproduced deterministically under `go test -race`.
+  Fixed with a package-level mutex serializing every call into a shared
+  `Face`; see `core/gfx/text/text.go`'s `faceMu` and
+  `TestConcurrentDrawNoRace` in that package for the regression guard.
 - **Disconnect detection.** `cmd/pushapp-ui` notices when a Push is unplugged
   mid-session (`display.ErrDisconnected` bubbles up through
   `host.Runtime.Run` to `hostManager`, which tears that session down and

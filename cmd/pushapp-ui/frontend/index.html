@@ -7,11 +7,14 @@
     <title>Push Tethered App</title>
 </head>
 <body>
-<main class="container">
+<main class="container" id="main-container">
     <header class="brand">
         <div class="brand-row">
             <h1 class="title">Push Tethered App</h1>
-            <button id="install-btn" class="install-btn" hidden>Install&hellip;</button>
+            <div class="brand-buttons">
+                <button id="install-btn" class="install-btn" hidden>Add module&hellip;</button>
+                <button id="settings-btn" class="install-btn" hidden>Settings&hellip;</button>
+            </div>
         </div>
         <p class="subtitle" id="status">Loading&hellip;</p>
     </header>
@@ -42,6 +45,16 @@
 
     <ul class="session-list" id="session-list" aria-label="Connected sessions" hidden></ul>
 </main>
+
+<div class="settings-overlay" id="settings-overlay" hidden>
+    <div class="settings-panel">
+        <div class="settings-panel-header">
+            <span>Add / manage devices</span>
+            <button id="settings-close-btn" class="mirror-close">×</button>
+        </div>
+        <div class="settings-panel-body" id="settings-panel-body"></div>
+    </div>
+</div>
 
 <script type="module" src="/src/main.js"></script>
 </body>

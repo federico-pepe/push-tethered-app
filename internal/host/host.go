@@ -32,12 +32,22 @@ import (
 // interesting fact is the drop count, not the events.
 const eventBuf = 1024
 
+// FrameSink receives every frame the frame loop draws, the same tap
+// Recorder uses (before the USB write, so it costs no extra USB traffic and
+// cannot disturb what the panel shows). Must not retain img past the call —
+// same convention as capture.Recorder.Frame. Used for optional side
+// channels like internal/mirror's live HTTP stream.
+type FrameSink interface {
+	Frame(img *image.NRGBA)
+}
+
 // Options configures a Runtime.
 type Options struct {
 	FPS       int
 	NoDisplay bool
 	NoLEDs    bool
 	Recorder  capture.Recorder
+	Mirror    FrameSink
 
 	// OpenMIDIOut obtains the output port, called at most once and only when a
 	// module that declares NeedsMIDIOut is activated.
@@ -268,7 +278,7 @@ func (r *Runtime) Activate(id string) error {
 	// A module only ever sees Store.Get/Set, never a path — but until a config
 	// UI exists, a user editing settings by hand needs to know where the file
 	// is. Purely informational: printed whether or not the file exists yet.
-	if p, err := configFilePath(id); err == nil {
+	if p, err := configFilePath(id, r.deviceID()); err == nil {
 		log.Printf("module %s: config at %s", id, p)
 	}
 	return nil
@@ -428,6 +438,9 @@ func (r *Runtime) drawFrame(ctx context.Context) error {
 			r.opts.Recorder = nil
 		}
 	}
+	if r.opts.Mirror != nil {
+		r.opts.Mirror.Frame(r.img)
+	}
 
 	if r.dev == nil {
 		return nil
@@ -584,6 +597,16 @@ type moduleHost struct {
 	id string
 }
 
+// deviceID is the key config files are namespaced by — see configFilePath.
+// Empty when running -no-display (r.dev is never opened), which keeps the
+// pre-namespacing "<moduleID>.json" filename for that single-device case.
+func (r *Runtime) deviceID() string {
+	if r.dev == nil {
+		return ""
+	}
+	return r.dev.Info().ID
+}
+
 func (h *moduleHost) Device() pushmap.Device { return h.rt.port.Device() }
 func (h *moduleHost) Theme() module.Theme    { return h.rt.opts.Theme }
 func (h *moduleHost) SupportedOps() []string { return renderframe.SupportedOps() }
@@ -670,7 +693,7 @@ func (h *moduleHost) SendStop() error {
 
 // Store gives the module its own JSON document, one file per module ID under
 // the OS config directory. See store.go.
-func (h *moduleHost) Store() module.Store { return newStore(h.id) }
+func (h *moduleHost) Store() module.Store { return newStore(h.id, h.rt.deviceID()) }
 
 // ── Event translation ──────────────────────────────────────────────────────
 

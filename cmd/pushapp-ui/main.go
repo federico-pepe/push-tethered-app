@@ -15,12 +15,15 @@ import (
 	"embed"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"github.com/federico-pepe/push-tethered-app/internal/applog"
 	"github.com/federico-pepe/push-tethered-app/internal/bootstrap"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/modules/beatcount"
@@ -32,6 +35,17 @@ import (
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+// mirrorAddr is where every session's live screen stream is served, one
+// path per session key (http://localhost:3000/screen/<key>) — see
+// hostManager.mirrorHub, the /screen/ handler below, and
+// PushService.OpenMirror. Hardcoded rather than a flag: this is a local
+// dev/monitoring convenience, not a user-facing setting, and the frontend
+// needs the same address to build its <img> src (see main.ts). Not :7000 or
+// :5000: both are squatted by default by macOS's AirPlay Receiver
+// (confirmed live — a request to :7000 silently landed on ControlCenter's
+// AirTunes server instead of ours).
+const mirrorAddr = "localhost:3000"
 
 // availableModules must list the same set cmd/pushapp does. Kept as a
 // separate literal, not a shared function, because the two binaries are
@@ -50,18 +64,25 @@ func availableModules() []module.Module {
 
 func main() {
 	log.SetFlags(0)
+	log.SetOutput(applog.Wrap(os.Stderr))
 
 	// Every log.Printf in this binary and in internal/bootstrap goes through
 	// the standard logger, so redirecting it here covers both — see
 	// logfile.go's doc comment for why this exists. A failure to open the
 	// log file is not fatal to the app; it just means diagnosing this run
 	// falls back to whatever terminal happened to launch it, same as before.
+	logPath := ""
 	if path, f, err := openLogFile(); err != nil {
 		log.Printf("log file: %v (continuing without one)", err)
 	} else {
 		defer f.Close()
-		log.SetOutput(io.MultiWriter(os.Stderr, f))
-		log.Printf("logging to %s", path)
+		log.SetOutput(applog.Wrap(io.MultiWriter(os.Stderr, f)))
+		logPath = path
+	}
+
+	applog.Banner()
+	if logPath != "" {
+		log.Printf("logging to %s", logPath)
 	}
 
 	// A context the host loop runs under, cancelled once the window closes or
@@ -87,6 +108,27 @@ func main() {
 	if _, err := mgr.connect(ConnectRequest{}); err != nil {
 		log.Printf("MIDI: auto-detect failed, waiting for manual pairing: %v", err)
 	}
+
+	// One shared server, routed by session key, rather than one listener per
+	// session — session count changes over a run's lifetime and a listener
+	// per session would mean picking and tracking a port for each. A 404 for
+	// an unknown or disconnected key needs no special-casing: mirrorHub's
+	// second return value already covers that.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/screen/", func(w http.ResponseWriter, r *http.Request) {
+		key := strings.TrimPrefix(r.URL.Path, "/screen/")
+		hub, ok := mgr.mirrorHub(key)
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		hub.ServeHTTP(w, r)
+	})
+	go func() {
+		if err := http.ListenAndServe(mirrorAddr, mux); err != nil {
+			log.Printf("mirror: %v — live screen mirror unavailable", err)
+		}
+	}()
 
 	app := application.New(application.Options{
 		Name:        "Push Tethered App",
@@ -137,6 +179,6 @@ func main() {
 	mgr.shutdownAll()
 
 	if appErr != nil {
-		log.Fatalf("ui: %v", appErr)
+		applog.Fatalf("ui: %v", appErr)
 	}
 }

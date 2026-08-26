@@ -455,10 +455,13 @@ untested. Make the break loud instead: `main.ts` checks `APIVersion()` against
 a constant once and renders a "reload required" banner on mismatch. Regenerate
 `frontend/bindings/` in the same commit or it goes silently stale.
 
-Newly shared cross-session state: `module.Store` keys config by module ID only,
-so two sessions running `seq` share one JSON file with last-writer-wins — for
-BPM that may even be desirable. Leave it shared and documented rather than
-inventing per-unit paths that would break existing users' files.
+**Resolved 2026-08-25** (see below, D-list note superseded): `module.Store`
+is now keyed by module ID **and** device (`display.Info.ID`), so two
+sessions running `seq` each get their own JSON file — no more
+last-writer-wins across units. Empty device ID (e.g. `cmd/pushapp -no-display`)
+keeps the pre-existing bare `<moduleID>.json` name, so single-device files
+are untouched. See `internal/host/store.go`.
+
 Install/uninstall mutate a shared directory; `Uninstall` must now refuse when
 the module is active in **any** session. Cleanest is to move install/uninstall
 off the session-scoped API entirely, since they are process-global filesystem
@@ -541,6 +544,5 @@ session and be ready to add a per-session FPS default or an aggregate cap.
 4. **How long after the last write does Push reclaim the screen?** Sets
    identify's minimum fps and finally quantifies the "refresh continuously"
    rule.
-5. **Should `module.Store` be per-unit or shared?** Shared and documented for
-   now. Changing it later is a config migration; changing it now is a decision
-   no user asked for.
+5. ~~**Should `module.Store` be per-unit or shared?**~~ Resolved 2026-08-25:
+   per-unit, keyed by `display.Info.ID`. See D5 note above.

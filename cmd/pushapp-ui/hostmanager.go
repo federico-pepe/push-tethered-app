@@ -8,11 +8,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/federico-pepe/push-tethered-app/internal/applog"
 	"github.com/federico-pepe/push-tethered-app/internal/bootstrap"
 	"github.com/federico-pepe/push-tethered-app/internal/host"
 	"github.com/federico-pepe/push-tethered-app/internal/identify"
 	pmidi "github.com/federico-pepe/push-tethered-app/internal/midi"
 	"github.com/federico-pepe/push-tethered-app/internal/midiout"
+	"github.com/federico-pepe/push-tethered-app/internal/mirror"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 )
 
@@ -35,6 +37,7 @@ type session struct {
 	unit string
 
 	rt      *host.Runtime
+	mirror  *mirror.Hub // live screen stream for this session, see PushService.OpenMirror
 	cleanup func()
 	cancel  context.CancelFunc
 	stopped chan struct{} // closed by watch once Run has returned and teardown is done
@@ -169,6 +172,18 @@ func (m *hostManager) session(key string) (*host.Runtime, bool) {
 	return s.rt, true
 }
 
+// mirrorHub looks up a connected session's live-screen Hub by key, for
+// PushService.OpenMirror.
+func (m *hostManager) mirrorHub(key string) (*mirror.Hub, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.sessions[key]
+	if !ok {
+		return nil, false
+	}
+	return s.mirror, true
+}
+
 // ports lists every MIDI input port name the OS sees, for the raw fallback
 // list — see PushService.ListMIDIPorts.
 func (m *hostManager) ports() []string {
@@ -240,10 +255,17 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 	n := m.nextKey
 	key := fmt.Sprintf("s%d", n)
 
+	// One Hub per session, not shared: each session's screen is its own
+	// stream, routed by session key (see mirrorHub / PushService.OpenMirror).
+	// An idle Hub costs nothing (mirror.Hub.Frame no-ops with no
+	// subscribers), so this is unconditional rather than gated by a flag.
+	hub := mirror.NewHub()
+
 	opts := m.baseOpts
 	opts.MIDIIn = req.MIDIIn
 	opts.DisplaySel = req.DisplaySel
 	opts.Modules = m.newModules()
+	opts.Mirror = hub
 	if opts.MIDIOutName == "" && n > 1 {
 		opts.MIDIOutName = fmt.Sprintf("%s %d", midiout.DefaultName, n)
 	}
@@ -290,12 +312,13 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 	go func() { runDone <- rt.Run(ctx) }()
 
 	sess := &session{
-		key: key, unit: unit, rt: rt, cleanup: cleanup, cancel: cancel,
+		key: key, unit: unit, rt: rt, mirror: hub, cleanup: cleanup, cancel: cancel,
 		stopped: make(chan struct{}), displaySel: displaySel, midiIn: midiIn,
 	}
 	m.sessions[key] = sess
 	m.order = append(m.order, key)
 	delete(m.lastErrs, unit)
+	log.Printf("session %s: connected (unit=%s, module=%s)", key, unit, moduleID)
 
 	// watch is the sole reader of runDone. It fires whether Run stopped on its
 	// own (e.g. the device was unplugged) or because disconnect/shutdownAll
@@ -330,7 +353,9 @@ func (m *hostManager) watch(sess *session, runDone chan error) {
 	}
 	if err != nil && !sess.deliberate {
 		m.lastErrs[sess.unit] = err
-		log.Printf("host: session %s (%s) disconnected: %v", sess.key, sess.unit, err)
+		applog.Errorf("session %s (%s) disconnected: %v", sess.key, sess.unit, err)
+	} else {
+		log.Printf("session %s (%s): disconnected", sess.key, sess.unit)
 	}
 }
 

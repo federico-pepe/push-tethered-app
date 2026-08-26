@@ -48,6 +48,12 @@ html, body {
     font-weight: 600;
 }
 
+.brand-buttons {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
 .install-btn {
     font-size: 13px;
     padding: 6px 14px;
@@ -417,6 +423,55 @@ html, body {
     flex-shrink: 0;
 }
 
+.session-left {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    min-width: 0;
+}
+
+/* A CSS-drawn triangle rather than a ▾/▸ glyph: font glyph boxes for these
+   characters are not visually centered in their em box (varies by font/OS),
+   which made text-based centering look permanently off no matter how the
+   flex alignment was tuned. A border-triangle centers by construction and
+   its size is a plain CSS value, not a font size. */
+.session-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    padding: 0 14px 0 4px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    align-self: stretch;
+}
+
+.session-toggle::before {
+    content: "";
+    width: 0;
+    height: 0;
+    border-style: solid;
+    /* expanded: pointing down */
+    border-width: 8px 6px 0 6px;
+    border-color: var(--text-dim) transparent transparent transparent;
+}
+
+.session-toggle.is-collapsed::before {
+    /* collapsed: pointing right */
+    border-width: 6px 0 6px 8px;
+    border-color: transparent transparent transparent var(--text-dim);
+}
+
+.session-toggle:hover::before {
+    border-color: var(--text) transparent transparent transparent;
+}
+
+.session-toggle.is-collapsed:hover::before {
+    border-color: transparent transparent transparent var(--text);
+}
+
 .session-disconnect {
     font-size: 12px;
     padding: 5px 10px;
@@ -435,6 +490,95 @@ html, body {
 .session-disconnect:disabled {
     cursor: default;
     opacity: 0.4;
+}
+
+.mirror-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.mirror-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    max-width: 90vw;
+}
+
+.mirror-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.mirror-close {
+    font-size: 18px;
+    line-height: 1;
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.mirror-close:hover {
+    border-color: #e57373;
+    color: #e57373;
+}
+
+.mirror-image {
+    display: block;
+    width: 960px;
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    background: #000;
+}
+
+.settings-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.settings-overlay[hidden] {
+    display: none;
+}
+
+.settings-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    width: min(720px, 90vw);
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.settings-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
 }
 
 .session-error {

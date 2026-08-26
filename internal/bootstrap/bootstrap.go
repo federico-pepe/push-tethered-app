@@ -22,6 +22,7 @@ import (
 	pmidi "github.com/federico-pepe/push-tethered-app/internal/midi"
 	"github.com/federico-pepe/push-tethered-app/internal/midiin"
 	"github.com/federico-pepe/push-tethered-app/internal/midiout"
+	"github.com/federico-pepe/push-tethered-app/internal/mirror"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 )
 
@@ -61,7 +62,16 @@ type Options struct {
 
 	CapturePath string
 	CaptureRaw  bool
-	Modules     []module.Module
+
+	// Mirror, when set, receives every rendered frame for live streaming —
+	// see internal/mirror. The caller owns constructing it (and serving its
+	// HTTP handler somewhere), since a multi-session caller like
+	// cmd/pushapp-ui needs one Hub per session routed under a shared server,
+	// which is not something Open can decide on the caller's behalf the way
+	// it does for CapturePath's single output file.
+	Mirror *mirror.Hub
+
+	Modules []module.Module
 }
 
 // Open claims the hardware and returns a ready-to-run Runtime.
@@ -142,6 +152,14 @@ func Open(opts Options) (rt *host.Runtime, cleanup func(), err error) {
 		log.Printf("capture: recording %s (%s)", rec.Path(), mode)
 	}
 
+	// A nil *mirror.Hub must not become a non-nil host.FrameSink — an
+	// interface wrapping a typed nil pointer is itself non-nil, which would
+	// make host.Runtime.drawFrame call Frame on a nil Hub and panic.
+	var mirrorSink host.FrameSink
+	if opts.Mirror != nil {
+		mirrorSink = opts.Mirror
+	}
+
 	rt, err = host.New(port, dev, host.Options{
 		FPS:         opts.FPS,
 		NoDisplay:   opts.NoDisplay,
@@ -149,6 +167,7 @@ func Open(opts Options) (rt *host.Runtime, cleanup func(), err error) {
 		OpenMIDIOut: openMIDIOut,
 		OpenMIDIIn:  openMIDIIn,
 		Recorder:    rec,
+		Mirror:      mirrorSink,
 	}, opts.Modules...)
 	if err != nil {
 		closeHardware(dev, port)

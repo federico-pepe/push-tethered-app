@@ -7,10 +7,18 @@ protocol/hardware reference and contributor docs, see [docs/](docs/).
 
 ## Pairing a Push
 
-Open `pushapp-ui`. Unpaired screens and MIDI ports show up in two lists.
-Pick one of each and click **Pair and connect**. Use **Identify** if you
-have more than one Push and can't tell them apart by looking — it blinks
-the picked screen or lights up the picked MIDI port's pads.
+Open `pushapp-ui`. Before anything is connected, unpaired screens and MIDI
+ports show up in two lists right in the main window. Pick one of each and
+click **Pair and connect**. Use **Identify** if you have more than one Push
+and can't tell them apart by looking — it blinks the picked screen or lights
+up the picked MIDI port's pads.
+
+Once at least one Push is connected, that pairing UI moves into a
+**Settings…** button instead of taking up space in the main window — click
+it to pair another unit, or manage MIDI port selection for one already
+connected. Each connected session's card has a small triangle on the left
+that folds its module list away, handy once you have several units
+connected and only want to see one at a time.
 
 A MIDI port's name tells you which physical cable it is. Every Push exposes
 up to three:
@@ -73,6 +81,34 @@ stopping. To just confirm the connection itself is working before trying it
 on something you care about, run the **Beat Counter** module — it does
 nothing but light one pad and show a number (1-4) per beat, the simplest
 possible proof a clock is actually arriving.
+
+## Live screen mirror
+
+Both `pushapp` and `pushapp-ui` can stream an exact, live copy of what's on
+Push's screen to a browser — useful for demoing without the physical device
+in frame, or for debugging a module's drawing without craning your neck at
+the hardware.
+
+**In `pushapp-ui`:** each connected session's card has a **Live screen**
+button. Click it to open a live view right in the app window; click **Hide
+live screen** (or the × on the overlay) to close it. **Open in browser**
+opens that same session's stream in your default browser instead — handy
+for screen-sharing just the Push display during a demo. Each connected Push
+gets its own stream, at `http://localhost:3000/screen/<session key>`, so
+with more than one unit connected you always see the right one.
+
+**In `pushapp` (CLI):** on by default at `http://localhost:3000/screen` —
+just run the app and open that URL. Pick a different address with
+`-mirror-addr`, or turn it off entirely with `-mirror-addr=""`:
+
+```bash
+go run ./cmd/pushapp -mirror-addr localhost:8080  # different port
+go run ./cmd/pushapp -mirror-addr=""              # disabled
+```
+
+The stream costs nothing when no one is watching — nothing is encoded until
+a browser tab actually opens it, and closing the tab stops the encoding
+again immediately.
 
 ## Troubleshooting
 

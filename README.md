@@ -59,7 +59,9 @@ that can speak a small JSON protocol over stdin/stdout.
    desktop UI (`pushapp-ui`) lists and switches modules without using the
    terminal, and can pair and drive **several Push units at once** — each
    gets its own session and its own module, independently. `pushapp-ui` can
-   also run alongside Ableton Live — see [MANUAL.md](MANUAL.md).
+   also run alongside Ableton Live — see [MANUAL.md](MANUAL.md). Either
+   binary can also mirror the screen live in a browser tab, for demoing or
+   debugging without looking at the physical device — see MANUAL.md.
 
 ```
   You write a module          pushapp owns the hardware

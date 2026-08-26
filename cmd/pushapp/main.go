@@ -21,18 +21,22 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/federico-pepe/push-tethered-app/internal/applog"
 	"github.com/federico-pepe/push-tethered-app/internal/bootstrap"
 	"github.com/federico-pepe/push-tethered-app/internal/display"
 	"github.com/federico-pepe/push-tethered-app/internal/host/procmod"
 	"github.com/federico-pepe/push-tethered-app/internal/midi"
+	"github.com/federico-pepe/push-tethered-app/internal/mirror"
 	"github.com/federico-pepe/push-tethered-app/internal/module"
 	"github.com/federico-pepe/push-tethered-app/internal/version"
 	"github.com/federico-pepe/push-tethered-app/modules/beatcount"
 	"github.com/federico-pepe/push-tethered-app/modules/monitor"
+	"github.com/federico-pepe/push-tethered-app/modules/padpointer"
 	"github.com/federico-pepe/push-tethered-app/modules/remap"
 	"github.com/federico-pepe/push-tethered-app/modules/seq"
 	"github.com/federico-pepe/push-tethered-app/modules/thru"
@@ -55,6 +59,7 @@ func available() []module.Module {
 		beatcount.New(),
 		uidemo.New(),
 		uitextdemo.New(),
+		padpointer.New(),
 	}
 }
 
@@ -70,6 +75,7 @@ func main() {
 	noExtMIDIIn := flag.Bool("no-ext-midi-in", false, "do not open an external MIDI input port")
 	capturePath := flag.String("capture", "", "record the screen to a file (.mp4, .mov or .gif)")
 	captureRaw := flag.Bool("capture-raw", false, "record the source image instead of panel-accurate BGR565 colour")
+	mirrorAddr := flag.String("mirror-addr", "localhost:3000", "serve a live MJPEG mirror of the screen at http://<addr>/screen; pass -mirror-addr=\"\" to disable it. Avoid :7000/:5000 — macOS's AirPlay Receiver squats both by default.")
 	installDir := flag.String("install", "", "install the module directory at this path (manifest.json + executable), then exit")
 	uninstallID := flag.String("uninstall", "", "uninstall the process-loaded module with this id, then exit")
 	listDevices := flag.Bool("devices", false, "list connected Push units and their MIDI ports, then exit")
@@ -79,6 +85,8 @@ func main() {
 	flag.Parse()
 
 	log.SetFlags(0)
+	log.SetOutput(applog.Wrap(os.Stderr))
+	applog.Banner()
 
 	if *showVersion {
 		fmt.Println(version.Version)
@@ -91,14 +99,14 @@ func main() {
 	if *installDir != "" {
 		man, err := procmod.Install(*installDir)
 		if err != nil {
-			log.Fatalf("%v", err)
+			applog.Fatalf("%v", err)
 		}
 		fmt.Printf("installed %q (%s)\n", man.ID, man.Name)
 		return
 	}
 	if *uninstallID != "" {
 		if err := procmod.Uninstall(*uninstallID); err != nil {
-			log.Fatalf("%v", err)
+			applog.Fatalf("%v", err)
 		}
 		fmt.Printf("uninstalled %q\n", *uninstallID)
 		return
@@ -112,7 +120,7 @@ func main() {
 	if *listDevices {
 		units, err := display.List()
 		if err != nil {
-			log.Fatalf("listing USB units: %v", err)
+			applog.Fatalf("listing USB units: %v", err)
 		}
 		if len(units) == 0 {
 			fmt.Println("no Push units found on USB")
@@ -180,6 +188,19 @@ func main() {
 		return
 	}
 
+	var mirrorHub *mirror.Hub
+	if *mirrorAddr != "" {
+		mirrorHub = mirror.NewHub()
+		mux := http.NewServeMux()
+		mux.Handle("/screen", mirrorHub)
+		go func() {
+			if err := http.ListenAndServe(*mirrorAddr, mux); err != nil {
+				log.Printf("mirror: %v — live mirror unavailable", err)
+			}
+		}()
+		log.Printf("mirror: serving http://%s/screen", *mirrorAddr)
+	}
+
 	rt, cleanup, err := bootstrap.Open(bootstrap.Options{
 		FPS:           *fps,
 		NoDisplay:     *noDisplay,
@@ -192,16 +213,17 @@ func main() {
 		NoExtMIDIIn:   *noExtMIDIIn,
 		CapturePath:   *capturePath,
 		CaptureRaw:    *captureRaw,
+		Mirror:        mirrorHub,
 		Modules:       mods,
 	})
 	if err != nil {
-		log.Fatalf("%v", err)
+		applog.Fatalf("%v", err)
 	}
 	defer cleanup()
 
 	if *modID != "" {
 		if err := rt.Activate(*modID); err != nil {
-			log.Fatalf("host: %v (see -list)", err)
+			applog.Fatalf("host: %v (see -list)", err)
 		}
 	}
 
@@ -212,6 +234,6 @@ func main() {
 	fmt.Println()
 	rt.Shutdown()
 	if runErr != nil {
-		log.Fatalf("host: %v", runErr)
+		applog.Fatalf("host: %v", runErr)
 	}
 }
