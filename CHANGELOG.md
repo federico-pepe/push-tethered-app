@@ -7,6 +7,66 @@ between minor versions).
 
 ## [Unreleased]
 
+## [0.1.3-alpha] - 2026-08-26
+
+### Added
+
+- Live HTTP/MJPEG screen mirror (`internal/mirror`): taps the same render
+  output `internal/capture` already produces (no extra USB traffic), streams
+  to any number of browser clients instead of a file, at zero cost when
+  nobody's watching. `pushapp` gets `-mirror-addr` (on by default at
+  `localhost:3000`, pass `-mirror-addr=""` to disable); `pushapp-ui` serves
+  every session's mirror unconditionally at `localhost:3000/screen/<key>`,
+  with a "Live screen" toggle and "Open in browser" button
+  (`PushService.OpenMirror`) per session card.
+- `pushapp-ui`: a Settings panel — once at least one device is connected,
+  the pairing UI moves out of the main window into a Settings… overlay
+  instead of permanently eating space. Session cards gain a collapse
+  triangle for their module list, useful with several units connected.
+- `internal/applog`: shared timestamped log output (with level) and a
+  startup banner for both `pushapp` and `pushapp-ui`, plus session-tagged
+  connect/disconnect lines and `Errorf`/`Fatalf` helpers so a dropped
+  session or fatal exit is tagged error, not info.
+- `modules/padpointer`: pad-grid-driven pointer — pad row + Channel
+  Pressure drive a menu page (press-to-click) and a crosshair page (full
+  grid position via MPE slide/bend when available, coarse per-cell
+  fallback otherwise; a firm press triggers a ring animation). Works the
+  same on Push 2 and 3, no MPE dependency required.
+- `knobs-js`: PAN 1/2, two bipolar `KnobArc` knobs on -50..+50, using the
+  new `Knob.Bipolar` (`ableton-push-hack`) so the resting value renders as
+  an empty ring instead of a half-full one.
+- `cmd/xporttest`: a read-only, marker-aligned capture/analysis tool for
+  Push 3's undocumented `xPort` interface (interface 6) — confirmed a
+  per-pad touch correlation (two different pads lit up two different byte
+  offsets in the 136-byte frame, 100% consistent across independent
+  touch/release toggles). See `docs/protocol/xport.md`; the full pad map
+  and pressure-scaling are parked as a stretch goal.
+
+### Fixed
+
+- `internal/midi`: Channel Pressure was silently dropped on MIDI channel 1
+  (only channels 2-16 were decoded) — Push 3's pads land on channel 1 when
+  MPE (Aftertouch mode) is off, not always on an MPE member channel as
+  previously assumed.
+- Module `Store` config files are now namespaced per-device (by
+  `display.Info.ID` — serial, or `usb:BUS.ADDR` when a unit reports no
+  serial), not just per-module. Running the same module against two Push
+  units no longer has both sessions read/write one shared JSON file,
+  last-writer-wins.
+- MPE on/off resolved as a persistent Push 3 setting (Aftertouch mode, in
+  Push's own settings menu), independent of Live's presence — not the
+  protocol-layer handshake this was previously assumed to be.
+  `docs/protocol/midi-input.md` corrected to no longer claim MPE is always
+  on.
+
+### Changed
+
+- `pushapp`'s default mirror port moves to 3000 (7000/5000 collide with
+  macOS's AirPlay Receiver); the mirror is now on by default rather than
+  opt-in.
+- `modules/paddebug` removed — its diagnostic job (finding the channel-1
+  Channel Pressure bug and narrowing down the MPE trigger) is done.
+
 ## [0.1.2-alpha] - 2026-08-23
 
 ### Added
@@ -116,7 +176,8 @@ libusb alongside the binary (no Homebrew required on the end-user machine);
 CI's `build.yml`/`diagnostics.yml` cache apt packages, npm modules, and the
 MSYS2 toolchain to cut Actions minutes on the free tier.
 
-[Unreleased]: https://github.com/federico-pepe/push-tethered-app/compare/v0.1.2-alpha...HEAD
+[Unreleased]: https://github.com/federico-pepe/push-tethered-app/compare/v0.1.3-alpha...HEAD
+[0.1.3-alpha]: https://github.com/federico-pepe/push-tethered-app/compare/v0.1.2-alpha...v0.1.3-alpha
 [0.1.2-alpha]: https://github.com/federico-pepe/push-tethered-app/compare/v0.1.1-alpha...v0.1.2-alpha
 [0.1.1-alpha]: https://github.com/federico-pepe/push-tethered-app/compare/v0.1.0-alpha...v0.1.1-alpha
 [0.1.0-alpha]: https://github.com/federico-pepe/push-tethered-app/releases/tag/v0.1.0-alpha
