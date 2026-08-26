@@ -9,88 +9,97 @@
 sudo apt install libusb-1.0-0-dev libasound2-dev pkg-config build-essential
 ```
 
-ALSA headers are required — `rtmididrv` needs `alsa/asoundlib.h`.
+You must install the ALSA headers, because `rtmididrv` needs `alsa/asoundlib.h`.
 
 ## USB display access
 
-Without a udev rule, claiming interface 0 may require root. Push 3 vendor ID
-example:
+If you do not add a udev rule, claiming interface 0 can require root access.
+This is the Push 3 vendor ID example:
 
 ```
 # /etc/udev/rules.d/99-push-display.rules
 SUBSYSTEM=="usb", ATTR{idVendor}=="2982", MODE="0666"
 ```
 
-Add Push 2's vendor ID if needed. Then:
+If you need Push 2 support, add its vendor ID too. Then run:
 
 ```bash
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-Replug Push after adding the rule.
+After you add the rule, disconnect and reconnect Push.
 
 ## MIDI
 
-- Auto-detect works on measured setups
-- MIDI out: host **creates** a virtual ALSA seq port
+- Auto-detect works on measured setups.
+- MIDI out: the host **creates** a virtual ALSA seq port.
 
-**Port names carry role strings, but also an ALSA client:port address
-rtmididrv appends to every name** — not the clean `"... Live Port"` a naive
-suffix match expects. Measured live on real Raspberry Pi 5 hardware
-2026-08-19, a Push 2:
+Port names carry role strings. `rtmididrv` also appends an ALSA
+client:port address to every name. This is not the clean
+`"... Live Port"` string that a naive suffix match expects. The team
+measured this live on real Raspberry Pi 5 hardware on 2026-08-19, with a
+Push 2:
 
 ```
 Ableton Push 2:Ableton Push 2 Live Port 28:0
 Ableton Push 2:Ableton Push 2 User Port 28:1
 ```
 
-Without stripping the trailing `" 28:0"`/`" 28:1"` first, neither name ends
-in `"Live Port"`/`"User Port"` any more, so role detection missed both
-cables entirely — each became its own fake single-cable "unit", and both
-were wrongly marked Live. `internal/midi.unitKeyOf` strips this
-(`alsaClientPort`) before classifying a name. Pairing itself was never
-broken by this — ALSA gives the in and out sides of one cable the identical
-string, so exact-name matching still found it — only the role/unit grouping
-was.
+If the code does not strip the trailing `" 28:0"`/`" 28:1"` first, neither
+name ends in `"Live Port"`/`"User Port"` any more. As a result, role
+detection missed both cables. Each cable became its own fake
+single-cable "unit", and the code marked both of them as Live by
+mistake. `internal/midi.unitKeyOf` strips this suffix (`alsaClientPort`)
+before it classifies a name. This bug never broke pairing itself. ALSA
+gives the in and out sides of one cable the identical string, so
+exact-name matching still found it. Only the role and unit grouping
+failed.
 
 ## pushapp-ui
 
-Requires `webkit2gtk-4.1-dev` (CI installs this). This is the one place the
-stack is not fully standalone.
+`pushapp-ui` needs `webkit2gtk-4.1-dev` (CI installs this package). This
+is the one place where the stack is not fully standalone.
 
 ## gousb busy
 
-If claim fails with `LIBUSB_ERROR_BUSY`, detach interface 0 alone — never use
-`SetAutoDetach(true)` (see [protocol/usb-and-safety.md](../protocol/usb-and-safety.md)).
+If claim fails with `LIBUSB_ERROR_BUSY`, detach interface 0 alone. Never
+use `SetAutoDetach(true)`. See
+[protocol/usb-and-safety.md](../protocol/usb-and-safety.md).
 
 ## Raspberry Pi
 
-Confirmed on a Pi 5 (Debian 13 "trixie", 64-bit arm64) 2026-08-18: `probe`,
-`frametest` (29.9fps), and `pushapp -fps 30` (29.8fps, monitor module) all
-verified against real Push 3 hardware. Same udev rule above applies — Pi OS
-ships with no more permissive default than any other Linux. Built natively
-via `.github/workflows/build.yml`'s `build-pi` job (`ubuntu-24.04-arm`, a real
-aarch64 GitHub-hosted runner) rather than installing a Go toolchain on the Pi
-itself; copy the resulting `pushapp`/`probe`/etc. binaries over and run them
-directly — libusb/ALSA runtime libs are already present on stock Pi OS.
+The team confirmed this on a Pi 5 (Debian 13 "trixie", 64-bit arm64) on
+2026-08-18: `probe`, `frametest` (29.9fps), and `pushapp -fps 30`
+(29.8fps, monitor module) all ran correctly against real Push 3
+hardware. The same udev rule above applies. Pi OS does not ship with a
+more permissive default than any other Linux distribution. The build
+uses `.github/workflows/build.yml`'s `build-pi` job (`ubuntu-24.04-arm`,
+a real aarch64 GitHub-hosted runner), and builds the binary natively
+there, instead of installing a Go toolchain on the Pi itself. Copy the
+resulting `pushapp`, `probe`, and other binaries to the Pi, then run
+them directly. Stock Pi OS already has the libusb and ALSA runtime
+libraries.
 
-**Pi 4 is assumed to work identically (same rule, same arm64 target) and is
-not separately tested.** If it doesn't, that'll surface from real users
-rather than a dedicated test pass — see
+The team assumes that Pi 4 works the same way, because it uses the same
+rule and the same arm64 target, and has not tested Pi 4 separately. If
+Pi 4 does not work, real users will find this instead of a dedicated
+test pass. See
 [plans/2026-08-17-raspberry-pi-support.md](../../plans/2026-08-17-raspberry-pi-support.md)
-for the original unknowns list, mostly closed by this test.
+for the original list of unknowns. This test closed most of them.
 
-**Re-confirmed 2026-08-19** on the same Pi 5, this time with a Push 2 and
-the ALSA port-naming fix above: `pushapp -devices` correctly grouped its
-two cables into one unit with the right roles, `pushapp -module monitor`
-claimed the display and rendered correctly (916 frames at 29.9fps over
-30s, clean SIGINT shutdown, LEDs cleared). The binaries were built via
+The team confirmed this again on 2026-08-19, on the same Pi 5, with a
+Push 2 and the ALSA port-naming fix above. `pushapp -devices` grouped
+its two cables correctly into one unit, with the right roles.
+`pushapp -module monitor` claimed the display and rendered correctly:
+916 frames at 29.9fps over 30 seconds, a clean SIGINT shutdown, and
+cleared LEDs. The team built the binaries with
 [`.github/workflows/diagnostics.yml`](../../.github/workflows/diagnostics.yml)
-(`workflow_dispatch`) and copied over with `scp` — no Go toolchain or
-libusb/ALSA dev headers needed on the Pi itself, since it's only running
-the resulting binary, not building it.
+(`workflow_dispatch`) and copied them over with `scp`. The Pi itself
+needs no Go toolchain and no libusb or ALSA development headers, because
+it only runs the binary and does not build it.
 
 ## Related
 
 - [guides/development-setup.md](../guides/development-setup.md)
 - [plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md)
+</content>

@@ -1,23 +1,24 @@
 # Development setup
 
-**Status:** living guide  
-**Last verified:** 2026-08-18  
+**Status:** living guide
+**Last verified:** 2026-08-18
 
-Build **natively on each target OS** — no cross-compilation (cgo: libusb +
-RtMidi).
+Build natively on each target OS. Cross-compilation is not possible, because
+of cgo (libusb + RtMidi).
 
 ## Requirements
 
-**End users:** single binary, no extra installs beyond the OS.
+**End users:** a single binary. No extra installs beyond the OS.
 
 **Developers:**
 
 - Go 1.25+
-- C toolchain (for cgo)
+- A C toolchain (for cgo)
 - libusb 1.0
-- Sibling checkout of
+- A sibling checkout of
   [`ableton-push-hack`](https://github.com/federico-pepe/ableton-push-hack)
-  for the `core/` module — see `replace` in [go.mod](../../go.mod)
+  for the `core/` module. See the `replace` directive in
+  [go.mod](../../go.mod).
 
 ## macOS
 
@@ -34,45 +35,51 @@ go test ./...
 sudo apt install libusb-1.0-0-dev libasound2-dev pkg-config build-essential
 ```
 
-Display access without root — udev rule for Push 3:
+Use a udev rule for Push 3 to get display access without root.
+
+1. Create the file `/etc/udev/rules.d/99-push-display.rules` with this
+   content:
 
 ```
-# /etc/udev/rules.d/99-push-display.rules
 SUBSYSTEM=="usb", ATTR{idVendor}=="2982", MODE="0666"
 ```
 
+2. Run this command:
+
 ```bash
 sudo udevadm control --reload-rules && sudo udevadm trigger
-# replug Push
 ```
 
-For `pushapp-ui`: `webkit2gtk-4.1-dev`. See [platform/linux.md](../platform/linux.md).
+3. Replug the Push device.
+
+For `pushapp-ui`, install `webkit2gtk-4.1-dev`. See
+[platform/linux.md](../platform/linux.md).
 
 ## Windows
 
-mingw-w64 toolchain (MSYS2) for cgo; libusb via MSYS2 or vcpkg. MIDI uses
-WinMM (built in).
+Use the mingw-w64 toolchain (MSYS2) for cgo. Get libusb through MSYS2 or
+vcpkg. MIDI uses WinMM, which is built in.
 
-**Display/USB path still untested on real Windows hardware.** MIDI has been
-tested — see [platform/windows.md](../platform/windows.md).
+The display and USB path are still untested on real Windows hardware. MIDI
+is tested. See [platform/windows.md](../platform/windows.md).
 
 ## core/ checkout
 
-`go.mod` contains:
+`go.mod` contains this line:
 
 ```
 replace github.com/federico-pepe/ableton-push-hack/core => ../../Documents/GitHub/ableton-push-hack/core
 ```
 
-Adjust the relative path to match your layout, or clone ableton-push-hack as a
-sibling of this repo.
+1. Adjust the relative path to match your own layout, or clone
+   ableton-push-hack as a sibling of this repository.
 
-CI checks out `ableton-push-hack@main` and runs `go mod edit -replace` — that
-is CI-only; the committed `go.mod` path is unchanged.
+CI checks out `ableton-push-hack@main` and runs `go mod edit -replace`. This
+step applies to CI only. The committed `go.mod` path stays unchanged.
 
 ## pushapp-ui (optional)
 
-Separate Go module under `cmd/pushapp-ui/`:
+`cmd/pushapp-ui/` is a separate Go module.
 
 ```bash
 go install github.com/wailsapp/wails/v3/cmd/wails3@latest
@@ -80,7 +87,8 @@ wails3 doctor
 cd cmd/pushapp-ui && wails3 dev
 ```
 
-Needs Node/npm. Details: [cmd/pushapp-ui/README.md](../../cmd/pushapp-ui/README.md).
+This needs Node/npm. Details:
+[cmd/pushapp-ui/README.md](../../cmd/pushapp-ui/README.md).
 
 ## Verify build
 

@@ -1,12 +1,12 @@
 # Writing a process module (overview)
 
-**Status:** living guide  
-**Last verified:** 2026-08-20  
+**Status:** living guide
+**Last verified:** 2026-08-20
 **Authoritative code:** [internal/host/procmod/](../../internal/host/procmod/)
 
-A process module is any executable the host spawns and talks to over
-**newline-delimited JSON** on stdin/stdout. Same behaviour contract as a Go
-module, different transport.
+A process module is any executable that the host spawns. The host talks to
+it over newline-delimited JSON on stdin/stdout. This is the same behavior
+contract as a Go module, over a different transport.
 
 Full protocol: [architecture/process-modules.md](../architecture/process-modules.md).
 
@@ -19,10 +19,11 @@ go run ./cmd/pushapp -module hello-py
 
 ## What you need
 
-1. A directory with `manifest.json` and your script/executable
-2. A main loop reading JSON lines from stdin
-3. Handlers for `init`, `handle`, `draw`, `close`
-4. Responses on stdout — **one JSON object per line, flushed immediately**
+1. A directory with `manifest.json` and your script or executable.
+2. A main loop that reads JSON lines from stdin.
+3. Handlers for `init`, `handle`, `draw`, and `close`.
+4. Responses on stdout. Write one JSON object per line, and flush it
+   immediately.
 
 ## Lifecycle
 
@@ -36,28 +37,32 @@ host spawns child
 
 ## Draw ops
 
-Build an array of ops mirroring Go types:
+Build an array of ops that mirrors the Go types:
 
 ```json
 {"kind": "rect", "params": {"x": 0, "y": 0, "w": 960, "h": 160, "c": {"R":0,"G":0,"B":0,"A":255}}}
 {"kind": "text", "params": {"x": 8, "baseline": 80, "s": "hello", "c": {"R":255,"G":255,"B":255,"A":255}}}
 ```
 
-Check `supported_ops` from `init` before using ops the host might not know.
+Before you use an op, check `supported_ops` from `init`. The host might not
+support every op.
 
 ### Colors
 
-Every screen op's color param must trace back to a real
-`core/push3.Palette` entry — see
-[docs/architecture/design-system.md](../architecture/design-system.md)'s
-color invariant. A process module can't import the Go `push3` package, so
-`cmd/genpalette` (run from the repo root: `go run ./cmd/genpalette`)
-generates `palette.json` into every directory under `examples/modules/`
-that has a `manifest.json`, resolving all 128 raw hardware indices to
-RGBA from `core/push3.Palette`. Copy `palette.json` into your own module's
-directory (`cmd/pushapp -install` copies whatever files are there,
-`palette.json` included, so it travels with the module) and load it at
-startup:
+Every screen op's color parameter must trace back to a real
+`core/push3.Palette` entry. See the color invariant in
+[docs/architecture/design-system.md](../architecture/design-system.md). A
+process module cannot import the Go `push3` package, so use
+`cmd/genpalette` instead.
+
+1. From the repository root, run `go run ./cmd/genpalette`.
+2. This generates a `palette.json` file in every directory under
+   `examples/modules/` that has a `manifest.json`. The file resolves all
+   128 raw hardware indices to RGBA values from `core/push3.Palette`.
+3. Copy `palette.json` into your own module's directory. `cmd/pushapp
+   -install` copies every file in that directory, including
+   `palette.json`, so the file travels with the module.
+4. Load `palette.json` at startup:
 
 ```js
 const PALETTE = JSON.parse(fs.readFileSync(path.join(__dirname, "palette.json"), "utf8"));
@@ -72,44 +77,47 @@ with open(os.path.join(os.path.dirname(__file__), "palette.json")) as f:
 # PALETTE["byIndex"][42]    -> same shape, any raw 0-127 hardware index
 ```
 
-Both lookups return the same shape; `byIndex` pre-resolves every one of
-the 128 raw indices to its nearest defined entry, the same "nearest at or
-below" guarantee `push3.ColorForIndex` makes on the Go side, so a module
-never has to reimplement that search. Rebuild `palette.json` only when
-`core/push3.Palette` itself changes (rare — it's a fixed, SysEx-sourced
-hardware table); it's a checked-in generated file, not something built on
-every run. See `examples/modules/hello-{js,py}`, `beatcount-{js,py}`, and
-`knobs-js` for working examples of both lookup styles.
+Both lookups return the same shape. `byIndex` pre-resolves every one of the
+128 raw indices to its nearest defined entry. This gives the same
+"nearest at or below" guarantee that `push3.ColorForIndex` gives on the Go
+side, so a module never needs to reimplement that search. Rebuild
+`palette.json` only when `core/push3.Palette` itself changes. This is rare,
+because `core/push3.Palette` is a fixed, SysEx-sourced hardware table.
+`palette.json` is a checked-in generated file. The build process does not
+regenerate it on every run. See `examples/modules/hello-{js,py}`,
+`beatcount-{js,py}`, and `knobs-js` for working examples of both lookup
+styles.
 
 ## Host calls from child
 
-Notifications (no `id`):
+Notifications carry no `id`:
 
 ```json
 {"method": "set_pad", "params": {"note": 36, "colour": 11}}
 ```
 
-Requests (with `id`, expect response):
+Requests carry an `id` and expect a response:
 
 ```json
 {"id": 1, "method": "store_get", "params": {}}
 ```
 
-MIDI out (`send_cc`, `send_note`, `note_off`) requires
-`"needs_midi_out": true` in manifest. MIDI clock/transport out (`send_clock`,
-`send_start`, `send_continue`, `send_stop`, all no-params requests) uses the
-same port and the same `needs_midi_out` flag.
+MIDI out (`send_cc`, `send_note`, `note_off`) requires `"needs_midi_out":
+true` in the manifest. MIDI clock and transport out (`send_clock`,
+`send_start`, `send_continue`, `send_stop`, all requests with no params)
+use the same port and the same `needs_midi_out` flag.
 
-External MIDI input — raw bytes from other software or hardware, not from
-Push — arrives as a `handle` notification with `"kind": "external_midi"`,
-`"data": {"raw": "..."}`. **`raw` is base64**, not a number array — Go's
-`encoding/json` encodes a `[]byte` field that way by default, and this wire
-format mirrors the Go type directly rather than reshaping it per language.
-Decode it (`base64.b64decode` in Python, `Buffer.from(s, "base64")` in
-Node) to get the actual MIDI bytes — a single `0xF8` clock tick is `"+A=="`,
-for example. Requires `"needs_midi_in": true` in manifest; unlike MIDI out,
-a missing input port never blocks the module from loading, it just never
-receives this event kind.
+External MIDI input is raw bytes from other software or hardware, not from
+Push. It arrives as a `handle` notification with `"kind":
+"external_midi"` and `"data": {"raw": "..."}`. The field `raw` is base64,
+not a number array. Go's `encoding/json` encodes a `[]byte` field that way
+by default, and this wire format mirrors the Go type directly instead of
+reshaping it per language. Decode it with `base64.b64decode` in Python or
+`Buffer.from(s, "base64")` in Node to get the actual MIDI bytes. For
+example, a single `0xF8` clock tick decodes from `"+A=="`. External MIDI
+input requires `"needs_midi_in": true` in the manifest. Unlike MIDI out, a
+missing input port never blocks the module from loading. The module simply
+never receives this event kind.
 
 ## Common mistakes
 

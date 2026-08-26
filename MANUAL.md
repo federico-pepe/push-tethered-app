@@ -1,136 +1,165 @@
 # Push Tethered App — Manual
 
-This is the **end-user manual**: how to run the app, pair a Push, and
-configure it correctly — including running it alongside Ableton Live. For
-what the project *is* and why it exists, see [README.md](README.md). For
-protocol/hardware reference and contributor docs, see [docs/](docs/).
+This is the end-user manual: how to run the app, pair a Push, and configure
+it, including how to run it alongside Ableton Live. For information about
+the project itself, see [README.md](README.md). For protocol and hardware
+reference for contributors, see [docs/](docs/).
 
 ## Pairing a Push
 
-Open `pushapp-ui`. Before anything is connected, unpaired screens and MIDI
-ports show up in two lists right in the main window. Pick one of each and
-click **Pair and connect**. Use **Identify** if you have more than one Push
-and can't tell them apart by looking — it blinks the picked screen or lights
-up the picked MIDI port's pads.
+Open `pushapp-ui`. Before you connect a Push, the main window shows two
+lists: unpaired screens and unpaired MIDI ports.
 
-Once at least one Push is connected, that pairing UI moves into a
-**Settings…** button instead of taking up space in the main window — click
-it to pair another unit, or manage MIDI port selection for one already
-connected. Each connected session's card has a small triangle on the left
-that folds its module list away, handy once you have several units
-connected and only want to see one at a time.
+1. Pick one item from each list.
+2. Click **Pair and connect**.
 
-A MIDI port's name tells you which physical cable it is. Every Push exposes
-up to three:
+If you have more than one Push and cannot tell them apart, click
+**Identify**. Identify blinks the screen, or lights the pads of the MIDI
+port, that you picked.
 
-| Port | What it's for |
+After you connect one Push, the pairing controls move to a **Settings…**
+button. Click **Settings…** to pair another unit or to change the MIDI port
+of a connected unit.
+
+Each connected session has a card with a small triangle on the left. Click
+the triangle to fold away the module list of that card. Use this when you
+connect several units and want to see only one at a time.
+
+A MIDI port's name shows which physical cable it is. Every Push has up to
+three:
+
+| Port | What it is for |
 |---|---|
-| **Live Port** | The cable Ableton Live uses. Pick this for a normal, Live-free session. |
-| **User Port** | Active only while Push's own **User Mode** is engaged on the device (press the User button). Pick this to run alongside Live — see below. |
-| **External Port** | Push 3's physical MIDI DIN connector on the back. Not related to Live. |
+| **Live Port** | The cable that Ableton Live uses. Pick this port for a normal session without Live. |
+| **User Port** | Active only while **User Mode** is on at the device (press the User button). Pick this port to run alongside Live — see below. |
+| **External Port** | Push 3's MIDI DIN connector on the back. Not related to Live. |
 
 ## Running alongside Ableton Live
 
-Live and this app can't both use Push at the same time by default — Live's
-own background helper claims the screen, and without any workaround it also
-fights this app for the pads' MIDI and LEDs. Push's built-in **User Mode**
-solves this: while it's engaged, Live is completely cut off from the pads
-(both reading presses and painting LED colours), and this app gets them
-instead — with Live still running normally otherwise.
+By default, Live and this app cannot use Push at the same time. A
+background helper in Live claims the screen. Without User Mode, Live and
+this app also compete for control of the pads and their LEDs.
 
-**The order matters. Do it in exactly this sequence:**
+User Mode on Push solves this problem. While User Mode is on, Live cannot
+read pad presses or set LED colors. This app controls the pads instead, and
+Live runs normally otherwise.
 
-1. **Quit Live** if it's running.
-2. Open `pushapp-ui`, pick the screen and the **User Port**, and click
-   **Pair and connect**. This has to happen while Live is closed — the
-   screen claim only sticks if it happens first; Live launching afterward
-   will not take it away, but Live launching *before* this step wins the
-   screen instead, and there's no way to steal it back afterward.
-3. **Now launch Live.**
-4. **Press User on the Push hardware** to engage User Mode.
+**Do these steps in this exact order:**
 
-That's it — the module you're running keeps the screen, gets pad presses,
-and can paint pad colours, all while Live runs. Live's own control-surface
-features (Session View colouring, its pad input) are unaffected; they're
-just not reaching Push's physical pads while User Mode is engaged.
+1. If Live is running, quit Live.
+2. Open `pushapp-ui`. Pick the screen and the **User Port**. Click **Pair
+   and connect**.
 
-To go back to normal Live control-surface use, press User again to exit
-User Mode.
+   Note: Do this step while Live is closed. The app must claim the screen
+   before Live starts. If Live starts first, Live keeps the screen, and you
+   cannot take it back afterward.
+3. Launch Live.
+4. Press **User** on the Push hardware. This turns on User Mode.
+
+Your module now keeps the screen. It receives pad presses and can set pad
+colors, while Live runs normally.
+
+Live's own control-surface features, such as Session View coloring and pad
+input, still work inside Live. But User Mode blocks them from reaching the
+physical pads of Push.
+
+To return to normal Live control, press **User** again. This turns off User
+Mode.
 
 ### Recording a module's MIDI into Live
 
-Some modules (the step sequencer, for example) send MIDI out as well as
-reading pad input. That output shows up as a virtual MIDI port other
-software can see — including Live. Add a MIDI track in Live, set its input
-to the app's output port, and arm it to record, same as any other MIDI
-source.
+Some modules send MIDI output as well as pad input — the step sequencer is
+one example. Other software, including Live, sees this output as a virtual
+MIDI port.
+
+To record this output in Live:
+
+1. Add a MIDI track in Live.
+2. Set the track's input to the app's output port.
+3. Arm the track to record.
 
 ### Syncing a module to an external clock
 
-The app can also *receive* MIDI from other software or hardware, separate
-from its own MIDI output above and from Push's own controls. A module built
-to use it (not every module is) can be driven by an incoming MIDI clock, so
-its tempo follows something else instead of running on its own. Point the
-sending device or software's MIDI output at this app's input port — same
-kind of connection as pointing a synth at Live, just in the other direction.
+The app can also receive MIDI from other software or hardware. This input
+is separate from the MIDI output above and from the controls of Push.
 
-The step sequencer module locks to an incoming clock automatically when one
-is connected — start/stop it from the sending side, no setting to flip. It
-falls back to its own tempo within a couple of seconds of the clock
-stopping. To just confirm the connection itself is working before trying it
-on something you care about, run the **Beat Counter** module — it does
-nothing but light one pad and show a number (1-4) per beat, the simplest
-possible proof a clock is actually arriving.
+A module that supports this feature can follow an incoming MIDI clock
+instead of its own tempo. Not every module supports this feature.
+
+To connect a clock source, point the MIDI output of the sending device or
+software at the MIDI input port of this app. This is the same type of
+connection you use to point a synthesizer at Live, but in the opposite
+direction.
+
+The step sequencer module locks to an incoming clock automatically. Start
+and stop the sequencer from the sending device; the app has no setting for
+this. If the clock stops, the sequencer returns to its own tempo within a
+few seconds.
+
+To check the clock connection before you use it in a module you care about,
+run the **Beat Counter** module. This module lights one pad and shows a
+number from 1 to 4 for each beat. It is the simplest way to check that a
+clock signal arrives.
 
 ## Live screen mirror
 
-Both `pushapp` and `pushapp-ui` can stream an exact, live copy of what's on
-Push's screen to a browser — useful for demoing without the physical device
-in frame, or for debugging a module's drawing without craning your neck at
-the hardware.
+Both `pushapp` and `pushapp-ui` can stream a live copy of the Push screen to
+a browser. Use this feature to demo the app without the physical device in
+view, or to debug the drawing of a module without looking at the hardware.
 
 **In `pushapp-ui`:** each connected session's card has a **Live screen**
-button. Click it to open a live view right in the app window; click **Hide
-live screen** (or the × on the overlay) to close it. **Open in browser**
-opens that same session's stream in your default browser instead — handy
-for screen-sharing just the Push display during a demo. Each connected Push
-gets its own stream, at `http://localhost:3000/screen/<session key>`, so
-with more than one unit connected you always see the right one.
+button.
 
-**In `pushapp` (CLI):** on by default at `http://localhost:3000/screen` —
-just run the app and open that URL. Pick a different address with
-`-mirror-addr`, or turn it off entirely with `-mirror-addr=""`:
+1. Click **Live screen** to open a live view in the app window.
+2. Click **Hide live screen**, or the × on the overlay, to close the view.
+3. Click **Open in browser** to open the same stream in your default
+   browser. Use this option to share only the Push display during a demo.
+
+Each connected Push has its own stream, at
+`http://localhost:3000/screen/<session key>`. This lets you see the correct
+stream when more than one unit is connected.
+
+**In `pushapp` (CLI):** the stream is on by default at
+`http://localhost:3000/screen`. Run the app, then open that URL in a
+browser. To use a different address, pass `-mirror-addr`. To turn off the
+stream, pass `-mirror-addr=""`:
 
 ```bash
 go run ./cmd/pushapp -mirror-addr localhost:8080  # different port
 go run ./cmd/pushapp -mirror-addr=""              # disabled
 ```
 
-The stream costs nothing when no one is watching — nothing is encoded until
-a browser tab actually opens it, and closing the tab stops the encoding
-again immediately.
+The stream uses no extra resources when no one watches it. Encoding starts
+only when a browser tab opens the stream, and stops immediately when the
+tab closes.
 
 ## Troubleshooting
 
-**"display interface is claimed by another process (Live?)"** — something
-else (usually Live) already owns Push's screen. If you want this app to
-have it, quit Live and pair first, then relaunch Live (see the ordering
-above). This app never retries the claim automatically once it degrades —
-if you fix the underlying conflict, reconnect the session rather than
-waiting.
+**`display interface is claimed by another process (Live?)`** — Another
+process, usually Live, already owns the screen of Push.
 
-**A MIDI port row is greyed out and says "Matches another identical
-unit"** — you have two Push units of the same model, and their MIDI ports
-report identical names, so software alone can't tell them apart. Use
-Identify on each candidate to find the right one by watching which pads
-light up.
+If you want this app to control the screen, quit Live, pair the app, then
+start Live again. See the order of steps above.
 
-**A MIDI-port row's screen and MIDI unit look mismatched** — a red warning
-appears if the screen you picked and the MIDI port you picked report
-different Push models. That usually means you grabbed the wrong pair; use
-Identify to confirm which screen goes with which MIDI unit before pairing.
+This app does not retry the screen claim on its own. After you fix the
+conflict, reconnect the session instead of waiting.
 
-**Nothing lights up / nothing is heard on User Port** — check that User
-Mode is actually engaged on the device (press User, don't just have the
-port selected in the app) — LED writes and pad input on User Port only work
-while it's on.
+**A MIDI port row is gray and shows the message `Matches another identical
+unit`** — You have two Push units of the same model. Their MIDI ports
+report identical names, so the app cannot tell them apart on its own.
+
+Click **Identify** on each candidate port. Watch which pads light up to
+find the correct unit.
+
+**The screen and the MIDI unit of a MIDI port row do not match** — A red
+warning appears when the screen and the MIDI port you picked report
+different Push models. This usually means you picked the wrong pair.
+
+Use **Identify** to check which screen matches which MIDI unit before you
+pair them.
+
+**Nothing lights up, and nothing is heard, on the User Port** — Make sure
+that User Mode is on at the device. Press **User** on the hardware;
+selecting the port in the app is not enough.
+
+LED output and pad input on the User Port work only while User Mode is on.

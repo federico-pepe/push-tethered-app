@@ -13,43 +13,49 @@ See [guides/development-setup.md](../guides/development-setup.md).
 
 ## Display / USB
 
-**Confirmed 2026-08-18** in a Windows 11 VM with a real Push 3 attached via
-USB passthrough: `pushapp-ui` ran end to end, display and MIDI both working.
-No WinUSB/Zadig driver conflict encountered; whether Push advertises WCID/MS
-OS descriptors specifically was not investigated since the plain path already
+The team confirmed this on 2026-08-18, in a Windows 11 VM with a real
+Push 3 attached through USB passthrough. `pushapp-ui` ran end to end,
+with both the display and MIDI working. The team found no WinUSB/Zadig
+driver conflict. The team did not investigate whether Push advertises
+WCID/MS OS descriptors specifically, because the plain path already
 worked.
 
-**Claiming one unit's display can make USB enumeration fail for that same
-unit** on real Windows hardware — confirmed 2026-08-19 by a real symptom:
-with two Push units attached, pairing one made the *other, completely
-unclaimed* unit disappear from `pushapp-ui`'s pairing view too. Root cause
-was a bug in `internal/display.enumerateUSB`, not the platform: it looped
-Push 3 then Push 2 and aborted the *entire* enumeration if one product
-model's every device failed to open — which happens once that device's
-display interface is claimed — losing the other, unrelated model's units
-along with it. Fixed by letting one model's failure skip ahead to the next
-rather than aborting; a caller only sees an error when nothing was found at
-all. Whether opening a *second* device-level handle to an
-interface-claimed device is what actually fails on Windows (as opposed to
-some other OS-specific enumeration behavior) was not independently
-confirmed — the loop bug was the reproducible, code-provable part, and
-fixing it resolved the live symptom regardless of the deeper cause.
+On real Windows hardware, claiming one unit's display can make USB
+enumeration fail for that same unit. The team confirmed this on
+2026-08-19 with a real symptom. With two Push units attached, pairing
+one unit made the other, completely unclaimed, unit disappear from
+`pushapp-ui`'s pairing view too. The root cause was a bug in
+`internal/display.enumerateUSB`, not the platform. The function looped
+through Push 3, then Push 2, and aborted the entire enumeration if every
+device of one product model failed to open. This failure happens once
+the display interface of that device is claimed. As a result, the loop
+also lost the units of the other, unrelated model. The fix lets one
+model's failure skip ahead to the next model, instead of aborting. Now a
+caller sees an error only when the enumeration finds nothing at all. The
+team did not independently confirm whether opening a second
+device-level handle to an interface-claimed device is the real cause of
+the Windows failure, as opposed to some other OS-specific enumeration
+behavior. The loop bug was the reproducible, code-provable part. Fixing
+it resolved the live symptom, regardless of the deeper cause.
 
 ## MIDI input — port naming
 
-WinMM does **not** expose USB jack strings like CoreMIDI/ALSA. Push ports appear as:
+WinMM does not expose USB jack strings the way CoreMIDI and ALSA do.
+Push ports appear as:
 
 - `Ableton Push 3 MIDI` (first cable — this is Live Port traffic)
-- `MIDIIN2 (Ableton Push 3 MIDI)`, `MIDIIN3 (...)`, etc.
+- `MIDIIN2 (Ableton Push 3 MIDI)`, `MIDIIN3 (...)`, and so on
 
-Name-based auto-detect cannot match `"Live Port"`. **Escape hatch:** manual port
-selection in `pushapp-ui` when auto-detect fails (`ListInPorts` / `OpenNamed`).
+Name-based auto-detect cannot match `"Live Port"`. Escape hatch: if
+auto-detect fails, select the port manually in `pushapp-ui`
+(`ListInPorts` / `OpenNamed`).
 
-**This driver's Windows backend appends an undocumented `" <n>"` to every
-MIDI port name it reports** — not just Push's, and confirmed to match each
-port's own driver number (`PortRef.InNum`/`OutNum`), incrementing globally
-across every Push-named port on the system rather than resetting per unit.
-Measured live 2026-08-19 on real Windows hardware:
+This driver's Windows backend appends an undocumented `" <n>"` suffix to
+every MIDI port name it reports, not only Push's. The team confirmed
+that this number matches each port's own driver number
+(`PortRef.InNum`/`OutNum`). This number increases globally across every
+Push-named port on the system, rather than resetting for each unit. The
+team measured this live on real Windows hardware on 2026-08-19:
 
 ```
 Ableton Push 3 MIDI 0
@@ -57,84 +63,90 @@ MIDIIN2 (Ableton Push 3 MIDI) 1
 MIDIIN3 (Ableton Push 3 MIDI) 2
 ```
 
-(a second Push attached at the same time continued the same global counter —
-`Ableton Push 2 0`, `MIDIIN2 (Ableton Push 2) 1` became `... 2`, `... 3` once
-a Push 3 was also present). This is not decoration a caller can ignore: it
-broke role detection outright (every cable showed as an unnamed "cable 1,
-Live" since the name no longer ended in a recognisable shape) and broke
-cable-2-and-up detection too (the wrapped-name regex anchors to the closing
-paren, and the trailing index sits after it). `internal/midi.unitKeyOf`
-strips this suffix (`winmmIndex`) before classifying a name, the same way it
-already stripped ALSA's `<client>:<port>` suffix on Linux.
+A second Push attached at the same time continues the same global
+counter: `Ableton Push 2 0` and `MIDIIN2 (Ableton Push 2) 1` become
+`... 2` and `... 3` once a Push 3 is also present. A caller cannot
+ignore this suffix. It broke role detection completely, because the
+name no longer ended in a recognizable shape, so every cable showed as
+an unnamed "cable 1, Live". It also broke detection of cable 2 and
+higher, because the wrapped-name regex anchors to the closing
+parenthesis, and the trailing index sits after it.
+`internal/midi.unitKeyOf` strips this suffix (`winmmIndex`) before it
+classifies a name, the same way it already strips ALSA's
+`<client>:<port>` suffix on Linux.
 
-Separately, and independent of the suffix above: WinMM numbers MIDI in and
-out cables in namespaces that are **entirely independent of each other** —
-another MIDI-out device already on the system (a synth, a loopMIDI port) can
-shift Push's own outputs to different absolute cable numbers than its
-inputs, so even a cable whose input and output *should* share a name no
-longer do once decorated. `internal/midi.groupPorts` pairs cables by
-**position within the unit** (the Nth remaining input against the Nth
-remaining output of that same physical unit, each ordered by its own cable
-number) rather than by matching an absolute cable number between sides —
-this survives both the suffix and the independent-numbering problem at once.
-Confirmed live 2026-08-19 on real Windows hardware, one Push 3 and one Push
-2, together and separately: every cable paired correctly and the pairing UI
-worked end to end. (A same-shaped 2026-08-18 fix, keyed on the absolute
-cable number rather than relative position, is what this superseded — it
-worked for the simpler cases that fix was measured against, but not this
-one.)
+Separately, and independent of the suffix, WinMM numbers MIDI in and out
+cables in namespaces that are entirely independent of each other.
+Another MIDI-out device already on the system (a synth, a loopMIDI
+port) can shift Push's own outputs to absolute cable numbers different
+from its inputs. As a result, a cable whose input and output should
+share a name no longer does, once the suffix decorates it.
+`internal/midi.groupPorts` pairs cables by position within the unit
+instead: the Nth remaining input against the Nth remaining output of
+the same physical unit, each ordered by its own cable number. This
+method survives both the suffix and the independent-numbering problem
+at the same time. The team confirmed this live on 2026-08-19 on real
+Windows hardware, with one Push 3 and one Push 2, together and
+separately. Every cable paired correctly, and the pairing UI worked end
+to end. This method superseded a same-shaped fix from 2026-08-18 that
+used the absolute cable number instead of relative position. That
+earlier fix worked for simpler cases, but not for this one.
 
 ## MIDI output
 
-WinMM **cannot create virtual ports**. The host **attaches** to an existing
-port by name:
+WinMM **cannot create virtual ports**. The host **attaches** to an
+existing port by name:
 
 1. Install [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html)
-   (free) or use Windows MIDI Services
-2. Create a port (e.g. `PushApp`)
-3. Point the app at that name (`-midi-out PushApp` or UI setting)
+   (free) or use Windows MIDI Services.
+2. Create a port (for example `PushApp`).
+3. Point the app at that name (`-midi-out PushApp` or UI setting).
 
 | Platform | MIDI out strategy | User setup |
 |---|---|---|
 | macOS, Linux | create virtual port | none |
 | Windows | attach to existing port | loopMIDI or equivalent |
 
-Never attach to a port whose name mentions **Push** — output loops back into
-the input decoder.
+Do not attach to a port whose name mentions **Push**. The output loops
+back into the input decoder.
 
 ## pushapp-ui
 
-Wails v3 builds on Windows CI. Port picker appears when auto-detect fails.
+Wails v3 builds on Windows CI. The port picker appears when auto-detect
+fails.
 
 ### Missing DLL errors at runtime
 
-A Windows exe built via MSYS2/mingw dynamically links four DLLs by default:
-`libgcc_s_seh-1.dll`, `libstdc++-6.dll`, `libwinpthread-1.dll` (mingw
-runtime), and `libusb-1.0.dll` (gousb's `#cgo pkg-config: libusb-1.0`). On
-the build machine they're on PATH via MSYS2, so the build succeeds — but
-copying just the `.exe` to another Windows machine fails to launch with
-"missing DLL" errors for all four.
+A Windows exe built with MSYS2/mingw dynamically links four DLLs by
+default: `libgcc_s_seh-1.dll`, `libstdc++-6.dll`,
+`libwinpthread-1.dll` (the mingw runtime), and `libusb-1.0.dll` (gousb's
+`#cgo pkg-config: libusb-1.0`). On the build machine, these DLLs are on
+PATH through MSYS2, so the build succeeds. If you copy only the `.exe`
+to another Windows machine, it fails to launch with "missing DLL" errors
+for all four.
 
-**Do not source these DLLs from elsewhere** (a random download, a different
-MSYS2 install, a different mingw build) to paper over a missing-DLL error.
-A runtime DLL built against a different toolchain version than the exe
-produces `0xc000007b` (`STATUS_INVALID_IMAGE_FORMAT`) instead — confirmed
-2026-08-18 against a VM report after manually sourcing
-`libusb-1.dll`/`libwinpthread-1.dll`. The fix is to make the exe not need
-external copies of these DLLs at all.
+Do not get these DLLs from another source (a random download, a
+different MSYS2 install, a different mingw build) to work around a
+missing-DLL error. A runtime DLL built against a different toolchain
+version than the exe produces the error `0xc000007b`
+(`STATUS_INVALID_IMAGE_FORMAT`) instead. The team confirmed this on
+2026-08-18, against a VM report, after it manually sourced
+`libusb-1.dll` and `libwinpthread-1.dll`. The fix is to make the exe not
+need external copies of these DLLs at all.
 
-Fix, applied 2026-08-18 in response to that VM report and confirmed working
-the same day against real Push 3 hardware (same VM + USB passthrough):
+The team applied this fix on 2026-08-18, in response to that VM report,
+and confirmed it worked the same day against real Push 3 hardware (same
+VM and USB passthrough):
 
-- `libgcc_s_seh-1.dll` / `libstdc++-6.dll` / `libwinpthread-1.dll`:
-  static-link with `CGO_LDFLAGS="-static"` (a plain `-static-libgcc
-  -static-libstdc++` misses `libwinpthread-1.dll`) — MSYS2's toolchain ships
-  static archives for all three, safe by default. CI does this for
-  `cmd/pushapp-ui`.
-- `libusb-1.0.dll`: static-linking this needs `libusb-1.0.a` present in
-  MSYS2's `mingw64/lib`, unverified on real hardware — simpler and
-  confirmed-working fix is to ship `mingw64/bin/libusb-1.0.dll` alongside
-  the exe, always from the *same* MSYS2 install the exe was built with. CI
+- `libgcc_s_seh-1.dll`, `libstdc++-6.dll`, `libwinpthread-1.dll`: link
+  these statically with `CGO_LDFLAGS="-static"`. A plain
+  `-static-libgcc -static-libstdc++` misses `libwinpthread-1.dll`.
+  MSYS2's toolchain ships static archives for all three, and this is
+  safe by default. CI does this for `cmd/pushapp-ui`.
+- `libusb-1.0.dll`: static linking needs `libusb-1.0.a` in MSYS2's
+  `mingw64/lib`, and the team has not verified this on real hardware. A
+  simpler, confirmed fix is to ship `mingw64/bin/libusb-1.0.dll` next to
+  the exe, always from the same MSYS2 install that built the exe. CI
   copies it next to `cmd/pushapp-ui/bin/pushapp-ui.exe`.
 
 Locally, in the MSYS2 shell before building:
@@ -146,11 +158,14 @@ cd cmd/pushapp-ui && wails3 task build CGO_ENABLED=1
 cp /mingw64/bin/libusb-1.0.dll bin/
 ```
 
-This isn't packaging (`wails3 package`, NSIS) — still out of scope per
+This is not packaging (`wails3 package`, NSIS), which stays out of
+scope. See
 [plans/2026-08-17-ci-for-pushapp-ui.md](../../plans/2026-08-17-ci-for-pushapp-ui.md).
-An installer would bundle this automatically; until then, ship the DLL by hand.
+An installer would bundle this automatically. Until then, ship the DLL
+by hand.
 
 ## Related
 
 - [plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md) — remaining open items
 - [architecture/module-host.md](../architecture/module-host.md) — MIDI out model
+</content>

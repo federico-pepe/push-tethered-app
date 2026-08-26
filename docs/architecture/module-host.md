@@ -4,9 +4,9 @@
 **Last verified:** 2026-08-18  
 **Authoritative code:** [internal/host/](../../internal/host/), [internal/module/](../../internal/module/)
 
-`pushapp` is a **module host**: it owns Push hardware and runs one **module**
-at a time. No DAW is involved at any layer; a MIDI remapper is a module, not
-the product.
+`pushapp` is a **module host**. It owns the Push hardware and runs one
+**module** at a time. No DAW is involved at any layer. A MIDI remapper is
+a module, not the product.
 
 Decision history: [plans/2026-08-17-module-host.md](../../plans/2026-08-17-module-host.md).
 
@@ -37,18 +37,19 @@ Reference implementation: [modules/monitor/](../../modules/monitor/).
 
 1. **Draw builds a display list**, not an image. The host renders ops via
    `core/gfx` + `core/gfx/widgets`.
-2. **`Handle` and `Draw` never run concurrently** — one module goroutine; no
-   mutexes needed in module state.
-3. **Never block in `Handle`.** The host drops oldest events if the module
-   stalls.
-4. **Op set is open** — unknown ops are logged and skipped, never fatal.
-   `Host.SupportedOps()` lists what this host knows.
-5. **`NeedsMIDIOut`** in `Meta` — host refuses activation if no output port
-   can be opened.
-6. **`Store()`** — persisted JSON, keyed by module ID and, when a display is
-   claimed, by device (`display.Info.ID`) — so two `pushapp-ui` sessions
-   running the same module against different Push units never share one
-   file ([internal/host/store.go](../../internal/host/store.go)).
+2. **`Handle` and `Draw` never run concurrently.** One module goroutine
+   handles both, so module state needs no mutexes.
+3. **Never block in `Handle`.** The host drops the oldest events if the
+   module stalls.
+4. **The op set is open.** An unknown op is logged and skipped, not
+   fatal. `Host.SupportedOps()` lists the ops this host knows.
+5. **`NeedsMIDIOut`** in `Meta`: the host refuses activation if it cannot
+   open an output port.
+6. **`Store()`** persists JSON, keyed by module ID. When a display is
+   claimed, it is also keyed by device (`display.Info.ID`). As a result,
+   two `pushapp-ui` sessions that run the same module against different
+   Push units never share one file
+   ([internal/host/store.go](../../internal/host/store.go)).
 
 ## Host API (`module.Host`)
 
@@ -57,8 +58,9 @@ Reference implementation: [modules/monitor/](../../modules/monitor/).
 - `SendCC` / `SendNote` / `NoteOff` — to the owned MIDI out port
 - `Log`, `Store`, `SupportedOps`, `Theme()`
 
-Port opens **on activation**, never earlier. Release held notes in `Close` —
-the host clears LEDs but not in-flight notes ([modules/thru/](../../modules/thru/)).
+The port opens **on activation**, never earlier. Release held notes in
+`Close`. The host clears LEDs, but it does not release in-flight notes
+([modules/thru/](../../modules/thru/)).
 
 ## Concurrency model
 
@@ -71,8 +73,8 @@ frame ticker   →  Draw request  ───────────────�
               render ops → USB display @ ~fps
 ```
 
-LED writes from the module goroutine; the driver thread never blocks on module
-logic.
+LED writes come from the module goroutine. The driver thread never blocks
+on module logic.
 
 ## Built-in modules
 
@@ -91,7 +93,7 @@ The host **owns a named output port**:
 - **Windows:** attaches to an existing port (user provides via loopMIDI)
 
 See [platform/windows.md](../platform/windows.md). Never attach to a port
-whose name mentions Push — loops output back into the decoder.
+whose name mentions Push. This loops the output back into the decoder.
 
 ## UI
 
@@ -100,7 +102,7 @@ install/uninstall process modules. Same bootstrap path as CLI `pushapp`.
 
 ## Process-loaded modules
 
-Out-of-process modules implement the same contract over JSON — see
+Out-of-process modules implement the same contract over JSON. See
 [process-modules.md](process-modules.md).
 
 ## Related

@@ -4,9 +4,9 @@
 **Last verified:** 2026-08-18  
 **Authoritative code:** [internal/host/procmod/](../../internal/host/procmod/), [internal/host/procinstall.go](../../internal/host/procinstall.go)
 
-A module can be **any executable** — Python, Node.js, Rust, etc. — speaking
-JSON-over-stdio. The host spawns it as a child process; `procmod.Proc`
-implements `module.Module` so the runtime treats it like an in-tree module.
+A module can be **any executable** — Python, Node.js, Rust, and more — that
+speaks JSON-over-stdio. The host spawns it as a child process. `procmod.Proc`
+implements `module.Module`, so the runtime treats it like an in-tree module.
 
 Decision history: [plans/2026-08-17-process-loader.md](../../plans/2026-08-17-process-loader.md).
 
@@ -41,7 +41,7 @@ go run ./cmd/pushapp -module your-module-id
 ```
 
 `exec` is resolved relative to the module directory. On Windows, name the
-full command the shell needs (e.g. `python.exe run.py`).
+full command the shell needs, for example `python.exe run.py`.
 
 ## Wire protocol
 
@@ -87,24 +87,25 @@ Not full JSON-RPC — no batching, no version field. Two peers, fixed method set
 
 ## Draw ops
 
-Same JSON shapes as Go `internal/module` types. Colour:
-`{"R":255,"G":255,"B":255,"A":255}` (Go `color.NRGBA` encoding).
+These ops use the same JSON shapes as the Go `internal/module` types.
+Colour: `{"R":255,"G":255,"B":255,"A":255}` (Go `color.NRGBA` encoding).
 
-**Image op is not available** over IPC — raw pixels need an in-tree Go module.
+**The image op is not available** over IPC. Raw pixels need an in-tree Go
+module.
 
 ## Supervisor lifecycle
 
 1. **Init:** spawn process, wire stdin/stdout, stderr → host log, send `init`
 2. **Handle:** write notification, never wait
-3. **Draw:** request/response with bounded timeout; timeout → empty frame, logged
+3. **Draw:** request/response with bounded timeout. On timeout: empty frame, logged
 4. **Close:** send `close`, grace period, then kill if needed
-5. **Crash:** reader detects closed pipe; further calls no-op until re-activate
+5. **Crash:** reader detects closed pipe. Further calls no-op until re-activation
 
 ## Critical: flush stdout
 
-The host reads **one line at a time**. Python buffers stdout when not a TTY —
-**flush after every line** or the host appears hung. Node on POSIX writes
-synchronously to pipes, but the same discipline applies everywhere.
+The host reads **one line at a time**. Python buffers stdout when it is not
+a TTY. **Flush after every line**, or the host appears hung. Node on POSIX
+writes synchronously to pipes, but the same discipline applies everywhere.
 
 ## Language guides
 
