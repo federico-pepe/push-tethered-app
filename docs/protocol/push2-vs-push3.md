@@ -1,11 +1,11 @@
 # Push 2 vs Push 3
 
-**Status:** confirmed on tethered hardware  
-**Last verified:** 2026-08-16  
+**Status:** confirmed on tethered hardware
+**Last verified:** 2026-08-16
 **Authoritative code:** [internal/pushmap/push2.go](../../internal/pushmap/push2.go)
 
-Both devices run from the **same binary**. Display, pad grid geometry, and LED
-palette are identical.
+Both devices run from the **same binary**. Display, pad grid geometry, and
+LED palette are identical.
 
 ## Summary
 
@@ -21,7 +21,8 @@ palette are identical.
 
 ## Map deltas (Push 2 only)
 
-Five CC assignments differ. Always resolve via `pushmap` with a known device:
+Five CC assignments differ. Always resolve them with `pushmap` and a
+known device:
 
 | CC | Push 2 | Push 3 |
 |---|---|---|
@@ -31,10 +32,11 @@ Five CC assignments differ. Always resolve via `pushmap` with a known device:
 | 87 | New | Push 3 uses CC 92 |
 | 111 | Browse | Volume encoder press |
 
-Push 2 **note 9** is the Swing encoder touch — unused on Push 3 (gap at 9).
+Push 2 **note 9** is the Swing encoder touch. It is unused on Push 3 (a
+gap at 9).
 
-Push 2 arrow down/right CCs are **unverified** — expected to match Push 3's
-46/47/44/45.
+Push 2 arrow down/right CCs are **unverified**. They are expected to
+match Push 3's 46/47/44/45.
 
 ## Code usage
 
@@ -52,3 +54,4 @@ Do not use device-agnostic `push3` name helpers when the device is known.
 - [hardware-reference.md](../hardware-reference.md) — full map links
 - [midi-input.md](midi-input.md) — MPE and decode notes
 - [display.md](display.md) — shared display protocol
+</content>

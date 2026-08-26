@@ -17,21 +17,23 @@ Rationale trail: [archive/feasibility.md](../archive/feasibility.md) §6.
 | **`internal/midiout`** | Named output port — create (macOS/Linux) or attach (Windows) |
 | **Wails v3** | Desktop UI (`cmd/pushapp-ui`). Linux needs webkit2gtk |
 
-Rust + `nusb` was considered and rejected — forfeits `core/` reuse.
+Rust with `nusb` was considered and rejected. It forfeits `core/` reuse.
 
 **No cross-compiling.** Build natively on each target OS. CI uses real
 macOS/Linux/Windows runners ([.github/workflows/build.yml](../../.github/workflows/build.yml)).
 
 ## `core/` sibling dependency
 
-[`ableton-push-hack/core`](https://github.com/federico-pepe/ableton-push-hack/tree/main/core)
-is linked via `replace` in `go.mod`. Reused packages:
+`go.mod`'s `replace` directive links
+[`ableton-push-hack/core`](https://github.com/federico-pepe/ableton-push-hack/tree/main/core).
+It reuses these packages:
 
 - `core/gfx`, `core/gfx/text`, `core/gfx/widgets` — drawing
 - `core/display` — `ToBGR565` / `FromBGR565`
 - `core/push3` — geometry, palette, encoder decode
 
-**Never fork or vendor `core/`** — fix upstream so both projects benefit.
+**Never fork or vendor `core/`.** Fix it upstream instead, so both projects
+benefit.
 
 Fresh clone: place sibling repo at the path in `go.mod`'s `replace`, or edit
 the path. CI checks out `ableton-push-hack@main` and runs `go mod edit -replace`.
@@ -71,15 +73,16 @@ Node/npm. See [cmd/pushapp-ui/README.md](../../cmd/pushapp-ui/README.md).
 
 ## Channel convention
 
-APIs use channels **1–16**; wire format uses 0–15 inside `midiout`.
-`gomidi`'s `Message.String()` prints 0-based channels — that is correct, not
+APIs use channels **1-16**. The wire format uses 0-15 inside `midiout`.
+`gomidi`'s `Message.String()` prints 0-based channels. This is correct, not
 a bug.
 
 ## Operating model
 
-- **Full ownership** = we are the only host, not claiming USB interface 5
-- **Co-existence with Live** is not a shipping mode — `ErrBusy` if Live holds
-  the display
+- **Full ownership** means we are the only host, and we do not claim USB
+  interface 5
+- **Co-existence with Live** is not a shipping mode. The host returns
+  `ErrBusy` if Live holds the display
 - A remapper is a module, not the product
 
 ## Related

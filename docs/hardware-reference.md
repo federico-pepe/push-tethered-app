@@ -6,8 +6,8 @@
 
 Push button maps, LED palette tables, and geometry constants are shared with
 the sibling project [`ableton-push-hack`](https://github.com/federico-pepe/ableton-push-hack)
-via the `core/` Go module. **Do not duplicate full tables here** — link
-upstream and note tethered-specific deltas locally.
+through the `core/` Go module. **Do not duplicate full tables here.** Link
+to the upstream document. Note tethered-specific deltas locally.
 
 ## Upstream docs (ableton-push-hack)
 
@@ -17,8 +17,8 @@ upstream and note tethered-specific deltas locally.
 | 128-entry LED colour palette | [push3-led-colors.md](https://github.com/federico-pepe/ableton-push-hack/blob/main/docs/push3-led-colors.md) |
 | Push 3 standalone OS internals | [push3-internals.md](https://github.com/federico-pepe/ableton-push-hack/blob/main/docs/push3-internals.md) |
 
-Re-verified on **tethered** Push 2 and Push 3 hardware by this project — see
-[archive/feasibility.md](archive/feasibility.md) §8–§12.
+This project re-verified these facts on **tethered** Push 2 and Push 3
+hardware. See [archive/feasibility.md](archive/feasibility.md) §8–§12.
 
 ## Authoritative in code
 
@@ -30,7 +30,7 @@ Re-verified on **tethered** Push 2 and Push 3 hardware by this project — see
 | Tethered USB display transport | [internal/display/](../internal/display/) |
 | OS MIDI decode | [internal/midi/](../internal/midi/) |
 
-Always resolve button and touch names **per device** via `pushmap` — never
+Always resolve button and touch names **per device** with `pushmap`. Never
 assume Push 3 CC numbers on a Push 2.
 
 ## Tethered-specific docs (this repo)
