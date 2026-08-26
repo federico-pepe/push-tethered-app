@@ -1,12 +1,13 @@
 # xPort (interface 6) — raw observations, not decoded
 
-**Status:** early — passive reads confirm real, structured, unprompted
-traffic; byte layout not decoded; a first touch-correlation attempt was
-inconclusive (see below) — a real confound in the test method, not a
-dead end
-**Last verified:** 2026-08-25 (Push 3, macOS, controller mode, Live not
+**Status:** touch correlation **confirmed**, per-pad, 2026-08-26 — two
+different pads lit up two different byte offsets (105 and 9) in a 136-byte
+marker-aligned frame, each with 100% agreement across 10 independent
+toggles; full offset→pad map and pressure-scaling still undecoded
+**Last verified:** 2026-08-26 (Push 3, macOS, controller mode, Live not
 running)
-**Authoritative code:** none yet — this is capture evidence only
+**Authoritative code:** [cmd/xporttest](../../cmd/xporttest) — read-only,
+never writes to xPort
 
 ## Why this exists
 
@@ -91,25 +92,98 @@ needs rapid interleaved touch/release *within one continuous capture*, so
 adjacent rounds are compared at the same point in the packet's own
 rotation, not three blocks separated by real time. Not done yet.
 
+## Second attempt, 2026-08-26 — also inconclusive, a tooling bug this time
+
+Built `cmd/xporttest` to do the continuous-capture version the first
+attempt's lesson called for: fixed read-count loop, `time.Sleep` between
+reads, phase toggled by round count. Two runs (200 rounds, then again with
+a wider per-segment margin to absorb reaction lag) both came back with zero
+offsets surviving the consistency check.
+
+Root cause, found by dumping raw reads and locating every `FF FF FF 3F`
+marker occurrence with its byte offset: the marker recurs every **136
+bytes** almost everywhere, but with periodic gaps up to ~1.5KB. The 136-byte
+gap is the real frame period — three to four frames land inside every
+512-byte read. The large gaps are `time.Sleep(period)` between reads
+silently losing everything the device streamed out during the sleep, on
+top of reads never being frame-aligned in the first place (a fixed 512-byte
+read boundary has no reason to land on a 136-byte cycle boundary). Neither
+of the first two attempts' "per-offset in a 512-byte read" comparisons
+could ever have worked: offset *O* in one read and offset *O* in the next
+aren't the same field once reads aren't frame-aligned and data goes
+missing between them.
+
+## Touch-correlation confirmed, 2026-08-26
+
+Rewrote `cmd/xporttest` to fix both problems: reads happen back-to-back
+with no sleep (nothing emitted between reads is lost), each read is
+timestamped, and touch/release prompts fire on a wall-clock ticker (2s
+per phase) independent of read count. Analysis then concatenates every
+read into one continuous byte stream, finds every `FF FF FF 3F` marker
+occurrence, infers the true frame length from the most common marker-to-
+marker gap (136 bytes — matches the raw-dump finding above, now systematic
+instead of eyeballed), and slices the stream into marker-aligned frames.
+Only then does the same per-offset, per-toggle consistency check the first
+attempt's lesson called for — each surviving offset has to separate touch
+from release in *every one* of the individual toggles, not just in
+aggregate.
+
+One 20s run, 2s phases (10 toggles: 5 touch, 5 release), 400ms margin
+discarded after each phase change for reaction lag: **63,469 marker-aligned
+frames survived**, and byte **offset 105 of the 136-byte frame** separated
+touch (mean 5.5) from release (mean 0.0) with **100% agreement across all
+10 segments** — not a rotating-content artifact, since it held on every
+single toggle independently, and not noise, since release was a clean 0
+throughout.
+
+**Confirmed per-pad, same day:** a second 20s run touching a *different*
+pad lit up **offset 9**, not 105 — mean touch 6.5 vs release 0.0, again
+100% agreement across all 10 segments. Two different pads, two different
+offsets, same clean binary-looking jump. This rules out a global "any pad
+touched" flag: the frame really does carry per-pad addressing, at least
+for these two pads.
+
+**What's still open:** the full offset→pad map (2 of presumably up to 64
+pads placed so far — 105 and 9 don't obviously suggest a grid stride yet,
+need more points), whether the value scales with pressure or is a plain
+touch/no-touch flag (5.5 and 6.5 seen so far, both look like they could be
+noise around a threshold rather than two meaningfully different levels —
+no intermediate values recorded yet either way), and whether every pad
+gets a full byte (136 bytes would only cover 136 pads at 1 byte each, or
+68 at 2 bytes — either fits 64 pads with room to spare for the marker,
+counter, and other fields already seen).
+
+**Status: parked as a stretch goal, 2026-08-26.** A third run (a bottom-row
+pad) found nothing — not even a marker/frame-extraction failure, just zero
+offsets surviving the consistency check, unlike the first two pads' clean
+100%-agreement hits. Unresolved whether that's a real edge-of-grid
+difference, a mistimed touch relative to the 2s phase windows, or something
+else — not investigated further. Fully mapping and decoding xPort would
+take a lot more of this one-pad-at-a-time probing for a payoff (richer
+per-pad pressure data) that's speculative and not needed by anything
+currently planned. Revisit if a concrete module need shows up for
+finer-grained touch data than MIDI already gives.
+
 ## Next steps (not started)
 
-- **Touch-correlation, done properly this time:** one continuous capture,
-  alternating touch/release every round or two (not three separate
-  time-blocked captures — see the confound found above), so adjacent
-  rounds share the same point in the packet's own rotation and only the
-  touch state differs between them.
-- **Correlate the `FF FF FF 3F <counter>` marker's cadence** against the
-  "~3-5/sec" heartbeat rate already documented from the standalone side —
-  if the counter increments at a matching rate, that's a strong link
-  between this wire-level capture and that on-device finding.
-- **Capture for longer** (the 15s window here is short) and look for any
-  region that changes with LED state (e.g. light a pad via the existing
-  `SetPad` path while capturing xPort) — would test the "LED state" half
-  of the heartbeat hypothesis the "touch sensor" half above doesn't cover.
-- **Decode the leading region's exact structure** — is it one 16-bit value
-  per pad (64 pads × 2 bytes = 128 bytes, doesn't obviously divide the
-  observed run cleanly) or something else; needs the full packet boundary
-  understood first, which needs a capture longer than one 512-byte read.
+- **Build the offset→pad map** — repeat the same test methodically, one
+  pad at a time (e.g. all 8 pads in one row, or the 4 corners first) and
+  record which offset lights up for each; two points (105, 9) aren't
+  enough yet to guess whether it's row-major, column-major, or something
+  else.
+- **Check whether the value scales with pressure** — press lightly vs hard
+  during the touch phase and see if the corresponding offset varies
+  continuously rather than jumping straight to a fixed value (5.5, 6.5 so
+  far — close enough to each other that this still isn't confirmed either
+  way).
+- **Correlate the marker's cadence** against the "~3-5/sec" heartbeat rate
+  documented from the standalone side (`push3-internals.md`) — at 136
+  bytes/frame and whatever the observed frame rate turns out to be, check
+  whether it lines up.
+- **Test the LED-state half of the heartbeat hypothesis** — light a pad
+  via the existing `SetPad` path while capturing xPort, same marker-aligned
+  frame approach, and look for a byte that tracks LED state instead of
+  touch.
 
 ## Related
 
