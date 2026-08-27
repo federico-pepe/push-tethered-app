@@ -7,6 +7,19 @@ between minor versions).
 
 ## [Unreleased]
 
+### Added
+
+- Push 3 External Port MIDI routing: `NeedsMIDIIn`/`NeedsMIDIOut` modules
+  can now be pointed at Push 3's own MIDI DIN jacks instead of the app's
+  virtual loopback port, via `bootstrap.Options.ExtMIDIInFromPushExternal`/
+  `ExtMIDIOutToPushExternal` (`internal/midiin`/`midiout.OpenExisting`).
+  `cmd/pushapp` gets `-ext-port-in`/`-ext-port-out`; `pushapp-ui`'s pairing
+  form gets matching checkboxes, greyed out for a Push 2. Confirmed live on
+  Push 3 hardware with `beatcount` (in) and `seq` (out). External Port is
+  no longer offered as a pairable cable in the pairing list — it never
+  carried control-surface traffic — see
+  [docs/architecture/module-host.md](docs/architecture/module-host.md#routing-through-push-3s-external-port-instead).
+
 ## [0.1.3-alpha] - 2026-08-26
 
 ### Added

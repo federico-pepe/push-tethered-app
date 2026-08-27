@@ -26,13 +26,16 @@ the triangle to fold away the module list of that card. Use this when you
 connect several units and want to see only one at a time.
 
 A MIDI port's name shows which physical cable it is. Every Push has up to
-three:
+two pairable cables:
 
 | Port | What it is for |
 |---|---|
 | **Live Port** | The cable that Ableton Live uses. Pick this port for a normal session without Live. |
 | **User Port** | Active only while **User Mode** is on at the device (press the User button). Pick this port to run alongside Live — see below. |
-| **External Port** | Push 3's MIDI DIN connector on the back. Not related to Live. |
+
+Push 3 also has an **External Port** — its MIDI DIN connector on the back —
+but this is not something you pair with directly. See [Using Push 3's
+external MIDI DIN jacks](#using-push-3s-external-midi-din-jacks) below.
 
 ## Running alongside Ableton Live
 
@@ -100,6 +103,27 @@ To check the clock connection before you use it in a module you care about,
 run the **Beat Counter** module. This module lights one pad and shows a
 number from 1 to 4 for each beat. It is the simplest way to check that a
 clock signal arrives.
+
+### Using Push 3's external MIDI DIN jacks
+
+Push 3 only. In addition to the app's own virtual MIDI ports (above), a
+module can send and receive MIDI through Push 3's own MIDI DIN connectors —
+the physical 5-pin jacks on the back of the unit, used for hardware
+synths, drum machines, and the like.
+
+On the pairing screen, pick a **Live Port** or **User Port** as usual, then
+check one or both boxes before you click **Pair and connect**:
+
+- **Use External Port for MIDI in** — a module that listens for external
+  MIDI (such as an incoming clock) receives it from the DIN input jack
+  instead of the app's own virtual input port.
+- **Use External Port for MIDI out** — a module that sends MIDI (such as
+  the step sequencer) sends it out the DIN output jack instead of the
+  app's own virtual output port.
+
+Both boxes are greyed out for a Push 2, which has no External Port. Each
+box is fixed for as long as the session stays connected — to change it,
+disconnect and reconnect with the box checked or unchecked as you want.
 
 ## Live screen mirror
 

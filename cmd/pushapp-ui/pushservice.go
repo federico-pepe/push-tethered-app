@@ -47,6 +47,8 @@ type SessionInfo struct {
 	Unit       string        `json:"unit"`
 	DisplaySel string        `json:"displaySel"`
 	MIDIIn     pmidi.PortRef `json:"midiIn"`
+	ExtMIDIIn  bool          `json:"extMidiIn"`
+	ExtMIDIOut bool          `json:"extMidiOut"`
 }
 
 // Overview is everything the pairing view and the session list need, fetched
@@ -90,7 +92,10 @@ func (s *PushService) Overview() Overview {
 	sessions := s.mgr.list()
 	sessInfos := make([]SessionInfo, len(sessions))
 	for i, si := range sessions {
-		sessInfos[i] = SessionInfo{Key: si.Key, Unit: si.Unit, DisplaySel: si.DisplaySel, MIDIIn: si.MIDIIn}
+		sessInfos[i] = SessionInfo{
+			Key: si.Key, Unit: si.Unit, DisplaySel: si.DisplaySel, MIDIIn: si.MIDIIn,
+			ExtMIDIIn: si.ExtMIDIIn, ExtMIDIOut: si.ExtMIDIOut,
+		}
 	}
 	return Overview{
 		Sessions:   sessInfos,

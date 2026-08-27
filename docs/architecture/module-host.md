@@ -95,6 +95,30 @@ The host **owns a named output port**:
 See [platform/windows.md](../platform/windows.md). Never attach to a port
 whose name mentions Push. This loops the output back into the decoder.
 
+### Routing through Push 3's External Port instead
+
+`NeedsMIDIIn`/`NeedsMIDIOut` modules normally reach `internal/midiin`/
+`internal/midiout`'s own virtual loopback ports (above). `bootstrap.Options`
+also has `ExtMIDIInFromPushExternal` and `ExtMIDIOutToPushExternal`
+(`internal/bootstrap/bootstrap.go`): set either one, and the same
+`OpenMIDIIn`/`OpenMIDIOut` openers instead point at the connected unit's own
+**External Port** cable — Push 3's physical MIDI DIN jacks — found by
+`findExternalRef` matching `PortRef.Unit` against the already-opened
+control-surface port. This is a real, separate MIDI cable, not the
+undocumented xPort USB interface (`docs/protocol/xport.md`) — see
+`docs/protocol/midi-input.md`'s Ports table.
+
+`midiin.OpenExisting`/`midiout.OpenExisting` attach to that specific cable
+by exact name and driver number, deliberately skipping the `isPush` filter
+`Open`'s virtual-port path uses — that filter exists to avoid looping our
+own output back into Push's control-surface input, which does not apply
+here since External Port carries neither. Push 2 has no External Port; a
+caller that sets either flag without one connected gets a logged warning
+and the virtual loopback port instead, not a failure. `cmd/pushapp`'s
+`-ext-port-in`/`-ext-port-out` flags and `pushapp-ui`'s pairing-form
+checkboxes (Push-3-only, greyed out otherwise) both set these at connect
+time; there is no way to change them on an already-connected session.
+
 ## UI
 
 [cmd/pushapp-ui/](../../cmd/pushapp-ui/) — Wails v3 switcher: list, activate,
