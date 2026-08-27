@@ -410,6 +410,7 @@ func (m *Module) triggerStep(step int) {
 			continue
 		}
 		m.sent++
+		m.lastErr = ""
 	}
 	if any {
 		m.push(fmt.Sprintf("step %d", step+1))
@@ -427,6 +428,9 @@ func (m *Module) releaseStep(step int) error {
 		if err := m.host.NoteOff(outChannel, note); err != nil && firstErr == nil {
 			firstErr = err
 		}
+	}
+	if firstErr == nil {
+		m.lastErr = ""
 	}
 	return firstErr
 }

@@ -7,6 +7,54 @@ between minor versions).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Windows: MIDI output (and any `NeedsMIDIIn` module's external input)
+  never actually worked**, even after correctly naming a loopback port to
+  match `midiout.DefaultName`/`midiin.DefaultName`. Two independent bugs,
+  found together while diagnosing a live Windows-on-ARM report:
+  - RtMidi's Windows backend reports its "cannot create a virtual port"
+    refusal as a C++ warning, not a thrown exception, so
+    `rtmididrv.OpenVirtualOut`/`OpenVirtualIn` returned `err == nil` on
+    Windows while creating nothing. `internal/midiout`/`internal/midiin`
+    trusted that return value, so the fallback to attaching an existing
+    named port never ran — the app logged `(virtual)` mode and reported
+    success while every byte went nowhere. Fixed by skipping the
+    virtual-port attempt outright on `runtime.GOOS == "windows"`.
+  - `isPush()` in both packages matched any port name containing the bare
+    substring `"push"` — which includes the app's own default port names,
+    `Push Tethered App` and `Push Tethered App In`. This made the intended
+    Windows workaround (name a loopback port to match the default)
+    structurally impossible: `attach()`'s own anti-feedback-loop guard
+    rejected the very port it was supposed to find. Fixed to match the
+    real hardware marker, `"Ableton Push"`, mirroring `internal/midi`'s
+    identical fix from 2026-08-19.
+
+  Confirmed working end-to-end 2026-08-27 on real Push 3 hardware
+  (Windows on ARM), including against a Windows MIDI Services (MIDI 2.0
+  preview SDK) loopback endpoint pair — confirmed to bridge correctly
+  into the legacy WinMM API this app uses, making it a loopMIDI substitute
+  on ARM64, where loopMIDI has no build. See
+  [docs/platform/windows.md](docs/platform/windows.md#midi-output).
+- `pushapp-ui`'s log file (`<UserConfigDir>/push-tethered-app/logs/pushapp-ui.log`)
+  stayed empty on every Windows double-click launch: `os.Stderr`, listed
+  first in the `io.MultiWriter` given to `log.SetOutput`, has an invalid
+  handle on the `-H windowsgui`-linked production build with no console,
+  and `io.MultiWriter` aborts on a writer's first error without writing to
+  the rest. Fixed by writing to the log file first. See
+  [docs/guides/debugging.md](docs/guides/debugging.md#pushapp-ui-log-file).
+- `modules/seq`: a single failed `SendNote`/`NoteOff` call (e.g. one made
+  fractionally too early, before the OS finished registering a
+  just-attached output port) latched the pad-grid's error banner
+  ("send error: ...") permanently for the rest of the session, even once
+  every subsequent send succeeded. `m.lastErr` now clears on the next
+  successful send/release.
+- CI: the `pushapp-ui` Windows build artifact never included
+  `libusb-1.0.dll`, even though the build step copies it next to the exe —
+  the upload step's file list only named the exe. Every downloaded Windows
+  build failed to launch with no visible error (a `windowsgui` binary has
+  no console to show one) until a user copied the DLL in by hand.
+
 ### Added
 
 - Push 3 External Port MIDI routing: `NeedsMIDIIn`/`NeedsMIDIOut` modules
