@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [windows-latest] # TEMP: windows-only test build, do not merge to main
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
