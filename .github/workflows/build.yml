@@ -356,6 +356,7 @@ jobs:
           path: |
             cmd/pushapp-ui/bin/pushapp-ui
             cmd/pushapp-ui/bin/pushapp-ui.exe
+            cmd/pushapp-ui/bin/libusb-1.0.dll
           if-no-files-found: ignore
 
   # Fires only on a version tag push (see the top-level `on.push.tags`
