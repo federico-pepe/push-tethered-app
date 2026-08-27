@@ -99,16 +99,21 @@ existing port by name:
 
 1. Install [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html)
    (free) or use Windows MIDI Services.
-2. Create a port (for example `PushApp`).
-3. Point the app at that name (`-midi-out PushApp` or UI setting).
+2. Name the port `Push Tethered App`, matching `midiout.DefaultName`, so the
+   app finds it with no flag. `pushapp-ui` has no MIDI-out name field yet —
+   only `cmd/pushapp`'s `-midi-out <name>` flag can point at a different name.
 
 | Platform | MIDI out strategy | User setup |
 |---|---|---|
 | macOS, Linux | create virtual port | none |
 | Windows | attach to existing port | loopMIDI or equivalent |
 
-Do not attach to a port whose name mentions **Push**. The output loops
-back into the input decoder.
+Do not attach to a port whose name mentions **Ableton Push** — the real
+hardware marker (`internal/midiout.hardwareNameMarker`,
+`internal/midi.hardwareNameMarker`). A bare "push" substring is not enough:
+the app's own default output name, `Push Tethered App`, contains it, so a
+looser filter would self-exclude the very port a Windows user names to match
+that default.
 
 ## pushapp-ui
 

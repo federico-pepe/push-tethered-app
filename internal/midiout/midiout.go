@@ -168,10 +168,16 @@ func attach(name string) (drivers.Out, string, error) {
 		ErrNoPort, name, candidates)
 }
 
+// hardwareNameMarker is what every real Push port name contains — see
+// internal/midi's identical constant and comment. A bare "push" substring is
+// not enough: DefaultName itself is "Push Tethered App", so that filter would
+// self-exclude the very port a Windows user names to match it.
+const hardwareNameMarker = "Ableton Push"
+
 // isPush reports whether a port name looks like the Push hardware. Used to keep
 // attach from wiring our output back into Push's own input.
 func isPush(portName string) bool {
-	return strings.Contains(strings.ToLower(portName), "push")
+	return strings.Contains(portName, hardwareNameMarker)
 }
 
 // Name returns the port name as it appears to other software.
