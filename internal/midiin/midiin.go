@@ -20,6 +20,7 @@ package midiin
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/federico-pepe/push-tethered-app/internal/midilock"
@@ -61,11 +62,15 @@ func Open(name string) (*In, error) {
 	midilock.Lock()
 	defer midilock.Unlock()
 
-	if drv, ok := drivers.Get().(virtualInOpener); ok {
-		if port, err := drv.OpenVirtualIn(name); err == nil {
-			return &In{in: port, name: name}, nil
+	// See internal/midiout.Open's identical guard: RtMidi.cpp reports
+	// Windows's refusal as a warning, not a thrown error, so OpenVirtualIn
+	// returns err == nil there while creating nothing.
+	if runtime.GOOS != "windows" {
+		if drv, ok := drivers.Get().(virtualInOpener); ok {
+			if port, err := drv.OpenVirtualIn(name); err == nil {
+				return &In{in: port, name: name}, nil
+			}
 		}
-		// Fall through: on Windows this always fails, and that is not fatal.
 	}
 
 	port, actual, err := attach(name)
@@ -136,8 +141,13 @@ func attach(name string) (drivers.In, string, error) {
 		ErrNoPort, name, candidates)
 }
 
+// hardwareNameMarker mirrors internal/midiout's constant of the same name —
+// see its comment. DefaultName here ("Push Tethered App In") contains "push"
+// too, so the same self-exclusion bug applies.
+const hardwareNameMarker = "Ableton Push"
+
 func isPush(portName string) bool {
-	return strings.Contains(strings.ToLower(portName), "push")
+	return strings.Contains(portName, hardwareNameMarker)
 }
 
 // Name returns the port name as it appears to other software.

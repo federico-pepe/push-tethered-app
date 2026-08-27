@@ -30,6 +30,7 @@ package midiout
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -96,11 +97,18 @@ func Open(name string) (*Out, error) {
 	midilock.Lock()
 	defer midilock.Unlock()
 
-	if drv, ok := drivers.Get().(virtualOpener); ok {
-		if port, err := drv.OpenVirtualOut(name); err == nil {
-			return &Out{out: port, name: name, mode: ModeVirtual}, nil
+	// Windows never actually gets a virtual port (see the package doc), but
+	// RtMidi.cpp reports that as a *warning*, not a thrown error — confirmed
+	// live 2026-08-27: OpenVirtualOut returned err == nil on Windows while
+	// printing "MidiOutWinMM::openVirtualPort: cannot be implemented", and the
+	// returned Out silently dropped every write. Skip the attempt on Windows
+	// rather than trust its error return.
+	if runtime.GOOS != "windows" {
+		if drv, ok := drivers.Get().(virtualOpener); ok {
+			if port, err := drv.OpenVirtualOut(name); err == nil {
+				return &Out{out: port, name: name, mode: ModeVirtual}, nil
+			}
 		}
-		// Fall through: on Windows this always fails, and that is not fatal.
 	}
 
 	port, actual, err := attach(name)
