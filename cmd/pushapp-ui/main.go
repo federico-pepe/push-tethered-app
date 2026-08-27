@@ -76,7 +76,12 @@ func main() {
 		log.Printf("log file: %v (continuing without one)", err)
 	} else {
 		defer f.Close()
-		log.SetOutput(applog.Wrap(io.MultiWriter(os.Stderr, f)))
+		// f first: io.MultiWriter aborts on a writer's first error, and a
+		// windowsgui-linked binary launched with no console has an invalid
+		// os.Stderr handle whose Write fails — that used to abort before f
+		// ever got a byte, leaving the log file empty on every double-click
+		// launch. os.Stderr is now best-effort only.
+		log.SetOutput(applog.Wrap(io.MultiWriter(f, os.Stderr)))
 		logPath = path
 	}
 
