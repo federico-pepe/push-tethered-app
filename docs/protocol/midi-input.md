@@ -17,7 +17,7 @@ MIDIStreaming):
 |---|---|
 | **Live Port** | Buttons/encoders/touch always. **Pads only while User Mode is off.** |
 | User Port | Buttons/encoders/touch duplicate here always. **Pads only while User Mode is on.** |
-| External Port | Keepalive only in normal use |
+| External Port | Keepalive only in normal use — carries no control-surface traffic. **Confirmed 2026-08-27: this is Push 3's physical MIDI DIN connector**, reachable as an ordinary MIDI in/out cable — see below. |
 
 Push 2 has Live Port and User Port only.
 
@@ -87,6 +87,25 @@ display claim or button routing either way.
 
 Windows names ports differently from CoreMIDI/ALSA — see
 [platform/windows.md](../platform/windows.md).
+
+### External Port role, confirmed 2026-08-27
+
+Push 3's External Port is its physical MIDI DIN connector on the back of
+the unit — the same jacks a hardware synth or drum machine would plug
+into. Confirmed live: a module declaring `NeedsMIDIIn` received bytes sent
+into the DIN input jack, and a module declaring `NeedsMIDIOut` (`seq`) had
+its output arrive at the DIN output jack, both routed through
+`internal/bootstrap.Options.ExtMIDIInFromPushExternal`/
+`ExtMIDIOutToPushExternal` opening the cable directly (`midiin`/
+`midiout.OpenExisting`) rather than through the app's own virtual loopback
+port. See [architecture/module-host.md](../architecture/module-host.md#routing-through-push-3s-external-port-instead).
+
+This is a real OS-visible MIDI cable, distinct from the undocumented
+`xPort` USB vendor interface (interface 6) documented in
+[xport.md](xport.md) — same name coincidence, unrelated hardware paths.
+What remains unconfirmed: the keepalive traffic mentioned above (still
+unidentified), and whether External Port carries anything else in normal
+use beyond what a host explicitly sends/receives on it.
 
 ## MPE
 
@@ -267,7 +286,6 @@ Full map: [hardware-reference.md](../hardware-reference.md).
 
 ## Open questions
 
-- External Port role (User Port role is now confirmed, see above)
 - Push 2 arrow down/right CCs (expected 46/47/44/45)
 
 See [plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md).

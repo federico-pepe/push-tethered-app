@@ -37,6 +37,18 @@
             </div>
         </div>
 
+        <div class="pairing-options" id="pairing-options">
+            <label class="pairing-checkbox">
+                <input type="checkbox" id="ext-midi-in-check"/>
+                Use External Port for MIDI IN
+            </label>
+            <label class="pairing-checkbox">
+                <input type="checkbox" id="ext-midi-out-check"/>
+                Use External Port for MIDI OUT
+            </label>
+            <p class="pairing-detail">Push 3 only — routes modules' MIDI through the physical DIN jacks instead of the app's virtual port.</p>
+        </div>
+
         <div class="pairing-actions">
             <button id="pair-btn" class="pair-btn" disabled>Pair and connect</button>
             <button id="auto-btn" class="retry-btn">Auto-detect and connect</button>

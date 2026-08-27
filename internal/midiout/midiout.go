@@ -110,6 +110,35 @@ func Open(name string) (*Out, error) {
 	return &Out{out: port, name: actual, mode: ModeAttached}, nil
 }
 
+// OpenExisting attaches to a specific output port already listed by the
+// driver, by exact name and driver-assigned number. Unlike Open/attach it
+// does not skip Push-named ports, and does not guard against the feedback
+// loop that filter exists for — the caller is expected to be pointing this
+// at Push 3's own External Port cable (the physical DIN jack), not back at
+// Push's own control-surface input.
+//
+// Re-checks that num still reports name before opening, same guard as
+// midiin.OpenExisting and internal/midi.OpenRef.
+func OpenExisting(name string, num int) (*Out, error) {
+	midilock.Lock()
+	defer midilock.Unlock()
+
+	for _, p := range gm.GetOutPorts() {
+		if p.Number() != num {
+			continue
+		}
+		if p.String() != name {
+			return nil, fmt.Errorf("MIDI port list changed: port %d is now %q, expected %q — re-enumerate and retry",
+				num, p.String(), name)
+		}
+		if err := p.Open(); err != nil {
+			return nil, fmt.Errorf("opening MIDI out %q: %w", name, err)
+		}
+		return &Out{out: p, name: name, mode: ModeAttached}, nil
+	}
+	return nil, fmt.Errorf("no MIDI output port %d (%q) found", num, name)
+}
+
 // attach finds an existing output port matching name, case-insensitively by
 // substring, skipping anything that looks like Push itself.
 func attach(name string) (drivers.Out, string, error) {

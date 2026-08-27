@@ -73,6 +73,8 @@ func main() {
 	noMIDIOut := flag.Bool("no-midi-out", false, "do not open a MIDI output port")
 	extMIDIInName := flag.String("ext-midi-in", "", "external MIDI input port to create, or attach to on Windows — for modules that declare NeedsMIDIIn, e.g. to sync to an external clock")
 	noExtMIDIIn := flag.Bool("no-ext-midi-in", false, "do not open an external MIDI input port")
+	extPortIn := flag.Bool("ext-port-in", false, "Push 3 only: route NeedsMIDIIn modules through Push's own External Port (the physical MIDI DIN input) instead of the virtual loopback port")
+	extPortOut := flag.Bool("ext-port-out", false, "Push 3 only: route NeedsMIDIOut modules through Push's own External Port (the physical MIDI DIN output) instead of the virtual loopback port")
 	capturePath := flag.String("capture", "", "record the screen to a file (.mp4, .mov or .gif)")
 	captureRaw := flag.Bool("capture-raw", false, "record the source image instead of panel-accurate BGR565 colour")
 	mirrorAddr := flag.String("mirror-addr", "localhost:3000", "serve a live MJPEG mirror of the screen at http://<addr>/screen; pass -mirror-addr=\"\" to disable it. Avoid :7000/:5000 — macOS's AirPlay Receiver squats both by default.")
@@ -211,6 +213,9 @@ func main() {
 		NoMIDIOut:     *noMIDIOut,
 		ExtMIDIInName: *extMIDIInName,
 		NoExtMIDIIn:   *noExtMIDIIn,
+
+		ExtMIDIInFromPushExternal: *extPortIn,
+		ExtMIDIOutToPushExternal:  *extPortOut,
 		CapturePath:   *capturePath,
 		CaptureRaw:    *captureRaw,
 		Mirror:        mirrorHub,

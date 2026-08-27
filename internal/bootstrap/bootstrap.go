@@ -60,6 +60,17 @@ type Options struct {
 	ExtMIDIInName string
 	NoExtMIDIIn   bool
 
+	// ExtMIDIInFromPushExternal and ExtMIDIOutToPushExternal, when set,
+	// route a module's ExternalMIDI/MIDI-out through Push 3's own External
+	// Port cable — the physical MIDI DIN jacks — instead of through
+	// midiin/midiout's virtual loopback port. Push 2 has no External Port
+	// (see docs/protocol/midi-input.md); Open logs a warning and ignores
+	// the flag rather than failing when the connected unit isn't a Push 3.
+	// ExtMIDIInFromPushExternal takes precedence over ExtMIDIInName/
+	// NoExtMIDIIn; ExtMIDIOutToPushExternal is independent of MIDIOutName.
+	ExtMIDIInFromPushExternal bool
+	ExtMIDIOutToPushExternal  bool
+
 	CapturePath string
 	CaptureRaw  bool
 
@@ -136,6 +147,24 @@ func Open(opts Options) (rt *host.Runtime, cleanup func(), err error) {
 		openMIDIIn = nil
 	}
 
+	if opts.ExtMIDIInFromPushExternal || opts.ExtMIDIOutToPushExternal {
+		extRef, ok := findExternalRef(port.Ref())
+		if !ok {
+			log.Printf("external MIDI: Push 3 External Port not found for %q (Push 2 has none) — falling back to virtual loopback port", port.Ref().Unit)
+		} else {
+			if opts.ExtMIDIInFromPushExternal {
+				openMIDIIn = func() (*midiin.In, error) { return midiin.OpenExisting(extRef.InName, extRef.InNum) }
+			}
+			if opts.ExtMIDIOutToPushExternal {
+				if extRef.OutNum < 0 {
+					log.Printf("external MIDI: no output cable paired with %q — MIDI-out modules keep using the virtual loopback port", extRef.InName)
+				} else {
+					openMIDIOut = func() (*midiout.Out, error) { return midiout.OpenExisting(extRef.OutName, extRef.OutNum) }
+				}
+			}
+		}
+	}
+
 	// Taps the render output, so it costs no extra USB traffic and cannot
 	// disturb what the panel shows.
 	var rec capture.Recorder
@@ -183,6 +212,18 @@ func Open(opts Options) (rt *host.Runtime, cleanup func(), err error) {
 	}
 
 	return rt, func() { closeHardware(dev, port) }, nil
+}
+
+// findExternalRef looks up the External Port cable belonging to the same
+// physical unit as the already-opened control-surface port. Push 2 units
+// never produce one (docs/protocol/midi-input.md), so ok is false there.
+func findExternalRef(mainRef pmidi.PortRef) (pmidi.PortRef, bool) {
+	for _, ref := range pmidi.ListPortRefs() {
+		if ref.Unit == mainRef.Unit && ref.Role == "External" {
+			return ref, true
+		}
+	}
+	return pmidi.PortRef{}, false
 }
 
 func closeHardware(dev *display.Device, port *pmidi.Port) {

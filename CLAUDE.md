@@ -230,6 +230,12 @@ go build ./... && go vet ./... && go test ./...
   receives raw bytes as `module.ExternalMIDI`. Unlike MIDI-out, missing
   input never blocks activation. See `internal/module/module.go`'s
   `Meta.NeedsMIDIIn` doc.
+- `-ext-port-in`, `-ext-port-out` — Push 3 only: route
+  `NeedsMIDIIn`/`NeedsMIDIOut` modules through Push's own External Port
+  (the physical MIDI DIN jacks) instead of the virtual loopback port
+  above. `pushapp-ui` exposes the same choice as two checkboxes on the
+  pairing form. See
+  [docs/architecture/module-host.md](docs/architecture/module-host.md#routing-through-push-3s-external-port-instead).
 - `-capture`, `-capture-raw`.
 - `-mirror-addr <addr>` — serves a live MJPEG mirror of the screen at
   `http://<addr>/screen`. This is on by default at `localhost:3000`. Pass

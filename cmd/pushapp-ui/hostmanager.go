@@ -46,6 +46,8 @@ type session struct {
 
 	displaySel string
 	midiIn     pmidi.PortRef
+	extMIDIIn  bool
+	extMIDIOut bool
 }
 
 // ConnectRequest names the unit and MIDI cable to pair, both optional: an
@@ -56,6 +58,15 @@ type ConnectRequest struct {
 	MIDIIn     pmidi.PortRef `json:"midiIn"`
 	DisplaySel string        `json:"displaySel"`
 	ModuleID   string        `json:"moduleId"` // "" activates the first available module
+
+	// ExtMIDIIn and ExtMIDIOut route NeedsMIDIIn/NeedsMIDIOut modules through
+	// Push 3's own External Port (the physical MIDI DIN jacks) instead of the
+	// virtual loopback port — see bootstrap.Options.ExtMIDIInFromPushExternal.
+	// Fixed for the session's lifetime, the same as every other connect-time
+	// choice here; harmless (silently ignored, see bootstrap.Open) if the
+	// paired unit turns out to be a Push 2.
+	ExtMIDIIn  bool `json:"extMidiIn"`
+	ExtMIDIOut bool `json:"extMidiOut"`
 }
 
 // unitKey derives the stable identity for a request — the display selector
@@ -147,6 +158,8 @@ type sessionInfo struct {
 	Unit       string
 	DisplaySel string
 	MIDIIn     pmidi.PortRef
+	ExtMIDIIn  bool
+	ExtMIDIOut bool
 }
 
 // list returns every connected session, in the order they were connected.
@@ -156,7 +169,10 @@ func (m *hostManager) list() []sessionInfo {
 	out := make([]sessionInfo, 0, len(m.order))
 	for _, k := range m.order {
 		s := m.sessions[k]
-		out = append(out, sessionInfo{Key: s.key, Unit: s.unit, DisplaySel: s.displaySel, MIDIIn: s.midiIn})
+		out = append(out, sessionInfo{
+			Key: s.key, Unit: s.unit, DisplaySel: s.displaySel, MIDIIn: s.midiIn,
+			ExtMIDIIn: s.extMIDIIn, ExtMIDIOut: s.extMIDIOut,
+		})
 	}
 	return out
 }
@@ -266,6 +282,8 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 	opts.DisplaySel = req.DisplaySel
 	opts.Modules = m.newModules()
 	opts.Mirror = hub
+	opts.ExtMIDIInFromPushExternal = req.ExtMIDIIn
+	opts.ExtMIDIOutToPushExternal = req.ExtMIDIOut
 	if opts.MIDIOutName == "" && n > 1 {
 		opts.MIDIOutName = fmt.Sprintf("%s %d", midiout.DefaultName, n)
 	}
@@ -314,6 +332,7 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 	sess := &session{
 		key: key, unit: unit, rt: rt, mirror: hub, cleanup: cleanup, cancel: cancel,
 		stopped: make(chan struct{}), displaySel: displaySel, midiIn: midiIn,
+		extMIDIIn: req.ExtMIDIIn, extMIDIOut: req.ExtMIDIOut,
 	}
 	m.sessions[key] = sess
 	m.order = append(m.order, key)

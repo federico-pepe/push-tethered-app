@@ -22,6 +22,8 @@ const usbListEl = document.getElementById("usb-unit-list") as HTMLUListElement;
 const midiListEl = document.getElementById("midi-unit-list") as HTMLUListElement;
 const pairBtn = document.getElementById("pair-btn") as HTMLButtonElement;
 const autoBtn = document.getElementById("auto-btn") as HTMLButtonElement;
+const extMIDIInCheck = document.getElementById("ext-midi-in-check") as HTMLInputElement;
+const extMIDIOutCheck = document.getElementById("ext-midi-out-check") as HTMLInputElement;
 
 const sessionListEl = document.getElementById("session-list") as HTMLUListElement;
 
@@ -240,6 +242,12 @@ function renderPairing(
     for (const unit of midiUnits) {
         for (const port of (unit.ports ?? [])) {
             if (pairedInNums.has(port.inNum)) continue;
+            // External Port carries no control-surface traffic (buttons,
+            // pads, encoders) — it's not a pairable cable, only a routing
+            // target the two checkboxes below reach through the Live/User
+            // port a session actually pairs with. See
+            // internal/bootstrap.Options.ExtMIDIInFromPushExternal.
+            if (port.role === "External") continue;
             midiRows.push(renderMIDIRow(unit, port, unitErrors[unit.key], selectedUSBModel));
         }
     }
@@ -252,6 +260,18 @@ function renderPairing(
     midiListEl.replaceChildren(...midiRows);
 
     pairBtn.disabled = globalBusy || selectedUSB === null || selectedMIDI === null;
+
+    // Push 3's External Port cable is the physical MIDI DIN jacks — the
+    // routing these checkboxes offer is meaningless on Push 2, which has no
+    // such cable (see docs/protocol/midi-input.md). Disabling rather than
+    // hiding keeps the pairing form's layout stable across selections.
+    const isPush3 = selectedMIDI?.device === "Push 3";
+    extMIDIInCheck.disabled = globalBusy || !isPush3;
+    extMIDIOutCheck.disabled = globalBusy || !isPush3;
+    if (!isPush3) {
+        extMIDIInCheck.checked = false;
+        extMIDIOutCheck.checked = false;
+    }
 
     // Auto-detect can never work with more than one Push attached: it goes
     // through bootstrap.Open's empty-selector path, and pmidi.Open() refuses
@@ -402,10 +422,15 @@ async function pairAndConnect(): Promise<void> {
     globalBusy = true;
     statusEl.textContent = "Connecting…";
     try {
-        const req: ConnectRequest = { displaySel: selectedUSB, midiIn: selectedMIDI, moduleId: "" };
+        const req: ConnectRequest = {
+            displaySel: selectedUSB, midiIn: selectedMIDI, moduleId: "",
+            extMidiIn: extMIDIInCheck.checked, extMidiOut: extMIDIOutCheck.checked,
+        };
         await PushService.Connect(req);
         selectedUSB = null;
         selectedMIDI = null;
+        extMIDIInCheck.checked = false;
+        extMIDIOutCheck.checked = false;
     } catch (err) {
         statusEl.textContent = `Could not connect: ${err}`;
     } finally {
@@ -419,7 +444,7 @@ async function autoConnect(): Promise<void> {
     globalBusy = true;
     statusEl.textContent = "Connecting…";
     try {
-        const req: ConnectRequest = { displaySel: "", midiIn: emptyPortRef, moduleId: "" };
+        const req: ConnectRequest = { displaySel: "", midiIn: emptyPortRef, moduleId: "", extMidiIn: false, extMidiOut: false };
         await PushService.Connect(req);
     } catch (err) {
         statusEl.textContent = `Could not auto-connect: ${err} — pick a screen and a MIDI port instead.`;
@@ -491,6 +516,14 @@ async function renderSessionCard(session: SessionInfo): Promise<HTMLLIElement> {
 
     header.append(title, buttons);
     li.appendChild(header);
+
+    if (session.extMidiIn || session.extMidiOut) {
+        const extBadge = document.createElement("p");
+        extBadge.className = "pairing-detail";
+        const dirs = [session.extMidiIn && "in", session.extMidiOut && "out"].filter(Boolean).join(" / ");
+        extBadge.textContent = `External Port MIDI: ${dirs}`;
+        li.appendChild(extBadge);
+    }
 
     let modules: ModuleInfo[];
     try {

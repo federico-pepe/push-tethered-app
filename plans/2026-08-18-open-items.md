@@ -24,10 +24,6 @@ frozen.
   unknown, not a "go measure it" one.
 - **Endpoint `0x81` IN on the display interface** — never read from. Possibly
   a status/ack channel.
-- **`External Port` role** — plausible theory, not yet confirmed: Push 3
-  standalone's physical MIDI DIN connector on the back. (`User Port`'s role
-  is now confirmed — see
-  [docs/protocol/midi-input.md](../docs/protocol/midi-input.md#user-modes-effect-on-routing).)
 - **Whether MPE can be disabled via SysEx** — unmeasured on either device.
 - **`internal/host/procmod`'s wire JSON field still says `{"brightness": ...}`**
   even though every Go-level `SetButton` (module, midi, host) is now named
