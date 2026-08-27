@@ -25,70 +25,22 @@ env:
   APP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'dev' }}
 
 jobs:
-  # Native arm64 build for Raspberry Pi 4/5, per
-  # plans/2026-08-17-raspberry-pi-support.md. GitHub-hosted ubuntu-24.04-arm
-  # runners are real aarch64 hardware, not emulated — satisfies the
-  # no-cross-compile rule the same way the ubuntu-latest job does for x86_64.
-  # Separate job rather than a matrix entry on `build` below: that job also
-  # builds cmd/pushapp-ui (GTK4/WebKitGTK), which is out of scope for the
-  # Pi's headless use case and would slow this down for no reason.
-  build-pi:
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Checkout ableton-push-hack (core/ dependency)
-        uses: actions/checkout@v7
-        with:
-          repository: federico-pepe/ableton-push-hack
-          ref: main
-          path: .ableton-push-hack
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-
-      - name: Point core/ replace at the CI checkout
-        run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=./.ableton-push-hack/core
-
-      - name: Disable apt recommends
-        run: echo 'APT::Install-Recommends "false";' | sudo tee /etc/apt/apt.conf.d/99no-recommends
-
-      - name: Install libusb + pkg-config
-        uses: awalsh128/cache-apt-pkgs-action@v1
-        with:
-          packages: libusb-1.0-0-dev libasound2-dev pkg-config
-          version: 1.0
-
-      - name: Build
-        run: |
-          LDFLAGS="-X github.com/federico-pepe/push-tethered-app/internal/version.Version=${APP_VERSION}"
-          go build -ldflags "$LDFLAGS" -o probe     ./cmd/probe
-          go build -ldflags "$LDFLAGS" -o frametest ./cmd/frametest
-          go build -ldflags "$LDFLAGS" -o mapcheck  ./cmd/mapcheck
-          go build -ldflags "$LDFLAGS" -o pushapp   ./cmd/pushapp
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Test
-        run: go test ./...
-
-      - name: Upload binaries
-        uses: actions/upload-artifact@v7
-        with:
-          name: push-tethered-app-linux-arm64
-          path: |
-            probe
-            frametest
-            mapcheck
-            pushapp
-
   build:
     strategy:
       fail-fast: false
+      # ubuntu-24.04-arm is a real aarch64 GitHub-hosted runner (not emulated)
+      # — Raspberry Pi 4/5 coverage, per plans/2026-08-17-raspberry-pi-support.md.
+      # It used to be a separate build-pi job that skipped cmd/pushapp-ui
+      # entirely, on the assumption that GTK4/WebKitGTK made a Pi UI build out
+      # of scope. Folded into this matrix instead: runner.os reports 'Linux'
+      # for this runner the same as ubuntu-latest, so every existing
+      # `runner.os == 'Linux'` step below (apt packages, wails3 build) already
+      # covers it with no change. The one thing that needs matrix.os (not
+      # runner.os) is the CLI-tools build/vet/test/upload block further down,
+      # gated to just this entry — that coverage otherwise has no other job to
+      # live in now that build-pi is gone.
       matrix:
-        os: [windows-latest] # TEMP: windows-only test build, do not merge to main
+        os: [macos-latest, ubuntu-latest, windows-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -182,66 +134,37 @@ jobs:
           # ("removing ... because it conflicts with ...pkgconf").
           install: mingw-w64-x86_64-libusb mingw-w64-x86_64-toolchain
 
-      # The CLI binaries (probe/frametest/mapcheck/pushapp) are disabled on
-      # purpose — `if: false`, not a temporary state. CI currently exists to
-      # cover cmd/pushapp-ui, which is the part that can't be built locally on
-      # every OS. Re-enable by restoring these to their runner.os conditions.
-      - name: Build (macOS / Linux)
-        if: false && runner.os != 'Windows'
+      # pushapp is built here for the Pi entry — this is the headless-kiosk
+      # coverage the old standalone build-pi job used to provide.
+      # probe/frametest/mapcheck are diagnosis tools, not something a Pi
+      # deployment runs day to day; diagnostics.yml already covers building
+      # those on demand for any OS, arm64 Pi included would need its own
+      # entry there if that's ever needed. macOS/Linux/Windows don't need
+      # pushapp from this job either: they're locally buildable, and this
+      # job's real job for them is cmd/pushapp-ui below. The Pi has no
+      # headless build story otherwise, since its own UI build (further
+      # down) still needs a full desktop toolchain in the runner, not on the
+      # target device.
+      - name: Build pushapp (Raspberry Pi)
+        if: matrix.os == 'ubuntu-24.04-arm'
         run: |
-          go build -o probe    ./cmd/probe
-          go build -o frametest ./cmd/frametest
-          go build -o mapcheck ./cmd/mapcheck
-          go build -o pushapp  ./cmd/pushapp
+          LDFLAGS="-X github.com/federico-pepe/push-tethered-app/internal/version.Version=${APP_VERSION}"
+          go build -ldflags "$LDFLAGS" -o pushapp ./cmd/pushapp
 
-      # MSYS2's shell is required so cgo picks up the mingw toolchain and
-      # libusb pkg-config files installed above.
-      - name: Build (Windows)
-        if: false && runner.os == 'Windows'
-        shell: msys2 {0}
-        run: |
-          export PATH="/mingw64/bin:$PATH"
-          go build -o probe.exe     ./cmd/probe
-          go build -o frametest.exe ./cmd/frametest
-          go build -o mapcheck.exe  ./cmd/mapcheck
-          go build -o pushapp.exe   ./cmd/pushapp
-
-      # Vet and Test also touch cgo (via the gousb/rtmididrv imports in
-      # internal/display and internal/midi), so on Windows they need the same
-      # MSYS2 shell as Build — the default pwsh shell has neither mingw's gcc
-      # nor libusb's pkg-config file on PATH.
-      - name: Vet (macOS / Linux)
-        if: false && runner.os != 'Windows'
+      - name: Vet (Raspberry Pi)
+        if: matrix.os == 'ubuntu-24.04-arm'
         run: go vet ./...
 
-      - name: Vet (Windows)
-        if: false && runner.os == 'Windows'
-        shell: msys2 {0}
-        run: |
-          export PATH="/mingw64/bin:$PATH"
-          go vet ./...
-
-      - name: Test (macOS / Linux)
-        if: false && runner.os != 'Windows'
+      - name: Test (Raspberry Pi)
+        if: matrix.os == 'ubuntu-24.04-arm'
         run: go test ./...
 
-      - name: Test (Windows)
-        if: false && runner.os == 'Windows'
-        shell: msys2 {0}
-        run: |
-          export PATH="/mingw64/bin:$PATH"
-          go test ./...
-
-      - name: Upload binaries
-        if: false
+      - name: Upload pushapp (Raspberry Pi)
+        if: matrix.os == 'ubuntu-24.04-arm'
         uses: actions/upload-artifact@v7
         with:
-          name: push-tethered-app-${{ matrix.os }}
-          path: |
-            probe*
-            frametest*
-            mapcheck*
-            pushapp*
+          name: push-tethered-app-linux-arm64
+          path: pushapp
 
       # cmd/pushapp-ui is a separate Go module (see its own go.mod), invisible
       # to the go build/vet/test commands above — it needs its own toolchain
@@ -258,6 +181,13 @@ jobs:
       # Pinned (not @latest): @latest defeats caching, since the cache key
       # can't know if upstream shipped a new version, and would otherwise let
       # the CLI drift out from under this workflow between runs.
+      #
+      # Keyed on runner.arch as well as runner.os: `go install` compiles a
+      # native binary for whatever architecture it runs on, and
+      # ubuntu-24.04-arm reports runner.os == 'Linux' the same as
+      # ubuntu-latest despite being aarch64. An os-only key would let an
+      # arm64 wails3 binary from one job get restored into the amd64 job (or
+      # vice versa, depending on run order) and fail to execute.
       - name: Cache wails3 CLI
         id: cache-wails3
         uses: actions/cache@v5
@@ -265,7 +195,7 @@ jobs:
           path: |
             ~/go/bin/wails3
             ~/go/bin/wails3.exe
-          key: wails3-${{ runner.os }}-v3.0.0-beta.9
+          key: wails3-${{ runner.os }}-${{ runner.arch }}-v3.0.0-beta.9
 
       - name: Install wails3 CLI
         if: steps.cache-wails3.outputs.cache-hit != 'true'
@@ -360,13 +290,13 @@ jobs:
           if-no-files-found: ignore
 
   # Fires only on a version tag push (see the top-level `on.push.tags`
-  # trigger). Downloads whatever build/build-pi already produced for this
+  # trigger). Downloads whatever the build matrix already produced for this
   # commit and publishes them as a GitHub Release, named after the tag, with
   # every artifact attached for download. No separate build steps here —
   # this job is packaging only, reusing the exact binaries CI already
   # verified.
   release:
-    needs: [build, build-pi]
+    needs: [build]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

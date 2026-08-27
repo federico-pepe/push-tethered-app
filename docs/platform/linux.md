@@ -73,12 +73,16 @@ The team confirmed this on a Pi 5 (Debian 13 "trixie", 64-bit arm64) on
 (29.8fps, monitor module) all ran correctly against real Push 3
 hardware. The same udev rule above applies. Pi OS does not ship with a
 more permissive default than any other Linux distribution. The build
-uses `.github/workflows/build.yml`'s `build-pi` job (`ubuntu-24.04-arm`,
-a real aarch64 GitHub-hosted runner), and builds the binary natively
-there, instead of installing a Go toolchain on the Pi itself. Copy the
-resulting `pushapp`, `probe`, and other binaries to the Pi, then run
-them directly. Stock Pi OS already has the libusb and ALSA runtime
-libraries.
+uses `.github/workflows/build.yml`'s `build` job's `ubuntu-24.04-arm`
+matrix entry (a real aarch64 GitHub-hosted runner, folded into the main
+matrix 2026-08-27 — no longer a separate `build-pi` job), and builds the
+binary natively there, instead of installing a Go toolchain on the Pi
+itself. Copy the resulting `pushapp` binary to the Pi and run it directly
+(`probe`/`frametest`/`mapcheck` are diagnosis tools, not part of this build —
+get those from `diagnostics.yml` instead if a Pi needs one). Stock Pi OS
+already has the libusb and ALSA runtime libraries. That same matrix entry
+now also builds `cmd/pushapp-ui` (uploaded as `pushapp-ui-ubuntu-24.04-arm`)
+— compiled only, not yet run on real Pi hardware.
 
 The team assumes that Pi 4 works the same way, because it uses the same
 rule and the same arm64 target, and has not tested Pi 4 separately. If

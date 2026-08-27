@@ -7,6 +7,18 @@ between minor versions).
 
 ## [Unreleased]
 
+### Changed
+
+- CI: `build.yml`'s standalone `build-pi` job is folded into the main
+  `build` matrix as an `ubuntu-24.04-arm` entry, and now also builds
+  `cmd/pushapp-ui` for that target (uploaded as `pushapp-ui-ubuntu-24.04-arm`),
+  which the old job skipped entirely. Also fixes a latent arch-collision bug
+  in the wails3 CLI cache key surfaced by adding this entry: it was keyed on
+  `runner.os` alone, and `ubuntu-24.04-arm` reports `Linux` the same as
+  `ubuntu-latest` despite being aarch64 — an incompatible cached binary could
+  have been restored into the wrong job depending on run order. Now keyed on
+  `runner.arch` too.
+
 ### Fixed
 
 - **Windows: MIDI output (and any `NeedsMIDIIn` module's external input)
