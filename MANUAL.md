@@ -187,3 +187,14 @@ that User Mode is on at the device. Press **User** on the hardware;
 selecting the port in the app is not enough.
 
 LED output and pad input on the User Port work only while User Mode is on.
+
+**`error while loading shared libraries: libwebkitgtk-6.0.so.4: cannot open
+shared object file` (Raspberry Pi / Linux)** — Stock Pi OS does not ship
+the GTK4/WebKitGTK runtime libraries `pushapp-ui` needs. Install them:
+
+```bash
+sudo apt update
+sudo apt install libwebkitgtk-6.0-4 libgtk-4-1
+```
+
+`pushapp` (no UI) does not need these and is unaffected.

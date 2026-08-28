@@ -81,8 +81,19 @@ itself. Copy the resulting `pushapp` binary to the Pi and run it directly
 (`probe`/`frametest`/`mapcheck` are diagnosis tools, not part of this build —
 get those from `diagnostics.yml` instead if a Pi needs one). Stock Pi OS
 already has the libusb and ALSA runtime libraries. That same matrix entry
-now also builds `cmd/pushapp-ui` (uploaded as `pushapp-ui-ubuntu-24.04-arm`)
-— compiled only, not yet run on real Pi hardware.
+now also builds `cmd/pushapp-ui` (uploaded as `pushapp-ui-ubuntu-24.04-arm`).
+
+Confirmed running on real Pi hardware 2026-08-28: unlike `pushapp`, stock
+Pi OS does **not** ship the GTK4/WebKitGTK 6.0 runtime libraries that
+Wails v3 needs, so `pushapp-ui` fails to start with `error while loading
+shared libraries: libwebkitgtk-6.0.so.4: cannot open shared object file`.
+Install the runtime packages (the CI build machine only needs the `-dev`
+headers above; the Pi needs the runtime libs):
+
+```bash
+sudo apt update
+sudo apt install libwebkitgtk-6.0-4 libgtk-4-1
+```
 
 The team assumes that Pi 4 works the same way, because it uses the same
 rule and the same arm64 target, and has not tested Pi 4 separately. If
