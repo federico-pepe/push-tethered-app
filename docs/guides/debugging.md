@@ -45,6 +45,26 @@ stderr. The host truncates this file on each launch. Ask for this file, or
 its contents, when you debug a report from someone who does not run the app
 from a terminal.
 
+On Windows, `<UserConfigDir>` is `%APPDATA%`.
+
+**This file stayed empty on every Windows double-click launch until
+2026-08-27.** `main.go` wrote `log.SetOutput(applog.Wrap(io.MultiWriter(os.Stderr, f)))`
+— `os.Stderr` first, the log file `f` second. The production Windows build
+links with `-H windowsgui` (`cmd/pushapp-ui/build/windows/Taskfile.yml`), so
+launching without an existing console leaves `os.Stderr` backed by an
+invalid handle. `io.MultiWriter` writes to each argument in order and
+returns on the first error, so a failing `os.Stderr` write aborted before
+`f` ever got a byte — confirmed live against a real Windows session that
+ran a full pairing + module-activation flow with the log file staying at 0
+bytes throughout. Fixed by writing to `f` first, `os.Stderr` second
+(best-effort): `log.Printf`'s callers already ignore its returned error, so
+a failing second write is harmless.
+
+If you ever see this symptom again (log file present but empty, app
+otherwise working) on any OS, suspect the same cause: a GUI-subsystem build
+with no console, and a writer order that puts an unwritable stream ahead of
+the one you actually need.
+
 ## No local toolchain for a platform
 
 `.github/workflows/diagnostics.yml` builds `probe`, `frametest`, `mapcheck`,

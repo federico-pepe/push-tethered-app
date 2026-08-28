@@ -43,7 +43,6 @@ func TestIsPushGuard(t *testing.T) {
 	push := []string{
 		"Ableton Push 3 Live Port",
 		"Ableton Push 2 User Port",
-		"push",
 		"MIDIIN2 (Ableton Push 2)",
 	}
 	for _, n := range push {
@@ -55,16 +54,15 @@ func TestIsPushGuard(t *testing.T) {
 	notPush := []string{
 		"loopMIDI Port",
 		"IAC Driver Bus 1",
-		"Push Tethered App", // our own port name is matched too, deliberately:
-		// attaching to a port we previously created would also loop.
+		"push",
+		// our own port name must NOT be caught: DefaultName is "Push Tethered
+		// App", and a Windows user names their loopback port to match it —
+		// self-excluding here would make the default name unattachable.
+		"Push Tethered App",
 	}
-	for _, n := range notPush[:2] {
+	for _, n := range notPush {
 		if isPush(n) {
 			t.Errorf("isPush(%q) = true, want false", n)
 		}
-	}
-	if !isPush("Push Tethered App") {
-		t.Error(`isPush("Push Tethered App") = false; our own port name should ` +
-			`also be skipped when attaching, to avoid attaching to a port we created`)
 	}
 }

@@ -171,7 +171,9 @@ Full package-by-package rationale:
 It has its own `go.mod`, with two `replace` directives (root repo,
 `ableton-push-hack/core`). It needs `wails3` (the CLI) and Node/npm to
 build. Its configuration lives in `build/config.yml` (v3, not v2's
-`wails.json`). CI builds it on all three operating systems. Full detail:
+`wails.json`). CI builds it on macOS, Linux, Windows, and Raspberry Pi
+(`ubuntu-24.04-arm`, compiled only — not yet run on real Pi hardware). Full
+detail:
 [docs/guides/development-setup.md](docs/guides/development-setup.md).
 
 ## Writing a module
@@ -281,8 +283,10 @@ git push origin v0.1.1-alpha
 ```
 
 Pushing a `v*` tag triggers the `release` job in
-`.github/workflows/build.yml`. The job waits on `build` and `build-pi`,
-zips their artifacts, and publishes a GitHub Release for that tag through
+`.github/workflows/build.yml`. The job waits on `build` (whose matrix
+includes an `ubuntu-24.04-arm` entry for Raspberry Pi — no separate
+`build-pi` job as of 2026-08-27), zips its artifacts, and publishes a
+GitHub Release for that tag through
 `softprops/action-gh-release`. The job sets the pre-release flag
 automatically for `-alpha`, `-beta`, and `-rc` tags.
 

@@ -98,17 +98,67 @@ WinMM **cannot create virtual ports**. The host **attaches** to an
 existing port by name:
 
 1. Install [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html)
-   (free) or use Windows MIDI Services.
-2. Create a port (for example `PushApp`).
-3. Point the app at that name (`-midi-out PushApp` or UI setting).
+   (free), or use Windows MIDI Services (see below — confirmed to work as
+   of the 2026-08-27 fixes). loopMIDI has no ARM64 build; on Windows on
+   ARM, Windows MIDI Services is the only option.
+2. Name the port `Push Tethered App`, matching `midiout.DefaultName`, so the
+   app finds it with no flag. `pushapp-ui` has no MIDI-out name field yet —
+   only `cmd/pushapp`'s `-midi-out <name>` flag can point at a different name.
 
 | Platform | MIDI out strategy | User setup |
 |---|---|---|
 | macOS, Linux | create virtual port | none |
-| Windows | attach to existing port | loopMIDI or equivalent |
+| Windows | attach to existing port | loopMIDI, Windows MIDI Services, or equivalent |
 
-Do not attach to a port whose name mentions **Push**. The output loops
-back into the input decoder.
+Do not attach to a port whose name mentions **Ableton Push** — the real
+hardware marker (`internal/midiout.hardwareNameMarker`,
+`internal/midi.hardwareNameMarker`, `internal/midiin.hardwareNameMarker`).
+A bare "push" substring is not enough: the app's own default port names —
+`Push Tethered App` (out) and `Push Tethered App In` (in) — contain it, so
+a looser filter self-excludes the very port a Windows user names to match
+those defaults. Fixed 2026-08-27; before the fix, `attach()` could never
+find a correctly-named loopback port on Windows at all, on either side.
+
+### RtMidi on Windows silently fakes success creating a virtual port
+
+Confirmed live 2026-08-27, on a Windows-on-ARM machine with a real Push 3.
+The vendored RtMidi C++ library (`gitlab.com/gomidi/midi/v2/drivers/rtmididrv`)
+reports its Windows refusal —
+`MidiOutWinMM::openVirtualPort: cannot be implemented in Windows MM MIDI
+API!` — as a **warning**, not a thrown C++ exception. The Go wrapper
+(`rtmididrv.Driver.OpenVirtualOut`/`OpenVirtualIn`) only turns a thrown
+exception into a Go `error`, so on Windows it returns `err == nil` while
+having created nothing. `internal/midiout.Open` and `internal/midiin.Open`
+both trusted that return value to decide whether to fall back to `attach()`
+by name — so on Windows the fallback never ran. The app logged
+`MIDI out: "..." (virtual)` and reported normal operation, while every
+byte written to that "virtual" port went nowhere.
+
+The fix (`internal/midiout/midiout.go`, `internal/midiin/midiin.go`) is a
+`runtime.GOOS != "windows"` guard around the `OpenVirtualOut`/`OpenVirtualIn`
+attempt — skip it outright on Windows rather than trust its error return.
+This is the actual reason MIDI-out (and any `NeedsMIDIIn` module's external
+input) never worked on Windows before this fix, independent of the
+isPush self-exclusion bug above; that bug was real too, but never got
+exercised, since the virtual-port path always claimed false success first.
+
+### Windows MIDI Services loopback endpoints — confirmed working
+
+Confirmed live 2026-08-27, via Microsoft's `midi enum endpoints` /
+`midi monitor` console tools (Windows MIDI Services SDK, Release
+Candidate 4, GitHub Preview) on Windows on ARM. A loopback endpoint pair
+created there — for example named `Push Tethered App (A)` /
+`Push Tethered App (B)` — **is** visible to the legacy WinMM API this app
+uses (`gm.GetOutPorts()`/`gm.GetInPorts()` via RtMidi), confirmed by
+`cmd/pushapp -devices` listing both `Push Tethered App (A)` and `(B)`
+alongside Push's own hardware ports. So Windows MIDI Services is a real
+loopMIDI substitute, including on ARM64 where loopMIDI has no build.
+
+A loopback pair has two ends: traffic sent into `(A)` arrives on `(B)`'s
+monitor, not `(A)`'s own — this is not a bug, it is how a loopback pair
+works. Point the app at one end (`-midi-out "Push Tethered App (A)"`) and
+monitor or subscribe to the other end (`(B)`) to see or receive that
+traffic.
 
 ## pushapp-ui
 

@@ -11,10 +11,7 @@ func TestIsPushGuard(t *testing.T) {
 	push := []string{
 		"Ableton Push 3 Live Port",
 		"Ableton Push 2 User Port",
-		"push",
 		"MIDIIN2 (Ableton Push 2)",
-		"Push Tethered App In", // our own port name is matched too, deliberately —
-		// see internal/midiout's TestIsPushGuard for the same on the output side.
 	}
 	for _, n := range push {
 		if !isPush(n) {
@@ -25,6 +22,10 @@ func TestIsPushGuard(t *testing.T) {
 	notPush := []string{
 		"loopMIDI Port",
 		"IAC Driver Bus 1",
+		"push",
+		// our own port name must NOT be caught — see internal/midiout's
+		// TestIsPushGuard for the same reasoning on the output side.
+		"Push Tethered App In",
 	}
 	for _, n := range notPush {
 		if isPush(n) {

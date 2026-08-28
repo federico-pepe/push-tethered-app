@@ -121,5 +121,8 @@ the five "known unknowns" above:
    unmeasured under heavier peripheral load.
 
 Not tested: Pi 4 specifically, multi-hour endurance, headless kiosk `-module`
-flag under real use, Wails/webkit2gtk on Pi (deliberately out of scope — see
-`docs/platform/linux.md`'s note that `build-pi` skips `cmd/pushapp-ui`).
+flag under real use. `cmd/pushapp-ui` is now built for arm64 too (folded into
+`build.yml`'s main matrix 2026-08-27, alongside the CLI tools that were
+already there — no longer a separate `build-pi` job, and no longer skipped
+for the Pi) — but that's CI compilation only. Running the Wails/webkit2gtk UI
+on real Pi hardware is still untested.
