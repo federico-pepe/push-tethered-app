@@ -7,6 +7,15 @@ between minor versions).
 
 ## [Unreleased]
 
+### Changed
+
+- `examples/modules/knobs-js` is no longer bundled in-tree — it's the
+  catalog's first real entry, published at
+  [federico-pepe/pta-module-knobs](https://github.com/federico-pepe/pta-module-knobs)
+  and installable via `-catalog-install knobs-js`. Proves the catalog
+  flow end-to-end against a real external repo and release, not just
+  local fixtures.
+
 ### Added
 
 - **Module catalog and archive install.** `-install` now accepts a

@@ -84,9 +84,11 @@ side, so a module never needs to reimplement that search. Rebuild
 `palette.json` only when `core/push3.Palette` itself changes. This is rare,
 because `core/push3.Palette` is a fixed, SysEx-sourced hardware table.
 `palette.json` is a checked-in generated file. The build process does not
-regenerate it on every run. See `examples/modules/hello-{js,py}`,
-`beatcount-{js,py}`, and `knobs-js` for working examples of both lookup
-styles.
+regenerate it on every run. See `examples/modules/hello-{js,py}` and
+`beatcount-{js,py}` for working examples of both lookup styles, or the
+`knobs-js` module (published separately, installable via
+`-catalog-install knobs-js` — see
+[catalog/schema.md](../../catalog/schema.md)).
 
 ## Host calls from child
 

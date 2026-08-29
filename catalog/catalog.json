@@ -1,4 +1,14 @@
 {
   "catalog_version": 1,
-  "entries": []
+  "entries": [
+    {
+      "id": "knobs-js",
+      "name": "Knobs (Node.js example)",
+      "description": "2 knobs each of knob/knobfull/knobarc, driven live — a quick anti-aliased-knob test module",
+      "author": "federico-pepe",
+      "homepage": "https://github.com/federico-pepe/pta-module-knobs",
+      "github_repo": "federico-pepe/pta-module-knobs",
+      "asset_name": "knobs-js.tar.gz"
+    }
+  ]
 }
