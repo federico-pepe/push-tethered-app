@@ -13,6 +13,7 @@
             <h1 class="title">Push Tethered App</h1>
             <div class="brand-buttons">
                 <button id="install-btn" class="install-btn" hidden>Add module&hellip;</button>
+                <button id="catalog-btn" class="install-btn" hidden>Browse catalog&hellip;</button>
                 <button id="settings-btn" class="install-btn" hidden>Settings&hellip;</button>
             </div>
         </div>
@@ -65,6 +66,16 @@
             <button id="settings-close-btn" class="mirror-close">×</button>
         </div>
         <div class="settings-panel-body" id="settings-panel-body"></div>
+    </div>
+</div>
+
+<div class="settings-overlay" id="catalog-overlay" hidden>
+    <div class="settings-panel">
+        <div class="settings-panel-header">
+            <span>Browse catalog</span>
+            <button id="catalog-close-btn" class="mirror-close">×</button>
+        </div>
+        <ul class="module-list" id="catalog-list" aria-label="Catalog modules"></ul>
     </div>
 </div>
 

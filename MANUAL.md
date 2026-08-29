@@ -37,6 +37,36 @@ Push 3 also has an **External Port** — its MIDI DIN connector on the back —
 but this is not something you pair with directly. See [Using Push 3's
 external MIDI DIN jacks](#using-push-3s-external-midi-din-jacks) below.
 
+## Adding a module
+
+Once a Push is connected, the main window shows **Add module…** and
+**Browse catalog…** buttons.
+
+- **Add module…** opens a picker for a module folder (containing
+  `manifest.json`) or a `.tar.gz`/`.tgz` archive of one — use this for a
+  module you already downloaded, or one you're developing yourself.
+- **Browse catalog…** lists third-party modules from this app's online
+  catalog. Pick one and click **Install** to download and install it
+  directly — no manual download needed. This works the same way for
+  Python and Node.js modules.
+
+A module already installed from the catalog shows an **Update
+available** badge in its module list entry once a newer release exists;
+click **Update** next to it to install the new version, or use
+**Uninstall** to remove it. You cannot update or uninstall the module
+that's currently active — switch to another one first.
+
+The same actions are available from the command line:
+
+```bash
+pushapp -install path/to/your-module        # a folder, or a .tar.gz/.tgz archive
+pushapp -catalog-list                        # see what's in the catalog
+pushapp -catalog-install <id>
+pushapp -catalog-check-updates
+pushapp -catalog-update <id>
+pushapp -uninstall <id>
+```
+
 ## Running alongside Ableton Live
 
 By default, Live and this app cannot use Push at the same time. A

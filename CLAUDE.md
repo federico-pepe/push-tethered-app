@@ -131,7 +131,13 @@ internal/applog/  shared log.SetOutput wrapper: timestamps every log.Printf line
 internal/bootstrap/  hardware-opening sequence shared by cmd/pushapp and -ui
 internal/module/  the ABI: Module, Host, Frame/Op, Event, Meta, Store
 internal/host/    runtime: registry, control API, event fan-out, frame loop
-internal/host/procmod/       process-loaded module: JSON-over-stdio protocol
+internal/host/procmod/       process-loaded module: JSON-over-stdio protocol,
+                   plus install/update from a directory or .tar.gz/.tgz archive
+internal/archiveutil/  shared .tar.gz extraction (zip-slip guarded), used by
+                   internal/host/procmod and internal/catalog
+internal/catalog/ fetches catalog/catalog.json, resolves a module's latest
+                   GitHub release asset, downloads/extracts it — see
+                   docs/architecture/process-modules.md#catalog-install
 internal/renderframe/  the Frame/Op renderer itself (RegisterOp, Render, SupportedOps),
                    split out of internal/host so gousb-free tools like cmd/screensim
                    can import it
@@ -202,10 +208,12 @@ progress:
 [plans/2026-08-21-design-system-screensim.md](plans/2026-08-21-design-system-screensim.md).
 
 ```bash
-go run ./cmd/pushapp -install path/to/your-module   # copies it in, registers it
+go run ./cmd/pushapp -install path/to/your-module   # dir or .tar.gz/.tgz; copies it in, registers it
 go run ./cmd/pushapp -uninstall your-module-id
 go run ./cmd/pushapp -list                          # shows installed too, [installed]
 go run ./cmd/pushapp -module your-module-id
+go run ./cmd/pushapp -catalog-list                  # browse the hosted catalog
+go run ./cmd/pushapp -catalog-install your-module-id
 ```
 
 ## Commands
@@ -248,7 +256,14 @@ go build ./... && go vet ./... && go test ./...
   per session, not shared, because more than one Push can connect at
   once. `PushService.OpenMirror` opens a session's URL in the system
   browser through Wails' `Browser.OpenURL`.
-- `-install <dir>`, `-uninstall <id>` — filesystem only; no Push needed.
+- `-install <dir-or-tar.gz>`, `-uninstall <id>` — filesystem only; no Push
+  needed. `-install` accepts a directory or a `.tar.gz`/`.tgz` archive.
+- `-catalog-list`, `-catalog-install <id>`, `-catalog-check-updates`,
+  `-catalog-update <id>`, `-catalog-url <url>` — install/update modules
+  from the hosted catalog (`catalog/catalog.json`, see
+  `internal/catalog` and
+  [catalog/schema.md](catalog/schema.md)). Filesystem + network only; no
+  Push needed.
 - `-version` — prints `internal/version.Version`, or "dev" unless a build
   used the release workflow's `-ldflags`.
 - `-devices` — lists every attached Push unit and MIDI cable. It claims

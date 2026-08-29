@@ -84,9 +84,11 @@ side, so a module never needs to reimplement that search. Rebuild
 `palette.json` only when `core/push3.Palette` itself changes. This is rare,
 because `core/push3.Palette` is a fixed, SysEx-sourced hardware table.
 `palette.json` is a checked-in generated file. The build process does not
-regenerate it on every run. See `examples/modules/hello-{js,py}`,
-`beatcount-{js,py}`, and `knobs-js` for working examples of both lookup
-styles.
+regenerate it on every run. See `examples/modules/hello-{js,py}` and
+`beatcount-{js,py}` for working examples of both lookup styles, or the
+`knobs-js` module (published separately, installable via
+`-catalog-install knobs-js` — see
+[catalog/schema.md](../../catalog/schema.md)).
 
 ## Host calls from child
 
@@ -134,3 +136,34 @@ never receives this event kind.
 - [writing-a-javascript-module.md](writing-a-javascript-module.md)
 
 Examples index: [examples/modules/README.md](../../examples/modules/README.md).
+
+## Writing a module in Go (or any compiled language)
+
+The process-loader protocol doesn't care what spawned the child — a
+compiled Go, Rust, or C binary that speaks JSON-over-stdio works exactly
+like a Python or Node.js script. The one difference: a script runs
+anywhere its interpreter is installed, but a compiled binary only runs on
+the platform it was built for, and this repo's own cross-compilation
+rule applies to a module's binary too (see the root `CLAUDE.md`'s
+"Cross-platform builds" — build natively per target, do not cross-compile
+cgo-free or not, to keep the guidance uniform across the project).
+
+Use `exec_platforms` in `manifest.json` instead of `exec` to ship one
+binary per target inside a single archive — see
+[docs/architecture/process-modules.md](../architecture/process-modules.md#compiled-non-script-modules-exec_platforms)
+for the manifest shape. A release workflow that builds each target
+natively (e.g. one GitHub Actions matrix job per OS, same shape as this
+repo's own `.github/workflows/build.yml`) and stitches the binaries plus
+one shared `manifest.json` into a single `.tar.gz` release asset works
+well.
+
+## Publishing to the catalog
+
+Once your module works with `-install`, users can find it without a
+manual download: tag a release in your own repo with a `.tar.gz` of your
+module directory attached as a release asset, then open a PR adding one
+entry to this repo's `catalog/catalog.json`. See
+[catalog/schema.md](../../catalog/schema.md) for the entry fields and the
+publishing steps, and
+[docs/architecture/process-modules.md](../architecture/process-modules.md#catalog-install)
+for how `-catalog-install` resolves and downloads it.

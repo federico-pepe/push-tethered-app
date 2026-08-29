@@ -107,9 +107,13 @@ Its zero value falls back to `Theme.Select`, not white. This differs from
 every other color-bearing op param (see "Color defaulting" below), because
 white is itself a valid, deliberate `Color` choice a module can make.
 Without this fallback, white would be indistinguishable from "unset."
-`examples/modules/knobs-js` gives every knob its own palette `Color` to
-demonstrate the override. `cmd/screensim -scene controls` does the same
-for `KnobArc` and `Fader`, side by side with two Theme-default knobs.
+The `knobs-js` module (published separately at
+[federico-pepe/pta-module-knobs](https://github.com/federico-pepe/pta-module-knobs),
+installable via `-catalog-install knobs-js` — see
+[catalog/schema.md](../../catalog/schema.md)) gives every knob its own
+palette `Color` to demonstrate the override. `cmd/screensim -scene
+controls` does the same for `KnobArc` and `Fader`, side by side with two
+Theme-default knobs.
 
 `Knob` also has `ValueScale` (`int`). This field enlarges the value
 readout only; `Label` always draws at 1x. It works through
@@ -120,7 +124,7 @@ contract as `Color`. Added 2026-08-24.
 
 A scaled-up value collides with `Label`'s fixed position directly below
 the knob, once the knob composition stacks two lines there
-(`DrawKnobFull`'s value-then-label). `examples/modules/knobs-js` (now at
+(`DrawKnobFull`'s value-then-label). The `knobs-js` module (now at
 `ValueScale: 2`, tuned down live from an initial 4x that overflowed a
 `r: 30` knob) works around this. It leaves `Label` unset and draws each
 knob's label itself, in its own `Color`, in one row below every knob,
@@ -140,7 +144,7 @@ exactly at the middle.
 False, the zero value, gives the original behavior. Added 2026-08-24 for a
 pan, detune, or LFO-offset-style control. In these controls, a symmetric
 range's untouched center value reads as an empty ring, not a permanently
-half-full one. `examples/modules/knobs-js`'s "PAN 1" and "PAN 2" (range
+half-full one. The `knobs-js` module's "PAN 1" and "PAN 2" (range
 -50 to +50, starting at 0) demonstrate this.
 
 Every widget gets two things from the host for free. A module does not
@@ -281,8 +285,10 @@ the named entries.
 Load `palette.json` and look up a color by name or by 0-127 index,
 instead of hand-copying RGB. See
 [writing-a-process-module.md](../guides/writing-a-process-module.md#colors)
-for the loader snippet in both languages, and `knobs-js`, `hello-{js,py}`,
-and `beatcount-{js,py}` for working examples.
+for the loader snippet in both languages, and `hello-{js,py}` and
+`beatcount-{js,py}` (in `examples/modules/`) or `knobs-js` (published
+separately — see [catalog/schema.md](../../catalog/schema.md), installable
+via `-catalog-install knobs-js`) for working examples.
 
 Regenerate `palette.json` with `go run ./cmd/genpalette` after any change
 to `push3.Palette` itself. This is rare. `palette.json` is a checked-in

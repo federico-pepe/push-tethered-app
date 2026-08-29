@@ -5,6 +5,41 @@ All notable changes to this project are documented here. Format follows
 [Semantic Versioning](https://semver.org/) (pre-1.0: expect breaking changes
 between minor versions).
 
+## [Unreleased]
+
+### Changed
+
+- `examples/modules/knobs-js` is no longer bundled in-tree — it's the
+  catalog's first real entry, published at
+  [federico-pepe/pta-module-knobs](https://github.com/federico-pepe/pta-module-knobs)
+  and installable via `-catalog-install knobs-js`. Proves the catalog
+  flow end-to-end against a real external repo and release, not just
+  local fixtures.
+
+### Added
+
+- **Module catalog and archive install.** `-install` now accepts a
+  `.tar.gz`/`.tgz` archive in addition to a plain directory. New
+  `-catalog-list`, `-catalog-install <id>`, `-catalog-check-updates`, and
+  `-catalog-update <id>` flags (and matching `pushapp-ui` "Browse
+  catalog…" button, plus an "update available" badge on installed
+  modules) fetch a hosted `catalog/catalog.json` index, resolve a
+  module's latest GitHub release, and download/install it — no manual
+  clone-and-point-at-a-folder needed. Works the same for Python and
+  Node.js process modules. See `internal/catalog`,
+  `internal/archiveutil`, `internal/host/procmod/archive.go`, and
+  [catalog/schema.md](catalog/schema.md) for the entry format and
+  publishing steps. No checksum/signing verification — an installed
+  module runs arbitrary code regardless of where it came from, same as
+  a manual install.
+- **Process modules can now be compiled binaries (Go, Rust, ...), not
+  just scripts.** `manifest.json`'s new `exec_platforms` field maps
+  `"GOOS/GOARCH"` to a per-platform exec command, so one catalog entry
+  and one release archive can bundle a binary per target; a plain `exec`
+  still works unchanged for Python/Node.js modules. See
+  `Manifest.ResolvedExec` in `internal/host/procmod/manifest.go` and
+  [docs/architecture/process-modules.md](docs/architecture/process-modules.md#compiled-non-script-modules-exec_platforms).
+
 ## [0.1.4-alpha] - 2026-08-28
 
 ### Changed

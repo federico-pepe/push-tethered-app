@@ -50,26 +50,28 @@ func (r *Runtime) IsInstalled(id string) bool {
 	return false
 }
 
-// Install copies a module directory (manifest.json plus its executable and
-// assets — see internal/host/procmod's package doc for the format) into this
-// app's own config location and registers it so it's usable immediately,
-// with no restart needed. The disk operation itself (validate, copy, refuse
-// a duplicate) is procmod.Install, which needs no Runtime or hardware, so a
-// CLI flag can install a module offline; this method adds the one thing that
-// needs a live Runtime — the collision check against compiled-in modules, and
+// Install copies a module directory or .tar.gz/.tgz archive (manifest.json
+// plus its executable and assets — see internal/host/procmod's package doc
+// for the format) into this app's own config location and registers it so
+// it's usable immediately, with no restart needed. The disk operation
+// itself (validate, extract if needed, copy, refuse a duplicate) is
+// procmod.InstallFromPath, which needs no Runtime or hardware, so a CLI flag
+// can install a module offline; this method adds the one thing that needs a
+// live Runtime — the collision check against compiled-in modules, and
 // registering the result so Activate can find it right away.
-func (r *Runtime) Install(srcDir string) (module.Meta, error) {
-	man, err := procmod.LoadManifest(srcDir)
+func (r *Runtime) Install(srcPath string) (module.Meta, error) {
+	man, err := procmod.InstallFromPath(srcPath)
 	if err != nil {
-		return module.Meta{}, fmt.Errorf("install: %w", err)
+		return module.Meta{}, err
 	}
 	if r.findModule(man.ID) != nil {
+		root, rootErr := procmod.InstalledRoot()
+		if rootErr == nil {
+			os.RemoveAll(filepath.Join(root, man.ID))
+		}
 		return module.Meta{}, fmt.Errorf("install: a module with id %q already exists", man.ID)
 	}
 
-	if _, err := procmod.Install(srcDir); err != nil {
-		return module.Meta{}, err
-	}
 	root, err := procmod.InstalledRoot()
 	if err != nil {
 		return module.Meta{}, fmt.Errorf("install: %w", err)
@@ -87,6 +89,42 @@ func (r *Runtime) Install(srcDir string) (module.Meta, error) {
 	r.installedMu.Unlock()
 
 	log.Printf("module: installed %s (%s) at %s", proc.Meta().Name, proc.Meta().ID, destDir)
+	return proc.Meta(), nil
+}
+
+// Update replaces an already-installed module's files from srcPath (a
+// directory or .tar.gz/.tgz archive) and re-registers it, refusing if the
+// module is currently active — same reasoning as Uninstall: you can't
+// replace a program's files while it's running.
+func (r *Runtime) Update(id, srcPath string) (module.Meta, error) {
+	if active := r.Active(); active.ID == id {
+		return module.Meta{}, fmt.Errorf("update: %q is active; switch to another module first", id)
+	}
+
+	if _, err := procmod.Update(id, srcPath); err != nil {
+		return module.Meta{}, err
+	}
+	root, err := procmod.InstalledRoot()
+	if err != nil {
+		return module.Meta{}, fmt.Errorf("update: %w", err)
+	}
+	destDir := filepath.Join(root, id)
+
+	proc, err := procmod.New(destDir)
+	if err != nil {
+		return module.Meta{}, fmt.Errorf("update: %w", err)
+	}
+
+	r.installedMu.Lock()
+	for i, im := range r.installed {
+		if im.mod.Meta().ID == id {
+			r.installed[i] = &installedModule{mod: proc, dir: destDir}
+			break
+		}
+	}
+	r.installedMu.Unlock()
+
+	log.Printf("module: updated %s (%s) at %s", proc.Meta().Name, proc.Meta().ID, destDir)
 	return proc.Meta(), nil
 }
 

@@ -250,6 +250,45 @@ func TestLoadInstalledWithNothingInstalledIsNotAnError(t *testing.T) {
 	}
 }
 
+func TestUpdateReplacesRegisteredModule(t *testing.T) {
+	defer procmod.SetInstalledRootForTest(t.TempDir())()
+	rt := &Runtime{}
+
+	if _, err := rt.Install(writeModuleDir(t, "hello")); err != nil {
+		t.Fatal(err)
+	}
+
+	newSrc := t.TempDir()
+	if err := os.WriteFile(filepath.Join(newSrc, "manifest.json"),
+		[]byte(`{"id":"hello","name":"Hello","version":"2.0.0","exec":"true"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	meta, err := rt.Update("hello", newSrc)
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if meta.Version != "2.0.0" {
+		t.Errorf("Version = %q, want 2.0.0", meta.Version)
+	}
+	if rt.findModule("hello").Meta().Version != "2.0.0" {
+		t.Error("findModule still returns the pre-update registration")
+	}
+}
+
+func TestUpdateRefusesActiveModule(t *testing.T) {
+	defer procmod.SetInstalledRootForTest(t.TempDir())()
+	rt := &Runtime{}
+	if _, err := rt.Install(writeModuleDir(t, "hello")); err != nil {
+		t.Fatal(err)
+	}
+	rt.active = rt.findModule("hello")
+
+	if _, err := rt.Update("hello", writeModuleDir(t, "hello")); err == nil {
+		t.Error("Update did not refuse the active module")
+	}
+}
+
 // Sanity check that moduletest.Host still satisfies module.Host — used
 // nowhere in this file directly, but if this ever stops compiling it means
 // the ABI moved without the fake keeping up, which would silently invalidate
