@@ -74,7 +74,11 @@ func New(dir string) (*Proc, error) {
 	if err != nil {
 		return nil, err
 	}
-	fields, err := resolveExec(dir, man.Exec)
+	exec, err := man.ResolvedExec()
+	if err != nil {
+		return nil, fmt.Errorf("module %q: %w", man.ID, err)
+	}
+	fields, err := resolveExec(dir, exec)
 	if err != nil {
 		return nil, fmt.Errorf("module %q: %w", man.ID, err)
 	}

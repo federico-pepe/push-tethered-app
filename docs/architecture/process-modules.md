@@ -94,6 +94,41 @@ to the existing "Add module…" one.
 `exec` is resolved relative to the module directory. On Windows, name the
 full command the shell needs, for example `python.exe run.py`.
 
+### Compiled (non-script) modules: `exec_platforms`
+
+A module shipped as a compiled binary (Go, Rust, ...) rather than a
+script needs a different binary per target, unlike a Python or Node.js
+module where the same `exec` runs anywhere the interpreter is on PATH.
+`exec_platforms` replaces `exec` for this case — a map keyed by
+`"GOOS/GOARCH"` (`runtime.GOOS + "/" + runtime.GOARCH`, e.g.
+`"darwin/arm64"`, `"linux/amd64"`, `"windows/amd64"`), each value an
+`exec`-shaped command for that target:
+
+```json
+{
+  "id": "my-go-module",
+  "name": "My Go Module",
+  "exec_platforms": {
+    "darwin/arm64": "./bin/darwin-arm64/mymodule",
+    "darwin/amd64": "./bin/darwin-amd64/mymodule",
+    "linux/amd64": "./bin/linux-amd64/mymodule",
+    "linux/arm64": "./bin/linux-arm64/mymodule",
+    "windows/amd64": "./bin/windows-amd64/mymodule.exe"
+  }
+}
+```
+
+`Manifest.ResolvedExec()` (`internal/host/procmod/manifest.go`) picks the
+entry matching the host `pushapp` is actually running on, and errors,
+listing what's available, if none matches — a manifest can specify
+`exec` **or** `exec_platforms`, not both meaningfully at once (only one
+is read; `exec_platforms` wins if both are present). One archive, one
+`asset_name`, bundles every platform's binary, so this needs no change
+to the catalog schema — see [catalog/schema.md](../../catalog/schema.md).
+`resolveExec`'s existing "resolve any token naming a real file in the
+module directory to an absolute path" behaviour applies to whichever
+command `ResolvedExec` returns, same as for a plain `exec`.
+
 ## Wire protocol
 
 One JSON object per line on stdin (host→child) and stdout (child→host).

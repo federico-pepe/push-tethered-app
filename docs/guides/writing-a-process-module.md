@@ -135,6 +135,26 @@ never receives this event kind.
 
 Examples index: [examples/modules/README.md](../../examples/modules/README.md).
 
+## Writing a module in Go (or any compiled language)
+
+The process-loader protocol doesn't care what spawned the child — a
+compiled Go, Rust, or C binary that speaks JSON-over-stdio works exactly
+like a Python or Node.js script. The one difference: a script runs
+anywhere its interpreter is installed, but a compiled binary only runs on
+the platform it was built for, and this repo's own cross-compilation
+rule applies to a module's binary too (see the root `CLAUDE.md`'s
+"Cross-platform builds" — build natively per target, do not cross-compile
+cgo-free or not, to keep the guidance uniform across the project).
+
+Use `exec_platforms` in `manifest.json` instead of `exec` to ship one
+binary per target inside a single archive — see
+[docs/architecture/process-modules.md](../architecture/process-modules.md#compiled-non-script-modules-exec_platforms)
+for the manifest shape. A release workflow that builds each target
+natively (e.g. one GitHub Actions matrix job per OS, same shape as this
+repo's own `.github/workflows/build.yml`) and stitches the binaries plus
+one shared `manifest.json` into a single `.tar.gz` release asset works
+well.
+
 ## Publishing to the catalog
 
 Once your module works with `-install`, users can find it without a

@@ -23,6 +23,13 @@ between minor versions).
   publishing steps. No checksum/signing verification — an installed
   module runs arbitrary code regardless of where it came from, same as
   a manual install.
+- **Process modules can now be compiled binaries (Go, Rust, ...), not
+  just scripts.** `manifest.json`'s new `exec_platforms` field maps
+  `"GOOS/GOARCH"` to a per-platform exec command, so one catalog entry
+  and one release archive can bundle a binary per target; a plain `exec`
+  still works unchanged for Python/Node.js modules. See
+  `Manifest.ResolvedExec` in `internal/host/procmod/manifest.go` and
+  [docs/architecture/process-modules.md](docs/architecture/process-modules.md#compiled-non-script-modules-exec_platforms).
 
 ## [0.1.4-alpha] - 2026-08-28
 

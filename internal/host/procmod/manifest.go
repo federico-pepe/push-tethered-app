@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/federico-pepe/push-tethered-app/internal/module"
@@ -21,15 +23,26 @@ import (
 // path before spawning, so "run.py" finds the module's own script regardless
 // of the host process's current directory, while a bare command name like
 // "python3" is left for PATH lookup.
+//
+// ExecPlatforms is the alternative for a module shipped as a compiled
+// binary (Go, Rust, ...) rather than a script — one archive can bundle a
+// binary per target, keyed by "GOOS/GOARCH" (runtime.GOOS + "/" +
+// runtime.GOARCH, e.g. "darwin/arm64", "windows/amd64"), and
+// ResolvedExec picks the entry matching the host this process is actually
+// running on. When set, it takes precedence over Exec, which a
+// multi-platform manifest can otherwise leave empty. A script-based module
+// (Python, Node.js) has no reason to use this — the same Exec runs
+// anywhere the interpreter is on PATH.
 type Manifest struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Version      string `json:"version,omitempty"`
-	Description  string `json:"description,omitempty"`
-	Author       string `json:"author,omitempty"`
-	NeedsMIDIOut bool   `json:"needs_midi_out,omitempty"`
-	NeedsMIDIIn  bool   `json:"needs_midi_in,omitempty"`
-	Exec         string `json:"exec"`
+	ID            string            `json:"id"`
+	Name          string            `json:"name"`
+	Version       string            `json:"version,omitempty"`
+	Description   string            `json:"description,omitempty"`
+	Author        string            `json:"author,omitempty"`
+	NeedsMIDIOut  bool              `json:"needs_midi_out,omitempty"`
+	NeedsMIDIIn   bool              `json:"needs_midi_in,omitempty"`
+	Exec          string            `json:"exec,omitempty"`
+	ExecPlatforms map[string]string `json:"exec_platforms,omitempty"`
 }
 
 // Meta converts the manifest into the same type in-tree modules use.
@@ -61,10 +74,36 @@ func LoadManifest(dir string) (Manifest, error) {
 	if m.Name == "" {
 		return Manifest{}, fmt.Errorf("manifest.json: %q is required", "name")
 	}
-	if m.Exec == "" {
-		return Manifest{}, fmt.Errorf("manifest.json: %q is required", "exec")
+	if m.Exec == "" && len(m.ExecPlatforms) == 0 {
+		return Manifest{}, fmt.Errorf("manifest.json: %q or %q is required", "exec", "exec_platforms")
 	}
 	return m, nil
+}
+
+// currentPlatform is a seam over runtime.GOOS+"/"+runtime.GOARCH so tests can
+// exercise ResolvedExec against a platform other than the one actually
+// running the test.
+var currentPlatform = func() string { return runtime.GOOS + "/" + runtime.GOARCH }
+
+// ResolvedExec returns the exec command line to run on the current
+// platform: Exec if ExecPlatforms is unset, or the ExecPlatforms entry
+// matching runtime.GOOS+"/"+runtime.GOARCH otherwise. Errors if
+// ExecPlatforms is set but has no entry for this platform, listing what
+// is available so the error is actionable without opening the manifest.
+func (m Manifest) ResolvedExec() (string, error) {
+	if len(m.ExecPlatforms) == 0 {
+		return m.Exec, nil
+	}
+	platform := currentPlatform()
+	if exec, ok := m.ExecPlatforms[platform]; ok {
+		return exec, nil
+	}
+	available := make([]string, 0, len(m.ExecPlatforms))
+	for p := range m.ExecPlatforms {
+		available = append(available, p)
+	}
+	sort.Strings(available)
+	return "", fmt.Errorf("no exec_platforms entry for %q (available: %s)", platform, strings.Join(available, ", "))
 }
 
 // resolveExec splits Exec on whitespace and resolves any token that names a

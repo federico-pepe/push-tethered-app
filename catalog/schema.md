@@ -93,3 +93,12 @@ Archive layout: either the archive's root directly contains
 `manifest.json`, or the whole tree is wrapped in a single top-level
 directory (the shape `git archive` and GitHub's own auto-generated
 source tarballs produce) — both are handled automatically.
+
+## Compiled modules (Go, Rust, ...)
+
+The catalog schema needs no special case for a module shipped as a
+compiled binary instead of a script: still one `github_repo`, one
+`asset_name`, one release. The archive itself just needs to carry every
+target's binary, and the manifest's `exec_platforms` field (instead of
+`exec`) picks the right one at install/run time — see
+[docs/guides/writing-a-process-module.md](../docs/guides/writing-a-process-module.md#writing-a-module-in-go-or-any-compiled-language).
