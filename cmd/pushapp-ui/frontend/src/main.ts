@@ -1,6 +1,7 @@
 import { PushService } from "../bindings/github.com/federico-pepe/push-tethered-app/cmd/pushapp-ui";
-import type { ConnectRequest, ModuleInfo, Overview, SessionInfo } from "../bindings/github.com/federico-pepe/push-tethered-app/cmd/pushapp-ui/models";
+import type { ConnectRequest, ModuleInfo, Overview, SessionInfo, UpdateInfo } from "../bindings/github.com/federico-pepe/push-tethered-app/cmd/pushapp-ui/models";
 import type { Info as USBUnit } from "../bindings/github.com/federico-pepe/push-tethered-app/internal/display/models";
+import type { Entry as CatalogEntry } from "../bindings/github.com/federico-pepe/push-tethered-app/internal/catalog/models";
 import type { PortRef, Unit as MIDIUnit } from "../bindings/github.com/federico-pepe/push-tethered-app/internal/midi/models";
 
 // Pairing + switcher + install/uninstall. See plans/2026-08-19-multi-device.md
@@ -11,10 +12,21 @@ import type { PortRef, Unit as MIDIUnit } from "../bindings/github.com/federico-
 // overrides), still edited by hand-editing the config file the host logs on
 // activation, same as from the CLI.
 
-const EXPECTED_API_VERSION = 3;
+const EXPECTED_API_VERSION = 4;
 
 const statusEl = document.getElementById("status") as HTMLParagraphElement;
 const installBtn = document.getElementById("install-btn") as HTMLButtonElement;
+const catalogBtn = document.getElementById("catalog-btn") as HTMLButtonElement;
+const catalogOverlayEl = document.getElementById("catalog-overlay") as HTMLElement;
+const catalogCloseBtn = document.getElementById("catalog-close-btn") as HTMLButtonElement;
+const catalogListEl = document.getElementById("catalog-list") as HTMLUListElement;
+
+catalogCloseBtn.addEventListener("click", () => {
+    catalogOverlayEl.hidden = true;
+});
+catalogOverlayEl.addEventListener("click", (ev) => {
+    if (ev.target === catalogOverlayEl) catalogOverlayEl.hidden = true;
+});
 
 const mainContainerEl = document.getElementById("main-container") as HTMLElement;
 const pairingViewEl = document.getElementById("pairing-view") as HTMLElement;
@@ -178,6 +190,7 @@ async function refresh(): Promise<void> {
     }
     sessionListEl.hidden = !hasSessions;
     installBtn.hidden = !hasSessions;
+    catalogBtn.hidden = !hasSessions;
 
     statusEl.textContent = hasSessions
         ? `${sessions.length} unit${sessions.length === 1 ? "" : "s"} connected`
@@ -465,6 +478,100 @@ async function renderSessions(sessions: SessionInfo[]): Promise<void> {
     sessionListEl.replaceChildren(...cards);
 }
 
+// currentCatalogSession is which session's Runtime a catalog install/update
+// goes through — whichever session was connected when "Browse catalog" was
+// opened, mirroring installBtn's "any live session works" reasoning (the
+// installed-modules directory is shared process-wide).
+let currentCatalogSession: string | null = null;
+
+async function openCatalog(sessionKey: string): Promise<void> {
+    currentCatalogSession = sessionKey;
+    catalogOverlayEl.hidden = false;
+    catalogListEl.replaceChildren();
+    const loading = document.createElement("li");
+    loading.className = "pairing-detail";
+    loading.textContent = "Loading catalog…";
+    catalogListEl.appendChild(loading);
+
+    let entries: CatalogEntry[];
+    try {
+        entries = (await PushService.CatalogList()) ?? [];
+    } catch (err) {
+        loading.textContent = `Could not load catalog: ${err}`;
+        return;
+    }
+
+    if (entries.length === 0) {
+        loading.textContent = "The catalog is empty.";
+        return;
+    }
+    catalogListEl.replaceChildren(...entries.map(renderCatalogRow));
+}
+
+function renderCatalogRow(entry: CatalogEntry): HTMLLIElement {
+    const li = document.createElement("li");
+    li.className = "module-row";
+
+    const info = document.createElement("span");
+    info.className = "module-info";
+    const label = document.createElement("span");
+    label.className = "module-name";
+    label.textContent = entry.name;
+    info.appendChild(label);
+    if (entry.description) {
+        const desc = document.createElement("span");
+        desc.className = "module-description";
+        desc.textContent = entry.description;
+        info.appendChild(desc);
+    }
+
+    const buttons = document.createElement("span");
+    buttons.className = "module-buttons";
+    const installEntryBtn = document.createElement("button");
+    installEntryBtn.className = "module-activate";
+    installEntryBtn.textContent = "Install";
+    installEntryBtn.addEventListener("click", () => catalogInstall(entry.id, installEntryBtn));
+    buttons.appendChild(installEntryBtn);
+
+    li.append(info, buttons);
+    return li;
+}
+
+async function catalogInstall(id: string, btn: HTMLButtonElement): Promise<void> {
+    if (globalBusy || currentCatalogSession === null) return;
+    globalBusy = true;
+    btn.disabled = true;
+    btn.textContent = "Installing…";
+    statusEl.textContent = `Installing ${id}…`;
+    try {
+        const info = await PushService.CatalogInstall(currentCatalogSession, id);
+        statusEl.textContent = `Installed ${info.name}`;
+        catalogOverlayEl.hidden = true;
+    } catch (err) {
+        statusEl.textContent = `Could not install ${id}: ${err}`;
+        btn.disabled = false;
+        btn.textContent = "Install";
+    } finally {
+        globalBusy = false;
+        await refresh();
+    }
+}
+
+async function catalogUpdate(sessionKey: string, id: string): Promise<void> {
+    if (busySessions.has(sessionKey)) return;
+    busySessions.add(sessionKey);
+    statusEl.textContent = `Updating ${id}…`;
+    try {
+        const info = await PushService.CatalogUpdate(sessionKey, id);
+        statusEl.textContent = `Updated ${info.name} to v${info.version}`;
+    } catch (err) {
+        statusEl.textContent = `Could not update ${id}: ${err}`;
+    } finally {
+        busySessions.delete(sessionKey);
+        await refresh();
+    }
+}
+
 async function renderSessionCard(session: SessionInfo): Promise<HTMLLIElement> {
     const li = document.createElement("li");
     li.className = "session-card";
@@ -536,11 +643,19 @@ async function renderSessionCard(session: SessionInfo): Promise<HTMLLIElement> {
         return li;
     }
 
+    let updates: UpdateInfo[] = [];
+    try {
+        updates = (await PushService.CatalogCheckUpdates(session.key)) ?? [];
+    } catch {
+        // Catalog unreachable — modules still work, just no update badges.
+    }
+    const updatesByID = new Map(updates.map((u) => [u.id, u]));
+
     const list = document.createElement("ul");
     list.className = "module-list";
     list.hidden = collapsedSessions.has(session.key);
     for (const m of modules) {
-        list.appendChild(renderModuleRow(session.key, m, busy));
+        list.appendChild(renderModuleRow(session.key, m, busy, updatesByID.get(m.id)));
     }
     li.appendChild(list);
 
@@ -592,7 +707,7 @@ async function disconnectSession(key: string): Promise<void> {
     }
 }
 
-function renderModuleRow(sessionKey: string, m: ModuleInfo, sessionBusy: boolean): HTMLLIElement {
+function renderModuleRow(sessionKey: string, m: ModuleInfo, sessionBusy: boolean, update?: UpdateInfo): HTMLLIElement {
     const li = document.createElement("li");
     li.className = "module-row" + (m.active ? " is-active" : "");
 
@@ -607,6 +722,9 @@ function renderModuleRow(sessionKey: string, m: ModuleInfo, sessionBusy: boolean
     }
     if (m.installed) {
         label.appendChild(badge("installed"));
+    }
+    if (update) {
+        label.appendChild(badge(`update available: v${update.latestVersion}`));
     }
     info.appendChild(label);
 
@@ -626,6 +744,16 @@ function renderModuleRow(sessionKey: string, m: ModuleInfo, sessionBusy: boolean
     activateBtn.disabled = m.active || sessionBusy;
     activateBtn.addEventListener("click", () => activate(sessionKey, m.id));
     buttons.appendChild(activateBtn);
+
+    if (update) {
+        const updateBtn = document.createElement("button");
+        updateBtn.className = "module-activate";
+        updateBtn.textContent = "Update";
+        updateBtn.disabled = m.active || sessionBusy;
+        updateBtn.title = m.active ? "Switch to another module first" : "";
+        updateBtn.addEventListener("click", () => catalogUpdate(sessionKey, m.id));
+        buttons.appendChild(updateBtn);
+    }
 
     if (m.installed) {
         const uninstallBtn = document.createElement("button");
@@ -703,6 +831,11 @@ installBtn.addEventListener("click", () => {
     // PushService.InstallModulePrompt's doc), so any live session works.
     const firstKey = sessionListEl.querySelector<HTMLElement>(".session-card")?.dataset.key;
     void install(firstKey ?? "");
+});
+catalogBtn.addEventListener("click", () => {
+    // Same "any live session works" reasoning as installBtn above.
+    const firstKey = sessionListEl.querySelector<HTMLElement>(".session-card")?.dataset.key;
+    void openCatalog(firstKey ?? "");
 });
 
 // No push events from the host yet (a natural addition once something needs

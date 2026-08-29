@@ -5,6 +5,25 @@ All notable changes to this project are documented here. Format follows
 [Semantic Versioning](https://semver.org/) (pre-1.0: expect breaking changes
 between minor versions).
 
+## [Unreleased]
+
+### Added
+
+- **Module catalog and archive install.** `-install` now accepts a
+  `.tar.gz`/`.tgz` archive in addition to a plain directory. New
+  `-catalog-list`, `-catalog-install <id>`, `-catalog-check-updates`, and
+  `-catalog-update <id>` flags (and matching `pushapp-ui` "Browse
+  catalog…" button, plus an "update available" badge on installed
+  modules) fetch a hosted `catalog/catalog.json` index, resolve a
+  module's latest GitHub release, and download/install it — no manual
+  clone-and-point-at-a-folder needed. Works the same for Python and
+  Node.js process modules. See `internal/catalog`,
+  `internal/archiveutil`, `internal/host/procmod/archive.go`, and
+  [catalog/schema.md](catalog/schema.md) for the entry format and
+  publishing steps. No checksum/signing verification — an installed
+  module runs arbitrary code regardless of where it came from, same as
+  a manual install.
+
 ## [0.1.4-alpha] - 2026-08-28
 
 ### Changed

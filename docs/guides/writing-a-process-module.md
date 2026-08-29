@@ -134,3 +134,14 @@ never receives this event kind.
 - [writing-a-javascript-module.md](writing-a-javascript-module.md)
 
 Examples index: [examples/modules/README.md](../../examples/modules/README.md).
+
+## Publishing to the catalog
+
+Once your module works with `-install`, users can find it without a
+manual download: tag a release in your own repo with a `.tar.gz` of your
+module directory attached as a release asset, then open a PR adding one
+entry to this repo's `catalog/catalog.json`. See
+[catalog/schema.md](../../catalog/schema.md) for the entry fields and the
+publishing steps, and
+[docs/architecture/process-modules.md](../architecture/process-modules.md#catalog-install)
+for how `-catalog-install` resolves and downloads it.

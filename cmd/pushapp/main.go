@@ -28,6 +28,7 @@ import (
 
 	"github.com/federico-pepe/push-tethered-app/internal/applog"
 	"github.com/federico-pepe/push-tethered-app/internal/bootstrap"
+	"github.com/federico-pepe/push-tethered-app/internal/catalog"
 	"github.com/federico-pepe/push-tethered-app/internal/display"
 	"github.com/federico-pepe/push-tethered-app/internal/host/procmod"
 	"github.com/federico-pepe/push-tethered-app/internal/midi"
@@ -78,8 +79,13 @@ func main() {
 	capturePath := flag.String("capture", "", "record the screen to a file (.mp4, .mov or .gif)")
 	captureRaw := flag.Bool("capture-raw", false, "record the source image instead of panel-accurate BGR565 colour")
 	mirrorAddr := flag.String("mirror-addr", "localhost:3000", "serve a live MJPEG mirror of the screen at http://<addr>/screen; pass -mirror-addr=\"\" to disable it. Avoid :7000/:5000 — macOS's AirPlay Receiver squats both by default.")
-	installDir := flag.String("install", "", "install the module directory at this path (manifest.json + executable), then exit")
+	installDir := flag.String("install", "", "install the module directory or .tar.gz/.tgz archive at this path (manifest.json + executable), then exit")
 	uninstallID := flag.String("uninstall", "", "uninstall the process-loaded module with this id, then exit")
+	catalogURL := flag.String("catalog-url", catalog.DefaultCatalogURL, "catalog.json URL to use for -catalog-list/-catalog-install/-catalog-check-updates/-catalog-update")
+	catalogList := flag.Bool("catalog-list", false, "list modules available in the catalog, then exit")
+	catalogInstallID := flag.String("catalog-install", "", "download and install the catalog module with this id, then exit")
+	catalogUpdateID := flag.String("catalog-update", "", "download and update the already-installed catalog module with this id, then exit")
+	catalogCheckUpdates := flag.Bool("catalog-check-updates", false, "check every installed module against the catalog for a newer version, then exit")
 	listDevices := flag.Bool("devices", false, "list connected Push units and their MIDI ports, then exit")
 	deviceSel := flag.String("device", "", "USB unit to drive: serial:XXXX or usb:BUS.ADDR (default: the first one, see -devices)")
 	midiInName := flag.String("midi-in", "", "MIDI input port name to use (default: auto-detect the Live port; required if more than one Push is attached)")
@@ -99,7 +105,7 @@ func main() {
 	// needed connected, so they run before bootstrap.Open ever claims MIDI
 	// or the display.
 	if *installDir != "" {
-		man, err := procmod.Install(*installDir)
+		man, err := procmod.InstallFromPath(*installDir)
 		if err != nil {
 			applog.Fatalf("%v", err)
 		}
@@ -111,6 +117,40 @@ func main() {
 			applog.Fatalf("%v", err)
 		}
 		fmt.Printf("uninstalled %q\n", *uninstallID)
+		return
+	}
+	if *catalogList {
+		cat, err := catalog.Fetch(*catalogURL)
+		if err != nil {
+			applog.Fatalf("%v", err)
+		}
+		for _, e := range cat.Entries {
+			fmt.Printf("%-16s %-24s %s\n", e.ID, e.Name, e.Description)
+		}
+		return
+	}
+	if *catalogInstallID != "" {
+		man, err := catalogDownloadAndInstall(*catalogURL, *catalogInstallID, procmod.InstallFromPath)
+		if err != nil {
+			applog.Fatalf("%v", err)
+		}
+		fmt.Printf("installed %q (%s)\n", man.ID, man.Name)
+		return
+	}
+	if *catalogUpdateID != "" {
+		man, err := catalogDownloadAndInstall(*catalogURL, *catalogUpdateID, func(dir string) (procmod.Manifest, error) {
+			return procmod.Update(*catalogUpdateID, dir)
+		})
+		if err != nil {
+			applog.Fatalf("%v", err)
+		}
+		fmt.Printf("updated %q (%s) to %s\n", man.ID, man.Name, man.Version)
+		return
+	}
+	if *catalogCheckUpdates {
+		if err := checkCatalogUpdates(*catalogURL); err != nil {
+			applog.Fatalf("%v", err)
+		}
 		return
 	}
 
@@ -241,4 +281,64 @@ func main() {
 	if runErr != nil {
 		applog.Fatalf("host: %v", runErr)
 	}
+}
+
+// catalogDownloadAndInstall resolves id's catalog entry, downloads and
+// extracts its latest release, and hands the extracted directory to apply
+// (either procmod.InstallFromPath or a procmod.Update closure) — shared by
+// -catalog-install and -catalog-update, which differ only in what happens
+// once the files are on disk.
+func catalogDownloadAndInstall(catalogURL, id string, apply func(dir string) (procmod.Manifest, error)) (procmod.Manifest, error) {
+	cat, err := catalog.Fetch(catalogURL)
+	if err != nil {
+		return procmod.Manifest{}, err
+	}
+	entry, err := cat.Find(id)
+	if err != nil {
+		return procmod.Manifest{}, err
+	}
+	downloadURL, _, err := catalog.ResolveAsset(entry)
+	if err != nil {
+		return procmod.Manifest{}, err
+	}
+	dir, cleanup, err := catalog.DownloadAndExtract(downloadURL)
+	if err != nil {
+		return procmod.Manifest{}, err
+	}
+	defer cleanup()
+	return apply(dir)
+}
+
+// checkCatalogUpdates cross-references every installed module against the
+// catalog by ID and reports which have a newer release available.
+func checkCatalogUpdates(catalogURL string) error {
+	cat, err := catalog.Fetch(catalogURL)
+	if err != nil {
+		return err
+	}
+	installed, err := procmod.ListInstalled()
+	if err != nil {
+		return err
+	}
+
+	any := false
+	for _, man := range installed {
+		entry, err := cat.Find(man.ID)
+		if err != nil {
+			continue // not a catalog module, or no longer listed
+		}
+		available, latest, _, err := catalog.CheckUpdate(entry, man.Version)
+		if err != nil {
+			fmt.Printf("%-16s could not check for updates: %v\n", man.ID, err)
+			continue
+		}
+		if available {
+			any = true
+			fmt.Printf("%-16s installed %s -> %s available\n", man.ID, man.Version, latest)
+		}
+	}
+	if !any {
+		fmt.Println("all installed catalog modules are up to date")
+	}
+	return nil
 }
