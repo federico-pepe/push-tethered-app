@@ -806,6 +806,7 @@ async function install(sessionKey: string): Promise<void> {
         statusEl.textContent = `Could not install: ${err}`;
     } finally {
         globalBusy = false;
+        installBtn.disabled = false;
         await refresh();
     }
 }
