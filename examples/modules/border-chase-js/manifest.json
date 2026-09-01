@@ -1,0 +1,9 @@
+{
+  "id": "border-chase-js",
+  "name": "Border Chase (Node.js example)",
+  "version": "1.0.0",
+  "description": "Lights the outer pad border clockwise from note 38, one colour index per pad",
+  "author": "push-tethered-app examples",
+  "needs_midi_out": false,
+  "exec": "node run.js"
+}
