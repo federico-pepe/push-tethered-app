@@ -90,6 +90,24 @@ regenerate it on every run. See `examples/modules/hello-{js,py}` and
 `-catalog-install knobs-js` — see
 [catalog/schema.md](../../catalog/schema.md)).
 
+**Offering a user a color choice (e.g. "pick this track's color").** Don't
+expose all 128 raw palette indices for this — many are near-duplicates or
+too dark/muddy to read on the small pad LEDs. Curate a smaller subset
+(roughly two dozen, hand-picked by eye on real hardware) the same way
+Push's own official color-choose UI does, and Live's clip-color picker
+does at a coarser level. The `gridseq` module (catalog) has a concrete,
+working reference for both halves of this: a curated subset
+(`engine.py`'s `TRACK_COLORS`) and a grid-overlay picker for it (hold
+Shift, the pad grid's border pads light up with the subset, tap one to
+assign — see `Engine.enter_color_picker`/`color_picker_grid`). If you're
+building this for your own module, it's worth reading that implementation
+before designing one from scratch — and if this pattern recurs across
+modules, it's a candidate for a shared helper in `core/push3` rather than
+every module re-curating its own list (see
+`ableton-push-hack/docs/push3-led-colors.md`'s "Curated subsets for
+user-facing color pickers" for the hardware-side background, if you have
+that repo checked out).
+
 ## Host calls from child
 
 Notifications carry no `id`:
