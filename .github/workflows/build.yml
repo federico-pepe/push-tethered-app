@@ -40,7 +40,7 @@ jobs:
       # gated to just this entry — that coverage otherwise has no other job to
       # live in now that build-pi is gone.
       matrix:
-        os: [windows-latest] # TEMP: narrowed for arm64-installer debugging, revert before merge
+        os: [macos-latest, ubuntu-latest, windows-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
