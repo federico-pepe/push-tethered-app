@@ -278,21 +278,23 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         working-directory: cmd/pushapp-ui
-        # makensis is not on PATH in the MSYS2 shell, and two attempts at
-        # locating a preinstalled copy both failed (confirmed 2026-09-02):
-        # a guessed path, then a 4-level-deep search under both Program
-        # Files directories found nothing. Installing it directly with
-        # Chocolatey (present on every GitHub-hosted Windows runner)
-        # removes the guessing: `choco install` always leaves makensis at
-        # a known shim path, so this stops depending on what the runner
-        # image happens to ship.
+        # windows-latest does not ship NSIS at all (confirmed 2026-09-02:
+        # a guessed path and a 4-level-deep search under both Program
+        # Files directories both found nothing before this fix). Installing
+        # it with Chocolatey (present on every GitHub-hosted Windows
+        # runner) removes the guessing about the runner image's contents —
+        # but not about where it lands: choco's nsis package does not shim
+        # makensis.exe into chocolatey\bin (confirmed 2026-09-02: 0 files
+        # there after install), it deploys straight to
+        # "C:\Program Files (x86)\NSIS", which is what actually needs
+        # adding to PATH.
         #
         # Chocolatey's own package feed is itself flaky (confirmed
         # 2026-09-02: "503 Service Unavailable" from
         # community.chocolatey.org on the first attempt with this fix in
         # place), so retry the install a few times before giving up.
         run: |
-          export PATH="/mingw64/bin:$PATH:/c/ProgramData/chocolatey/bin"
+          export PATH="/mingw64/bin:$PATH:/c/Program Files (x86)/NSIS"
           if ! command -v makensis >/dev/null 2>&1; then
             for attempt in 1 2 3; do
               choco install nsis -y --no-progress && break

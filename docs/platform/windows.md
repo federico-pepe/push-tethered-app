@@ -216,13 +216,13 @@ copying. The plain exe + DLL-next-to-it build above still runs, and CI
 still produces it as a build step, but the release artifact users
 download is the installer.
 
-`makensis` (the NSIS compiler) is not on `$PATH` in the MSYS2 shell CI
-uses for this build, and searching for a preinstalled copy under both
-Program Files directories found nothing either (confirmed 2026-09-02).
-CI installs NSIS itself with Chocolatey instead
-(`choco install nsis`), which always leaves `makensis` at a known shim
-path (`C:\ProgramData\chocolatey\bin`), before calling
-`wails3 task package`.
+`windows-latest` does not ship NSIS (confirmed 2026-09-02: a search for
+a preinstalled `makensis.exe` under both Program Files directories
+found nothing). CI installs it with Chocolatey instead
+(`choco install nsis`) before calling `wails3 task package`. That
+package does not shim `makensis.exe` into `chocolatey\bin` — it
+deploys straight to `C:\Program Files (x86)\NSIS`, which is the
+directory CI adds to `$PATH`.
 
 ## Related
 
