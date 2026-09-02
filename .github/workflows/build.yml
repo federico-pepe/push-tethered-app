@@ -286,9 +286,21 @@ jobs:
         # removes the guessing: `choco install` always leaves makensis at
         # a known shim path, so this stops depending on what the runner
         # image happens to ship.
+        #
+        # Chocolatey's own package feed is itself flaky (confirmed
+        # 2026-09-02: "503 Service Unavailable" from
+        # community.chocolatey.org on the first attempt with this fix in
+        # place), so retry the install a few times before giving up.
         run: |
-          command -v makensis >/dev/null 2>&1 || choco install nsis -y --no-progress
           export PATH="/mingw64/bin:$PATH:/c/ProgramData/chocolatey/bin"
+          if ! command -v makensis >/dev/null 2>&1; then
+            for attempt in 1 2 3; do
+              choco install nsis -y --no-progress && break
+              echo "choco install nsis failed (attempt $attempt/3), retrying in 15s..."
+              sleep 15
+            done
+          fi
+          command -v makensis >/dev/null 2>&1 || { echo "makensis still not found after retries" >&2; exit 1; }
           export CGO_LDFLAGS="-static"
           wails3 task package CGO_ENABLED=1
 
