@@ -51,6 +51,34 @@ Wails v3 development and builds work with standard Xcode command line
 tools and Node/npm. See
 [cmd/pushapp-ui/README.md](../../cmd/pushapp-ui/README.md).
 
+### "Damaged or incomplete" at launch (CFBundleExecutable mismatch)
+
+Fixed 2026-09-02. `build/darwin/Info.plist` and `Info.dev.plist` had
+`CFBundleExecutable` set to `Push Tethered App` (`BUNDLE_NAME`, the
+`.app`'s display name), but `create:app:bundle` copies the built binary
+into `Contents/MacOS/` under its own name, `pushapp-ui` (`APP_NAME`).
+macOS looks for `Contents/MacOS/<CFBundleExecutable>` to launch the
+app; that file never existed, so every `.app` this project ever
+packaged was structurally broken.
+
+This went unnoticed because CI only ran `wails3 build` (a bare binary,
+no `.app`) until the v0.2.1-alpha release, which was the first to run
+`darwin:package:dmg` and hit it live: the ad-hoc `codesign -dv` output
+showed `Format=bundle` (not `app bundle`) and
+`Executable=.../Contents/Info.plist`, both signs that codesign could
+not find the binary it was told to look for. macOS shows this exact
+mismatch to the user as "You can't open the application ... because it
+may be damaged or incomplete" — a LaunchServices bundle-validation
+error, not a Gatekeeper trust/quarantine warning (that one reads
+"Apple could not verify..." with an Open Anyway option instead).
+
+Fix: `CFBundleExecutable` is now `pushapp-ui` in both plists, matching
+the file `create:app:bundle` actually places in `Contents/MacOS/`.
+Confirmed 2026-09-02 by patching a downloaded v0.2.1-alpha `.app`'s
+`Info.plist` and re-signing: `codesign -dv` then reported
+`Format=app bundle with Mach-O thin (arm64)` and
+`Executable=.../Contents/MacOS/pushapp-ui`, and `open` launched it.
+
 ### Missing libusb dylib on end-user Macs
 
 `gousb` links `libusb` dynamically. A build linked against Homebrew's

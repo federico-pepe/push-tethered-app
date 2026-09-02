@@ -5,6 +5,17 @@ All notable changes to this project are documented here. Format follows
 [Semantic Versioning](https://semver.org/) (pre-1.0: expect breaking changes
 between minor versions).
 
+## [Unreleased]
+
+### Fixed
+
+- The macOS `.app` (shipped in v0.2.1-alpha's release) failed to open
+  with "You can't open the application ... because it may be damaged
+  or incomplete." `Info.plist`'s `CFBundleExecutable` named the app's
+  display name instead of the actual binary file in `Contents/MacOS/`,
+  so macOS could not find an executable to launch. See
+  [docs/platform/macos.md](docs/platform/macos.md).
+
 ## [0.2.1-alpha] - 2026-09-02
 
 ### Changed
