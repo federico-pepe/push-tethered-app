@@ -104,6 +104,15 @@ jobs:
         if: runner.os == 'Linux'
         run: echo 'APT::Install-Recommends "false";' | sudo tee /etc/apt/apt.conf.d/99no-recommends
 
+      # cache-apt-pkgs-action does not run this itself. Without it, the
+      # runner's package index can point at .deb files a mirror has
+      # already rotated out, and apt fails with 404s on a cache miss.
+      # Confirmed 2026-09-02: two runs in a row failed to fetch
+      # webkitgtk/libbz2/util-linux packages this way.
+      - name: apt-get update (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update
+
       - name: Install libusb + pkg-config (Linux)
         if: runner.os == 'Linux'
         uses: awalsh128/cache-apt-pkgs-action@v1
@@ -273,10 +282,11 @@ jobs:
         # the MSYS2 shell (confirmed 2026-09-02: "makensis": executable
         # file not found in $PATH). Guessing the install path as
         # "/c/Program Files (x86)/NSIS" did not fix it either (confirmed
-        # 2026-09-02, second run), so this finds the real one instead of
-        # guessing again.
+        # 2026-09-02, second run) — makensis.exe sits in a "Bin"
+        # subdirectory, one level deeper than that guess reached, so
+        # search a few levels down instead of guessing the exact path.
         run: |
-          NSIS_DIR="$(dirname "$(find "/c/Program Files (x86)" "/c/Program Files" -maxdepth 2 -iname makensis.exe 2>/dev/null | head -1)")"
+          NSIS_DIR="$(dirname "$(find "/c/Program Files (x86)" "/c/Program Files" -maxdepth 4 -iname makensis.exe 2>/dev/null | head -1)")"
           export PATH="/mingw64/bin:$PATH:$NSIS_DIR"
           export CGO_LDFLAGS="-static"
           wails3 task package CGO_ENABLED=1
