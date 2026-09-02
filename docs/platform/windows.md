@@ -224,6 +224,33 @@ package does not shim `makensis.exe` into `chocolatey\bin` — it
 deploys straight to `C:\Program Files (x86)\NSIS`, which is the
 directory CI adds to `$PATH`.
 
+### Installer refuses arm64 Windows (UTM, Parallels, Windows Dev Kit)
+
+Fixed 2026-09-02. The installer's `wails.checkArchitecture` macro
+checks the host's *native* processor, not whether it can run an amd64
+app at all. This repo only ever builds one binary, amd64 — gousb and
+rtmididrv are both cgo, and CI has no native arm64 Windows runner (see
+CLAUDE.md's "Do not cross-compile"). Before this fix, the installer
+declared amd64 support only, so it refused outright on a native arm64
+host: "This product can't be installed on the current Windows
+architecture. Supports: amd64". Confirmed 2026-09-02 on Windows 11
+ARM64 in a UTM VM on an Apple Silicon Mac.
+
+Windows 11 on ARM emulates x64 apps transparently, WinUSB drivers
+included (WinUSB is what libusb uses on Windows), so the same amd64
+binary runs fine under emulation — the installer just needed to stop
+refusing to place it there. `cmd/pushapp-ui/build/windows/Taskfile.yml`'s
+`create:nsis:installer` now passes both `ARG_WAILS_AMD64_BINARY` and
+`ARG_WAILS_ARM64_BINARY` to `makensis`, pointing at the same amd64
+exe. This is not a real arm64 build — it only tells the architecture
+check to accept a native-arm64 host too. A true native arm64 build
+would need a native arm64 Windows CI runner, which this project does
+not have.
+
+32-bit x86 Windows is not supported and is not planned: no current
+hardware ships it, so the CI/toolchain cost (a second MSYS2 MINGW32
+toolchain, a 32-bit libusb) has no real audience to justify it.
+
 ## Related
 
 - [plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md) — remaining open items

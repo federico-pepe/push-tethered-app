@@ -5,6 +5,18 @@ All notable changes to this project are documented here. Format follows
 [Semantic Versioning](https://semver.org/) (pre-1.0: expect breaking changes
 between minor versions).
 
+## [Unreleased]
+
+### Fixed
+
+- The Windows installer refused to install on a native arm64 host
+  ("This product can't be installed on the current Windows
+  architecture. Supports: amd64"), confirmed in a Windows 11 ARM64 UTM
+  VM on an Apple Silicon Mac. The installer now also declares arm64
+  support, pointing at the same amd64 binary — Windows 11 on ARM runs
+  x64 apps under transparent emulation, WinUSB drivers included. See
+  [docs/platform/windows.md](docs/platform/windows.md).
+
 ## [0.2.2-alpha] - 2026-09-02
 
 ### Fixed
