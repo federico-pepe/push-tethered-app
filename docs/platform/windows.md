@@ -216,6 +216,12 @@ copying. The plain exe + DLL-next-to-it build above still runs, and CI
 still produces it as a build step, but the release artifact users
 download is the installer.
 
+`windows-latest` ships NSIS, but its install dir
+(`C:\Program Files (x86)\NSIS`) is not on `$PATH` in the MSYS2 shell CI
+uses for this build. Without it, `makensis` fails with "executable file
+not found in $PATH". CI adds that directory to `$PATH` by hand before
+calling `wails3 task package`.
+
 ## Related
 
 - [plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md) — remaining open items

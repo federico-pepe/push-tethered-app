@@ -269,8 +269,11 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         working-directory: cmd/pushapp-ui
+        # windows-latest ships NSIS, but its install dir is not always on
+        # PATH in the MSYS2 shell (confirmed 2026-09-02: "makensis":
+        # executable file not found in $PATH). Add it explicitly.
         run: |
-          export PATH="/mingw64/bin:$PATH"
+          export PATH="/mingw64/bin:$PATH:/c/Program Files (x86)/NSIS"
           export CGO_LDFLAGS="-static"
           wails3 task package CGO_ENABLED=1
 
