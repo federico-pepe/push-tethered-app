@@ -17,6 +17,19 @@ between minor versions).
   x64 apps under transparent emulation, WinUSB drivers included. See
   [docs/platform/windows.md](docs/platform/windows.md).
 
+- `pushapp-ui`'s startup auto-detect attempt, which routinely fails
+  (Windows can't auto-detect at all, or no Push is plugged in yet),
+  permanently consumed session number 1. The user's first real pairing
+  became session 2, whose default MIDI-out name (`Push Tethered App
+  2`) matched no loopMIDI/Windows MIDI Services port a Windows user
+  actually created. Confirmed live on real Windows hardware. See
+  [docs/platform/windows.md](docs/platform/windows.md).
+- A module needing MIDI output that failed to activate logged nothing
+  anywhere — not the log file, not the UI (the error flashed in a
+  status line the next refresh immediately overwrote) — making the
+  failure effectively invisible. `internal/host.Runtime.Activate` now
+  logs this failure the same way its sibling MIDI-in path already did.
+
 ## [0.2.2-alpha] - 2026-09-02
 
 ### Fixed

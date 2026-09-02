@@ -234,8 +234,10 @@ func (r *Runtime) Activate(id string) error {
 	if next.Meta().NeedsMIDIOut {
 		out, err := r.ensureMIDIOut()
 		if err != nil {
-			return fmt.Errorf("module %q needs a MIDI output port: %w "+
+			err = fmt.Errorf("module %q needs a MIDI output port: %w "+
 				"(on Windows, create one with loopMIDI and pass -midi-out)", id, err)
+			log.Printf("%v", err)
+			return err
 		}
 		log.Printf("MIDI out: %q (%s)", out.Name(), out.Mode())
 	}

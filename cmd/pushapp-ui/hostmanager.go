@@ -261,14 +261,28 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 		return "", fmt.Errorf("capture path %q is already in use by another session", m.baseOpts.CapturePath)
 	}
 
-	// Assigned before opening, not after, because it also names this
+	// Computed before opening, not after, because it also names this
 	// session's MIDI-out port (below) — two sessions both defaulting to
 	// midiout.DefaultName would otherwise create two identically-named
 	// virtual ports, and a DAW subscribing to that name would get an
 	// arbitrary one of the two. Observed live in testing: both sessions'
 	// logs read `MIDI out: "Push Tethered App" (virtual)` before this fix.
-	m.nextKey++
-	n := m.nextKey
+	//
+	// m.nextKey itself is not incremented until the session actually
+	// succeeds (below) — only n, a candidate value, is used here. A
+	// failed connect (wrong MIDI-out name, no unit found, etc.) must not
+	// burn a session number: main.go's startup auto-detect calls connect
+	// once unconditionally and routinely fails when no Push is plugged in
+	// yet, and every session after that failure used to be numbered one
+	// higher than it should — for example, the very first real pairing
+	// became session 2, so its default MIDI-out name became "Push
+	// Tethered App 2" instead of the un-suffixed default a Windows user's
+	// manually created loopback port is actually named after. Confirmed
+	// live 2026-09-02: a real Windows session was s2 even on a fresh
+	// pushapp-ui launch with a single pairing attempt, and its module's
+	// MIDI-out lookup for "Push Tethered App 2" matched none of the
+	// user's "Push Tethered App (A)"/"(B)" loopback ports.
+	n := m.nextKey + 1
 	key := fmt.Sprintf("s%d", n)
 
 	// One Hub per session, not shared: each session's screen is its own
@@ -328,6 +342,11 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 	ctx, cancel := context.WithCancel(m.rootCtx)
 	runDone := make(chan error, 1)
 	go func() { runDone <- rt.Run(ctx) }()
+
+	// Commit the candidate key now that the session is guaranteed to be
+	// kept — every earlier return in this function is a failure path that
+	// must not advance m.nextKey (see the doc above n's assignment).
+	m.nextKey = n
 
 	sess := &session{
 		key: key, unit: unit, rt: rt, mirror: hub, cleanup: cleanup, cancel: cancel,

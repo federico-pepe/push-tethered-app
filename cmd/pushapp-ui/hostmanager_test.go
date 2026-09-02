@@ -427,6 +427,55 @@ func TestConnectPropagatesOpenError(t *testing.T) {
 	}
 }
 
+// A failed connect must not advance nextKey. main.go calls connect once,
+// unconditionally, for startup auto-detect, and that call routinely fails
+// when no Push is plugged in yet or auto-detect can't resolve one (Windows,
+// or more than one unit attached). Before this test's fix, that failure
+// still incremented nextKey, so the user's first real, successful pairing
+// became session 2 instead of 1 — and its default MIDI-out name became
+// "Push Tethered App 2" (see TestConnectAssignsDistinctMIDIOutNames),
+// which matches none of a Windows user's manually created loopback ports
+// named after the un-suffixed default. Confirmed live 2026-09-02 against
+// real Windows hardware: a fresh pushapp-ui launch with a single pairing
+// attempt still produced session "s2".
+func TestConnectDoesNotBurnSessionNumberOnFailedAttempt(t *testing.T) {
+	var gotNames []string
+	m := newHostManager(context.Background(), bootstrap.Options{FPS: 30}, fakeModules)
+	m.rootCtx, _ = uncancelledContext()
+
+	attempt := 0
+	m.open = func(opts bootstrap.Options) (*host.Runtime, func(), error) {
+		attempt++
+		if attempt == 1 {
+			return nil, nil, errors.New("no Push found")
+		}
+		gotNames = append(gotNames, opts.MIDIOutName)
+		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true}, fakeModule{})
+		if err != nil {
+			return nil, nil, err
+		}
+		return rt, func() {}, nil
+	}
+
+	if _, err := m.connect(ConnectRequest{}); err == nil {
+		t.Fatal("connect 1: expected the simulated auto-detect failure, got nil error")
+	}
+	key, err := m.connect(ConnectRequest{DisplaySel: "usb:1.1"})
+	if err != nil {
+		t.Fatalf("connect 2: %v", err)
+	}
+
+	if key != "s1" {
+		t.Errorf("session key = %q, want %q (a prior failed attempt must not consume a session number)", key, "s1")
+	}
+	if len(gotNames) != 1 {
+		t.Fatalf("open called %d times with a name recorded, want 1", len(gotNames))
+	}
+	if gotNames[0] != "" {
+		t.Errorf("MIDIOutName = %q, want empty (the un-suffixed default) for the first real session", gotNames[0])
+	}
+}
+
 func uncancelledContext() (context.Context, context.CancelFunc) {
 	return context.WithCancel(context.Background())
 }

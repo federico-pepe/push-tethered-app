@@ -105,6 +105,43 @@ existing port by name:
    app finds it with no flag. `pushapp-ui` has no MIDI-out name field yet —
    only `cmd/pushapp`'s `-midi-out <name>` flag can point at a different name.
 
+### `pushapp-ui`'s startup auto-detect used to burn session 1
+
+Fixed 2026-09-02. `main.go` calls `hostManager.connect` once, unconditionally,
+at startup for single-unit auto-detect, and that call routinely fails —
+no Push plugged in yet, more than one unit attached, or (relevant here)
+Windows, where MIDI auto-detect can't work at all (see "MIDI input — port
+naming" above). `hostManager.connect` (`cmd/pushapp-ui/hostmanager.go`)
+used to increment its session counter (`nextKey`) before knowing whether
+the connect attempt would succeed, so that failed startup attempt
+permanently consumed session number 1. The user's first real, successful
+pairing then became session 2, and per the numbered-MIDI-out-name scheme
+in [plans/2026-08-19-multi-device.md](../../plans/2026-08-19-multi-device.md#L152-160),
+session 2's default MIDI-out name is `Push Tethered App 2` — which
+matches none of a loopMIDI/Windows MIDI Services port actually named
+`Push Tethered App` (or `Push Tethered App (A)`/`(B)`, a loopback pair).
+
+Confirmed live 2026-09-02 against real Windows hardware: a fresh
+`pushapp-ui` launch, with a single pairing attempt and no prior sessions,
+still logged `session s2: connected`, and a module needing MIDI out
+failed with `no output port matching "Push Tethered App 2"`. The fix
+(`hostmanager.go`'s `connect`) only commits the session number once the
+session is guaranteed to be kept — after `open` and `Activate` both
+succeed — instead of before attempting either. See
+`TestConnectDoesNotBurnSessionNumberOnFailedAttempt` in
+`hostmanager_test.go` for the regression guard.
+
+A second, unrelated bug surfaced during this investigation: the
+`NeedsMIDIOut` failure path in `internal/host.Runtime.Activate`
+(`internal/host/host.go`) returned its error to the frontend but never
+called `log.Printf`, unlike every sibling error path in that function
+(`NeedsMIDIIn`, in particular, logs on both success and failure). The
+frontend itself doesn't log this error either — it only writes it to a
+status line that the very next UI refresh immediately overwrites — so
+the error was effectively unobservable: no log file entry, no persisted
+UI trace, just a flash of text. Fixed by adding the missing `log.Printf`
+alongside the existing `fmt.Errorf`.
+
 | Platform | MIDI out strategy | User setup |
 |---|---|---|
 | macOS, Linux | create virtual port | none |
