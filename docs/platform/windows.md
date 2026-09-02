@@ -208,11 +208,13 @@ cd cmd/pushapp-ui && wails3 task build CGO_ENABLED=1
 cp /mingw64/bin/libusb-1.0.dll bin/
 ```
 
-This is not packaging (`wails3 package`, NSIS), which stays out of
-scope. See
-[plans/2026-08-17-ci-for-pushapp-ui.md](../../plans/2026-08-17-ci-for-pushapp-ui.md).
-An installer would bundle this automatically. Until then, ship the DLL
-by hand.
+Fixed 2026-09-02: CI now also packages the build as an NSIS installer
+(`wails3 task package`). `cmd/pushapp-ui/build/windows/nsis/project.nsi`
+bundles `libusb-1.0.dll` from `bin/` into the installer, next to the
+app's own exe, so an installed copy needs none of this by-hand DLL
+copying. The plain exe + DLL-next-to-it build above still runs, and CI
+still produces it as a build step, but the release artifact users
+download is the installer.
 
 ## Related
 

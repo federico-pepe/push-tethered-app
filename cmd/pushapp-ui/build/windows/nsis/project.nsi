@@ -90,8 +90,15 @@ Section
     !insertmacro wails.webview2runtime
 
     SetOutPath $INSTDIR
-    
+
     !insertmacro wails.files
+
+    ; libusb-1.0.dll: gousb links it dynamically, and it is not part of
+    ; wails.files. build.yml's "Copy libusb-1.0.dll next to the Windows exe"
+    ; step puts it in bin/ before this installer builds, so it is here to
+    ; pick up. Without it, the installed app fails to start on a machine
+    ; with no libusb of its own — see docs/platform/windows.md.
+    File "/oname=libusb-1.0.dll" "..\..\..\bin\libusb-1.0.dll"
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"

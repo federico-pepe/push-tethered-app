@@ -77,6 +77,12 @@ this step (`platforms: [darwin]`). These bundles still need manual
 signing and dylib fixing on a real Mac before distribution.
 `codesign:skip` already prints this same caution.
 
+Fixed 2026-09-02: `.github/workflows/build.yml` now runs
+`wails3 task darwin:package:dmg` for the macOS job, not `wails3 build`. This
+gives the release a real `.app` bundle in a `.dmg`, with the
+`bundle:libusb` step above and ad hoc code signing already applied, so
+the downloaded `.dmg` needs no separate libusb install.
+
 ## Probes
 
 The Swift tools in `tools/` (midimon, ledtest) work on macOS only.

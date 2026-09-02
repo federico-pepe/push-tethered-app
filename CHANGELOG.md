@@ -5,6 +5,20 @@ All notable changes to this project are documented here. Format follows
 [Semantic Versioning](https://semver.org/) (pre-1.0: expect breaking changes
 between minor versions).
 
+## [Unreleased]
+
+### Changed
+
+- CI now packages `pushapp-ui` into a normal, self-contained app per OS,
+  instead of a bare executable: a `.dmg` on macOS, an NSIS installer on
+  Windows, and an AppImage on Linux. Each one bundles libusb, so a
+  release download runs with no separate install step. This also fixes
+  the macOS release build, which failed to start on a machine with no
+  Homebrew libusb installed (`Library not loaded:
+  /opt/homebrew/opt/libusb/lib/libusb-1.0.0.dylib`). See
+  [docs/platform/macos.md](docs/platform/macos.md) and
+  [docs/platform/windows.md](docs/platform/windows.md).
+
 ## [0.2.0-alpha] - 2026-08-29
 
 ### Changed
