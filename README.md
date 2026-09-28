@@ -1,6 +1,6 @@
 # Push Tethered App
 
-**Turn your Push 2 or Push 3 into a programmable surface.** It does not need a DAW.
+**Turn your Push 2 or Push 3 into a programmable controller without Ableton Live.**
 
 This project is built on top of [Push Hack](https://github.com/federico-pepe/ableton-push-hack)
 
@@ -13,82 +13,33 @@ This project is built on top of [Push Hack](https://github.com/federico-pepe/abl
 
 ## What this is
 
-Push Tethered App is a desktop program. It takes full control of an
-**Ableton Push 2 or Push 3 in tethered (controller) mode**. This includes
-the screen, the 8×8 pad grid, encoders, buttons, and LEDs. The app does not
-need Ableton Live.
+**Push Tethered App** is a cross-platform desktop app. It takes full control of an **Ableton Push 2 or Push 3 in tethered mode**: the screen, the 8×8 pad grid, encoders, buttons, and LEDs. You can use your Push without Ableton Live.
 
-The app is a **module host**. It runs small programs called **modules** —
-each one draws on Push's screen and reacts to its controls. Built-in
-modules include a control-surface monitor, a MIDI passthrough, a step
-sequencer that can sync to an external MIDI clock, and a user-editable
-remapper. You can write your own. See [MANUAL.md](MANUAL.md) for how to run
-and configure the app itself.
+This app is a **module host**: this means that it can runs small programs called **modules** that anyone can develop. Each module can draws on Push's screen and reacts to its controls. There are some built-in modules to showcase what is possible but you can also write your own module. See [MANUAL.md](MANUAL.md) for how to run and configure the app.
 
 ## Why
 
-Push is extraordinary hardware: a high-resolution display, a playable grid,
-nine encoders, and dozens of buttons. In normal use, it is tightly coupled
-to Live as its control surface. This project explores a different idea:
-Push as an open platform for your own tools.
+Push is extraordinary hardware: a high-resolution display, a playable grid, encoders, and a lot of buttons. Normal use ties it tightly to Live as a control surface.
 
-This can be a custom sequencer, a hardware monitor, a MIDI router to any
-synth or DAW, or a visual performance instrument. It can also be an idea no
-one has found yet. The goal is to make that practical on real hardware,
-without reverse-engineering the device from scratch every time.
+This project opens Push as a platform for your own tools instead: a custom sequencer, a MIDI router to any synth or DAW, a performance instrument, or an idea no one has built yet. The goal is to make this practical on real hardware, without a reverse-engineering effort each time.
 
-This repo handles **tethered Push on a desktop** (macOS, Linux, Windows).
-It is a sibling of
-[`ableton-push-hack`](https://github.com/federico-pepe/ableton-push-hack),
-which explores Push 3 in **standalone mode** over SSH. Both share the same
-`core/` screen toolkit.
+This repo covers **tethered Push on a desktop** (macOS, Linux, Windows). It is a sibling of [`ableton-push-hack`](https://github.com/federico-pepe/ableton-push-hack), which covers Push 3 in **standalone mode** over SSH. Both projects share the same `core/` toolkit.
 
-You can write modules in **Go**, **Python**, **JavaScript**, or any
-language that can speak a small JSON protocol over stdin/stdout.
+You can write modules in **Go**, **Python**, **JavaScript**, or any language that can speak a small JSON protocol over stdin/stdout.
 
-## How it works
+For how the host and modules work together, see
+[docs/architecture/module-host.md](docs/architecture/module-host.md). For
+running `pushapp-ui`, several Push units at once, alongside Live, or
+mirroring the screen in a browser, see [MANUAL.md](MANUAL.md).
 
-1. **`pushapp`** claims Push's display over USB and reads control input
-   through the operating system's MIDI stack.
-2. **One module runs at a time.** Each frame, the module sends draw
-   commands. The host renders them with a shared widget toolkit and pushes
-   pixels to the screen at ~30 fps.
-3. **Modules never touch USB or MIDI ports directly** — the host owns the
-   hardware and exposes a simple API (set a pad color, send a CC, draw some
-   text, and more).
-4. **Optional extras:** modules can send MIDI out to other software, and
-   can receive MIDI in from it (an external clock to sync to, for example).
-   A desktop UI (`pushapp-ui`) lists and switches modules. You do not need
-   the terminal. `pushapp-ui` can also pair and drive **several Push units
-   at once** — each unit gets its own session and its own module,
-   independently. `pushapp-ui` can also run alongside Ableton Live — see
-   [MANUAL.md](MANUAL.md). Either binary can also mirror the screen live in
-   a browser tab, for demos or debugging without the physical device — see
-   MANUAL.md.
+## Get it
 
-```
-  You write a module          pushapp owns the hardware
-  (Go / Python / JS / …)  →   USB display + OS MIDI in/out
-         │                              │
-         └──── draw ops, events ────────┘
-```
+Download the latest build from
+[GitHub Releases](https://github.com/federico-pepe/push-tethered-app/releases).
+See [MANUAL.md](MANUAL.md) for setup.
 
-## Try it
-
-This needs a dev setup. See [docs/guides/development-setup.md](docs/guides/development-setup.md).
-
-```bash
-go run ./cmd/pushapp -list                              # built-in modules
-go run ./cmd/pushapp                                    # run the first one
-go run ./cmd/pushapp -install examples/modules/hello-py # install Python example
-go run ./cmd/pushapp -module hello-py                   # run it
-```
-
-A desktop UI for switching modules:
-
-```bash
-cd cmd/pushapp-ui && wails3 dev
-```
+To build from source instead, see
+[docs/guides/development-setup.md](docs/guides/development-setup.md).
 
 ## Write a module
 
@@ -104,26 +55,22 @@ All out-of-process modules share the same wire protocol. If you want the
 overview first, start with
 [writing-a-process-module.md](docs/guides/writing-a-process-module.md).
 
-## Status
+## Reference
 
-**Pre-alpha, but running.** We confirmed it on Push 2 and Push 3 hardware,
-with the same binary. We confirmed process-loaded Python and Node.js
-modules end-to-end.
+- **[MANUAL.md](MANUAL.md)** — end-user manual: pairing, MIDI port roles,
+  running alongside Live, troubleshooting
+- **[docs/README.md](docs/README.md)** — full developer documentation
+  index: protocol reference, architecture, platform notes, contributor
+  guides
+- **[plans/2026-08-18-open-items.md](plans/2026-08-18-open-items.md)** —
+  open questions
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — how to contribute
 
-End-user manual: **[MANUAL.md](MANUAL.md)** — pairing, MIDI port roles, running
-alongside Live, troubleshooting.
-
-Full developer documentation: **[docs/README.md](docs/README.md)** — protocol
-reference, architecture, platform notes, and contributor guides. Open
-questions live in [plans/2026-08-18-open-items.md](plans/2026-08-18-open-items.md).
-
-## Related
+Other projects:
 
 - [`ableton-push-hack`](https://github.com/federico-pepe/ableton-push-hack) —
-  standalone Push 3 research; source of the shared `core/` module.
+  standalone Push 3 research; source of the shared `core/` module
 - [`Ableton/push-interface`](https://github.com/Ableton/push-interface) —
-  official Push 2 display and MIDI specification.
+  official Push 2 display and MIDI specification
 - [`ffont/push2-python`](https://github.com/ffont/push2-python) — working
-  pyusb reference for Push 2.
-</content>
-</invoke>
+  pyusb reference for Push 2
