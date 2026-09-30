@@ -45,39 +45,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # ableton-push-hack/core is a sibling checkout via go.mod's replace
-      # directive. Locally that directive is a fixed relative path
-      # (../../Documents/GitHub/ableton-push-hack/core) which only works
-      # because ~/Developer/push-tethered-app and
-      # ~/Documents/GitHub/ableton-push-hack sit at matching depth under $HOME
-      # on Federico's machine. GitHub runners nest the workspace differently
-      # per OS, so that same relative path does not land in the same place —
-      # checking out to a path meant to mirror it does NOT actually satisfy
-      # go.mod's ../../ (learned the hard way: first version of this workflow
-      # failed with "replacement directory does not exist" on every OS, for
-      # this reason rather than the expected missing-core/ reason below).
-      #
-      # Fix: check out into a fixed subdirectory of THIS repo's own workspace,
-      # then override the replace directive for CI only via `go mod edit`
-      # (next step). That never touches the committed go.mod, so Federico's
-      # local sibling-checkout layout is untouched.
-      #
-      # Pinned to `main` (2026-08-17). push-core-refactor, which held the
-      # entire core/ extraction, has since merged into main — this is now
-      # simply "build against the current core/".
-      - name: Checkout ableton-push-hack (core/ dependency)
-        uses: actions/checkout@v7
-        with:
-          repository: federico-pepe/ableton-push-hack
-          ref: main
-          path: .ableton-push-hack
-
+      # ableton-push-hack/core comes from go.mod's pinned tag via the module
+      # proxy — no sibling checkout needed.
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-
-      - name: Point core/ replace at the CI checkout
-        run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=./.ableton-push-hack/core
 
       # libgtk-4-dev/libwebkitgtk-6.0-dev, not webkit2gtk-4.1 — Wails v3 moved
       # to GTK4/WebKitGTK 6.0 (v2 used webkit2gtk). Confirmed 2026-08-18: CI
@@ -177,9 +149,8 @@ jobs:
 
       # cmd/pushapp-ui is a separate Go module (see its own go.mod), invisible
       # to the go build/vet/test commands above — it needs its own toolchain
-      # (wails3 CLI, Node/npm) and its own core/ replace fix, same trick as the
-      # root module's step above but run inside cmd/pushapp-ui. See
-      # plans/2026-08-17-ci-for-pushapp-ui.md for the full reasoning.
+      # (wails3 CLI, Node/npm). See plans/2026-08-17-ci-for-pushapp-ui.md for
+      # the full reasoning.
       - name: Set up Node (for cmd/pushapp-ui)
         uses: actions/setup-node@v7
         with:
@@ -209,10 +180,6 @@ jobs:
       - name: Install wails3 CLI
         if: steps.cache-wails3.outputs.cache-hit != 'true'
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.9
-
-      - name: Point cmd/pushapp-ui's core/ replace at the CI checkout
-        working-directory: cmd/pushapp-ui
-        run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=../../.ableton-push-hack/core
 
       - name: Build UI (Linux)
         if: runner.os == 'Linux'

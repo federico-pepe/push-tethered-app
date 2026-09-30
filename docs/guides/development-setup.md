@@ -15,10 +15,10 @@ of cgo (libusb + RtMidi).
 - Go 1.25+
 - A C toolchain (for cgo)
 - libusb 1.0
-- A sibling checkout of
-  [`ableton-push-hack`](https://github.com/federico-pepe/ableton-push-hack)
-  for the `core/` module. See the `replace` directive in
-  [go.mod](../../go.mod).
+
+Go downloads the `core/` module of
+[`ableton-push-hack`](https://github.com/federico-pepe/ableton-push-hack)
+automatically. See [core/ dependency](#core-dependency).
 
 ## macOS
 
@@ -52,7 +52,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 3. Replug the Push device.
 
-For `pushapp-ui`, install `webkit2gtk-4.1-dev`. See
+For `pushapp-ui`, install `libgtk-4-dev` and `libwebkitgtk-6.0-dev`. See
 [platform/linux.md](../platform/linux.md).
 
 ## Windows
@@ -60,22 +60,33 @@ For `pushapp-ui`, install `webkit2gtk-4.1-dev`. See
 Use the mingw-w64 toolchain (MSYS2) for cgo. Get libusb through MSYS2 or
 vcpkg. MIDI uses WinMM, which is built in.
 
-The display and USB path are still untested on real Windows hardware. MIDI
-is tested. See [platform/windows.md](../platform/windows.md).
+Display, USB, and MIDI work on Push 3 in a Windows 11 VM (confirmed
+2026-08-18). See [platform/windows.md](../platform/windows.md).
 
-## core/ checkout
+## core/ dependency
 
-`go.mod` contains this line:
+`go.mod` and `cmd/pushapp-ui/go.mod` pin `core/` to a tagged version:
 
 ```
-replace github.com/federico-pepe/ableton-push-hack/core => ../../Documents/GitHub/ableton-push-hack/core
+require github.com/federico-pepe/ableton-push-hack/core v0.2.0
 ```
 
-1. Adjust the relative path to match your own layout, or clone
-   ableton-push-hack as a sibling of this repository.
+Go gets this version from the module proxy. You do not need a local copy
+of `ableton-push-hack`, and CI does not check it out.
 
-CI checks out `ableton-push-hack@main` and runs `go mod edit -replace`. This
-step applies to CI only. The committed `go.mod` path stays unchanged.
+To use a new `core/` change:
+
+1. Merge the change in `ableton-push-hack`.
+2. Push a new `core/vX.Y.Z` tag in that repository.
+3. In this repository, run this command in the root and in
+   `cmd/pushapp-ui`:
+
+```bash
+go get github.com/federico-pepe/ableton-push-hack/core@vX.Y.Z && go mod tidy
+```
+
+To test an unreleased `core/` change locally, add a temporary `replace`
+line to your own `go.mod`. Do not commit this line.
 
 ## pushapp-ui (optional)
 
