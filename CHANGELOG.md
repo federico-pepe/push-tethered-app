@@ -5,6 +5,15 @@ All notable changes to this project are documented here. Format follows
 [Semantic Versioning](https://semver.org/) (pre-1.0: expect breaking changes
 between minor versions).
 
+## [Unreleased]
+
+### Changed
+
+- `core/` from `ableton-push-hack` is now a pinned module version
+  (`core v0.2.0`) in `go.mod` and `cmd/pushapp-ui/go.mod`. The `replace`
+  to a local sibling checkout is gone. A fresh clone builds with no copy
+  of `ableton-push-hack`, and CI no longer checks out its `main` branch.
+
 ## [0.2.3-alpha] - 2026-09-02
 
 ### Fixed

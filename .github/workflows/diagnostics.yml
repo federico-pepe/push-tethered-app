@@ -22,22 +22,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Same sibling-checkout-plus-replace-override dance as build.yml — see
-      # that file's own comment for why the naive relative path doesn't work
-      # on a CI runner.
-      - name: Checkout ableton-push-hack (core/ dependency)
-        uses: actions/checkout@v7
-        with:
-          repository: federico-pepe/ableton-push-hack
-          ref: main
-          path: .ableton-push-hack
-
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-
-      - name: Point core/ replace at the CI checkout
-        run: go mod edit -replace github.com/federico-pepe/ableton-push-hack/core=./.ableton-push-hack/core
 
       - name: Disable apt recommends (Linux)
         if: runner.os == 'Linux'

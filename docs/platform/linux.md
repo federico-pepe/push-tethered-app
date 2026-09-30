@@ -57,8 +57,9 @@ failed.
 
 ## pushapp-ui
 
-`pushapp-ui` needs `webkit2gtk-4.1-dev` (CI installs this package). This
-is the one place where the stack is not fully standalone.
+`pushapp-ui` needs `libgtk-4-dev` and `libwebkitgtk-6.0-dev` (CI installs
+these packages). Wails v3 uses GTK4 and WebKitGTK 6.0, not `webkit2gtk`.
+This is the one place where the stack is not fully standalone.
 
 ## gousb busy
 

@@ -36,6 +36,12 @@ first for anything beyond the safety rules and pointers below.
 > **`docs/archive/` is frozen.** Never edit, move, or delete anything
 > inside it. Never add to it unless a user explicitly asks.
 
+## Push family context
+
+Shared facts for all Push repos (repo map, git identity, `core/` pinning, cross-repo hardware facts):
+
+@~/.claude/push-family.md
+
 ## Project
 
 `push-tethered-app` is a cross-platform desktop app. It owns an **Ableton
@@ -77,9 +83,10 @@ is **closed** — it is a reasoning trail only. Do not plan against it.
 ## Relationship to `ableton-push-hack`
 
 This repo is a sibling of `~/Documents/GitHub/ableton-push-hack` (Push 3
-*standalone*, deployed over SSH). `core/` is reused, not copied, through a
-`replace` in `go.mod`. **Never fork or vendor it.** Fix issues upstream so
-both projects benefit. That repo's hard safety rules (no `/boot`, `/opt`,
+*standalone*, deployed over SSH). `core/` is reused, not copied: `go.mod`
+pins a tagged version (`core/vX.Y.Z`), with no `replace`. **Never fork or
+vendor it.** Fix issues upstream, tag a new `core/` version there, then
+bump the pin here (root and `cmd/pushapp-ui`) so both projects benefit. That repo's hard safety rules (no `/boot`, `/opt`,
 `/etc`) do not apply here, but see the USB safety rules below. Full
 detail: [docs/hardware-reference.md](docs/hardware-reference.md).
 
@@ -174,8 +181,8 @@ Full package-by-package rationale:
 
 ### `cmd/pushapp-ui` is a separate Go module — do not add it to root's `./...`
 
-It has its own `go.mod`, with two `replace` directives (root repo,
-`ableton-push-hack/core`). It needs `wails3` (the CLI) and Node/npm to
+It has its own `go.mod`, with a `replace` for the root repo and its own
+pinned `ableton-push-hack/core` version (keep it equal to the root's). It needs `wails3` (the CLI) and Node/npm to
 build. Its configuration lives in `build/config.yml` (v3, not v2's
 `wails.json`). CI builds it on macOS, Linux, Windows, and Raspberry Pi
 (`ubuntu-24.04-arm`, compiled only — not yet run on real Pi hardware). Full
@@ -354,7 +361,7 @@ Rationale in [docs/archive/feasibility.md](docs/archive/feasibility.md)
   This avoids a brew or apt dependency on all three OSes. Do not add
   rtmidi or portmidi as system packages.
 - **This app reads Push's MIDI through the OS, never through libusb.**
-- **Wails v3** for the UI. This depends on `webkit2gtk` on Linux.
+- **Wails v3** for the UI. This depends on GTK4 and WebKitGTK 6.0 on Linux.
 
 ## Known constraints (high-churn — check docs for current status)
 
