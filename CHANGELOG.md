@@ -7,8 +7,14 @@ between minor versions).
 
 ## [Unreleased]
 
+## [0.2.4-alpha] - 2026-10-01
+
 ### Changed
 
+- New app icon for `pushapp-ui` on macOS, Windows, and Linux: a pink
+  gradient with the pixel text "PUSH TETHERED APP". The Icon Composer
+  source (`build/appicon.icon`), `appicon.png`, `Assets.car`, and the
+  `.icns` and `.ico` files all use the new art.
 - `core/` from `ableton-push-hack` is now a pinned module version
   (`core v0.2.0`) in `go.mod` and `cmd/pushapp-ui/go.mod`. The `replace`
   to a local sibling checkout is gone. A fresh clone builds with no copy
