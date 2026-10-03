@@ -7,6 +7,8 @@ between minor versions).
 
 ## [Unreleased]
 
+## [0.2.5-alpha] - 2026-10-03
+
 ### Added
 
 - **Keep Push in User Mode.** PTA can put Push into User Mode itself and keep
