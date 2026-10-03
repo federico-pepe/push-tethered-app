@@ -128,10 +128,11 @@ again.
 With the option on, pressing **User** on the Push does not leave User Mode: the
 app sets it again. Use the check box.
 
-Tested on macOS with a Push 3. It also works on Windows and with a Push 2
-(reported 2026-10-03). Linux is not tested, because Live has no Linux version.
+Tested on macOS with a Push 3. On Windows and with a Push 2 it behaved the
+same way (reported 2026-10-03): Live and the app worked together, and User Mode
+stayed on. Linux is not tested, because Live has no Linux version.
 On Windows the User Port is the second MIDI cable, named `MIDIIN2 (Ableton
-Push 3 MIDI)`. See [docs/platform/windows.md](docs/platform/windows.md).
+Push 3 MIDI)`. Pick that one. See [docs/platform/windows.md](docs/platform/windows.md).
 
 In a terminal, use `pushapp -keep-user-mode -module <id>`. Without `-module`,
 the screen stays on "User Mode Active".

@@ -46,6 +46,11 @@ Push ports appear as:
 - `Ableton Push 3 MIDI` (first cable — this is Live Port traffic)
 - `MIDIIN2 (Ableton Push 3 MIDI)`, `MIDIIN3 (...)`, and so on
 
+The second cable, `MIDIIN2`, is the User Port. Confirmed 2026-10-03: with this cable paired as the
+User Port, "Keep Push in User Mode" worked next to Live (see
+[plans/2026-10-03-user-mode-switch.md](../../plans/2026-10-03-user-mode-switch.md)).
+`MIDIIN3` is the External Port (the DIN jack).
+
 Name-based auto-detect cannot match `"Live Port"`. Escape hatch: if
 auto-detect fails, select the port manually in `pushapp-ui`
 (`ListInPorts` / `OpenNamed`).
