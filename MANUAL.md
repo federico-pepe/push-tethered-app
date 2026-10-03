@@ -99,6 +99,42 @@ physical pads of Push.
 To return to normal Live control, press **User** again. This turns off User
 Mode.
 
+### Keep Push in User Mode (no User button needed)
+
+You can let the app switch Push into User Mode for you, and keep it there.
+Then you do not press **User** at all, and Live cannot take the controls back
+while the app runs.
+
+1. If Live is running, quit Live. The app must still claim the screen before
+   Live starts.
+2. Open `pushapp-ui`. Pick the screen and the **User Port**. Check **Keep Push
+   in User Mode**. Click **Pair and connect**. If you pick the Live Port, the
+   app uses the User Port of the same Push for you.
+3. The screen says **User Mode Active**, and the User button is white. No
+   module starts by itself. Pick a module in the list when you want one.
+4. Launch Live.
+
+About 8 seconds after Live starts, its Push helper sets Live Mode. For about 3
+seconds the pads show Live's colors. Then the app puts User Mode back, blanks
+the LEDs, and your module keeps the Push. This is normal.
+
+To give the controls back to Live, clear the **Keep Push in User Mode** check
+box on the session card. Push goes back to Live Mode, and the pads and buttons
+follow Live again. The app keeps the screen until you click **Disconnect** or
+quit the app. Disconnecting or quitting also gives Live Mode back. The check box on the card is only available when the session uses the
+User Port. If you paired the Live Port without the option, disconnect and pair
+again.
+
+With the option on, pressing **User** on the Push does not leave User Mode: the
+app sets it again. Use the check box.
+
+Tested on macOS with a Push 3. Windows, Linux and Push 2 are not tested yet.
+On Windows the User Port is the second MIDI cable, named `MIDIIN2 (Ableton
+Push 3 MIDI)`. See [docs/platform/windows.md](docs/platform/windows.md).
+
+In a terminal, use `pushapp -keep-user-mode -module <id>`. Without `-module`,
+the screen stays on "User Mode Active".
+
 ### Recording a module's MIDI into Live
 
 Some modules send MIDI output as well as pad input — the step sequencer is

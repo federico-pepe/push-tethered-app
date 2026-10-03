@@ -50,6 +50,12 @@ type SessionInfo struct {
 	MIDIIn     pmidi.PortRef `json:"midiIn"`
 	ExtMIDIIn  bool          `json:"extMidiIn"`
 	ExtMIDIOut bool          `json:"extMidiOut"`
+
+	// KeepUserMode is the live state of "keep Push in User Mode" (it can be
+	// switched off and on while connected). CanKeepUserMode says whether the
+	// session holds the User Port, which the feature needs.
+	KeepUserMode    bool `json:"keepUserMode"`
+	CanKeepUserMode bool `json:"canKeepUserMode"`
 }
 
 // Overview is everything the pairing view and the session list need, fetched
@@ -96,6 +102,10 @@ func (s *PushService) Overview() Overview {
 		sessInfos[i] = SessionInfo{
 			Key: si.Key, Unit: si.Unit, DisplaySel: si.DisplaySel, MIDIIn: si.MIDIIn,
 			ExtMIDIIn: si.ExtMIDIIn, ExtMIDIOut: si.ExtMIDIOut,
+		}
+		if rt, ok := s.mgr.session(si.Key); ok {
+			sessInfos[i].KeepUserMode = rt.KeepUserMode()
+			sessInfos[i].CanKeepUserMode = rt.MIDIRef().IsUser()
 		}
 	}
 	return Overview{
@@ -163,6 +173,22 @@ func (s *PushService) ListModules(sessionKey string) ([]ModuleInfo, error) {
 		})
 	}
 	return out, nil
+}
+
+// SetKeepUserMode turns "keep Push in User Mode" on or off for a session. Off
+// gives Live Mode back, so Live may set modes again. On needs the session to
+// hold the User Port: in User Mode the Live Port carries no pad input and no
+// pad LEDs.
+func (s *PushService) SetKeepUserMode(sessionKey string, on bool) error {
+	rt, ok := s.mgr.session(sessionKey)
+	if !ok {
+		return errNoSession
+	}
+	if on && !rt.MIDIRef().IsUser() {
+		return fmt.Errorf("this session uses the Live Port. Disconnect and pair the User Port to keep User Mode")
+	}
+	rt.SetKeepUserMode(on)
+	return nil
 }
 
 // ActivateModule switches the given session to the named module.

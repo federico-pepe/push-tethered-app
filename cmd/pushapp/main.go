@@ -89,6 +89,7 @@ func main() {
 	listDevices := flag.Bool("devices", false, "list connected Push units and their MIDI ports, then exit")
 	deviceSel := flag.String("device", "", "USB unit to drive: serial:XXXX or usb:BUS.ADDR (default: the first one, see -devices)")
 	midiInName := flag.String("midi-in", "", "MIDI input port name to use (default: auto-detect the Live port; required if more than one Push is attached)")
+	keepUserMode := flag.Bool("keep-user-mode", false, "put Push into User Mode and keep it there while running, so Live can run alongside; uses the User Port. Live Mode is given back on exit. No module starts by itself: the screen says \"User Mode Active\" until you pass -module")
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
 
@@ -253,6 +254,8 @@ func main() {
 		NoMIDIOut:     *noMIDIOut,
 		ExtMIDIInName: *extMIDIInName,
 		NoExtMIDIIn:   *noExtMIDIIn,
+
+		KeepUserMode:  *keepUserMode,
 
 		ExtMIDIInFromPushExternal: *extPortIn,
 		ExtMIDIOutToPushExternal:  *extPortOut,

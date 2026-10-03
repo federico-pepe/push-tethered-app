@@ -1,6 +1,10 @@
 package pushmap
 
-import "github.com/federico-pepe/ableton-push-hack/core/push3"
+import (
+	"sort"
+
+	"github.com/federico-pepe/ableton-push-hack/core/push3"
+)
 
 // buttonNames maps CC number -> human name. The names are written here but
 // every *value* is imported from core/push3, so this annotates the shared map
@@ -88,6 +92,22 @@ func ButtonNames() map[byte]string {
 	for k, v := range buttonNames {
 		out[k] = v
 	}
+	return out
+}
+
+// LEDButtons returns every named button CC that can carry an LED: the whole
+// button table without the relative encoders (CC 14 and 70-79), which have no
+// LED. Sorted. Used to blank everything Live lit when Push returns to User Mode
+// (internal/host/usermode.go). push-manager's clearAllLEDs does the same on
+// Push 3 with its own list.
+func LEDButtons() []byte {
+	out := make([]byte, 0, len(buttonNames))
+	for cc := range buttonNames {
+		if !IsRelativeEncoderCC(cc) {
+			out = append(out, cc)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
 }
 

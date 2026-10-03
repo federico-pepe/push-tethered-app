@@ -67,6 +67,12 @@ type Options struct {
 
 	Theme      module.Theme
 	ThemeIsSet bool
+
+	// KeepUserMode starts the session with "keep Push in User Mode" on. See
+	// usermode.go. SetKeepUserMode changes it while the session runs. The
+	// session's MIDI port must be the User Port's (bootstrap.Open arranges
+	// that): in User Mode the Live Port carries no pad input or pad LEDs.
+	KeepUserMode bool
 }
 
 // Runtime owns the hardware and runs one module at a time.
@@ -126,6 +132,25 @@ type Runtime struct {
 	frame *module.Frame
 	img   *image.NRGBA
 
+	// keeper holds the keep-User-Mode policy (usermode.go). nil with no port.
+	// modeSeen carries Push's mode announcements from the MIDI driver thread to
+	// the keeper goroutine, which does the port writes.
+	keeper   *modeKeeper
+	modeSeen chan pmidi.Mode
+
+	// ledShadow: what the active module lit, so it can be put back when Push
+	// returns to User Mode with Live's colors on it (see enteredUserMode).
+	// Lock order: portMu, then ledMu.
+	ledMu     sync.Mutex
+	padShadow map[byte]byte
+	btnShadow map[byte]byte
+
+	ledsOverride ledWriter // tests only
+
+	// noticeUntil: draw "User Mode Active" on the screen until then.
+	noticeMu    sync.Mutex
+	noticeUntil time.Time
+
 	// identifyMu guards the identify overlay: Identify is called from the UI
 	// goroutine, drawFrame reads it from the frame-loop goroutine.
 	identifyMu     sync.Mutex
@@ -152,15 +177,167 @@ func New(port *pmidi.Port, dev *display.Device, opts Options, modules ...module.
 	if !opts.ThemeIsSet {
 		opts.Theme = widgets.Default
 	}
-	return &Runtime{
-		opts:    opts,
-		port:    port,
-		dev:     dev,
-		modules: modules,
-		events:  make(chan module.Event, eventBuf),
-		frame:   module.NewFrame(push3.VisW, push3.VisH),
-		img:     image.NewNRGBA(image.Rect(0, 0, push3.VisW, push3.VisH)),
-	}, nil
+	r := &Runtime{
+		opts:     opts,
+		port:     port,
+		dev:      dev,
+		modules:  modules,
+		events:   make(chan module.Event, eventBuf),
+		modeSeen: make(chan pmidi.Mode, 8),
+		frame:    module.NewFrame(push3.VisW, push3.VisH),
+		img:      image.NewNRGBA(image.Rect(0, 0, push3.VisW, push3.VisH)),
+	}
+	if port != nil {
+		r.keeper = r.newKeeper()
+	}
+	return r, nil
+}
+
+// newKeeper wires the keep-User-Mode policy to this Runtime's port and screen.
+// Every port write takes portMu, the same lock Clear uses.
+func (r *Runtime) newKeeper() *modeKeeper {
+	return newModeKeeper(
+		func(m pmidi.Mode) error {
+			r.portMu.Lock()
+			defer r.portMu.Unlock()
+			return r.port.SendModeSwitch(m)
+		},
+		func() { // the User button LED goes out
+			r.portMu.Lock()
+			defer r.portMu.Unlock()
+			_ = r.port.SetButton(push3.CCUserMode, 0)
+		},
+		r.enteredUserMode,
+		log.Printf,
+	)
+}
+
+// ledWriter is what LED writes need from the port. Runtime uses the real port;
+// a test can swap in a recorder (ledsOverride).
+type ledWriter interface {
+	SetPad(note, colour byte) error
+	SetButton(cc, value byte) error
+	ClearAllLEDs()
+}
+
+func (r *Runtime) leds() ledWriter {
+	if r.ledsOverride != nil {
+		return r.ledsOverride
+	}
+	return r.port
+}
+
+// enteredUserMode runs each time Push confirms User Mode. Live's LED colors
+// may still be on the Push (Live painted them while it had Live Mode, and a
+// mode switch does not clear them). So: blank everything, put back what the
+// active module lit, light the User button white, and show the banner.
+func (r *Runtime) enteredUserMode() {
+	white, _ := push3.ColorByName("white")
+	r.portMu.Lock()
+	out := r.leds()
+	out.ClearAllLEDs()
+	r.ledMu.Lock()
+	for note, c := range r.padShadow {
+		_ = out.SetPad(note, c)
+	}
+	for cc, v := range r.btnShadow {
+		_ = out.SetButton(cc, v)
+	}
+	r.ledMu.Unlock()
+	_ = out.SetButton(push3.CCUserMode, white)
+	r.portMu.Unlock()
+
+	r.noticeMu.Lock()
+	r.noticeUntil = time.Now().Add(userModeBannerFor)
+	r.noticeMu.Unlock()
+}
+
+// recordLED remembers one LED write by the active module. A zero value means
+// off, which needs no replay.
+func (r *Runtime) recordLED(shadow *map[byte]byte, key, v byte) {
+	r.ledMu.Lock()
+	defer r.ledMu.Unlock()
+	if *shadow == nil {
+		*shadow = map[byte]byte{}
+	}
+	if v == 0 {
+		delete(*shadow, key)
+		return
+	}
+	(*shadow)[key] = v
+}
+
+func (r *Runtime) resetLEDShadow() {
+	r.ledMu.Lock()
+	r.padShadow, r.btnShadow = nil, nil
+	r.ledMu.Unlock()
+}
+
+// SetKeepUserMode turns "keep Push in User Mode" on or off. On: Push goes into
+// User Mode and returns there whenever something sets Live Mode. Off: Live
+// Mode is given back, and Live may set modes again. No effect without a port.
+func (r *Runtime) SetKeepUserMode(on bool) {
+	if r.keeper != nil {
+		r.keeper.SetOn(on)
+	}
+}
+
+// KeepUserMode reports whether "keep Push in User Mode" is on.
+func (r *Runtime) KeepUserMode() bool { return r.keeper != nil && r.keeper.On() }
+
+// runKeeper drives the keeper from one goroutine: Push's announcements, and a
+// tick for the delayed answer and the rate limit retry.
+func (r *Runtime) runKeeper(ctx context.Context) {
+	if r.opts.KeepUserMode {
+		r.keeper.SetOn(true)
+	}
+	t := time.NewTicker(250 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case m := <-r.modeSeen:
+			r.keeper.Seen(m)
+		case <-t.C:
+			r.keeper.Tick()
+		}
+	}
+}
+
+// drawIdleScreen is the whole screen while Keep User Mode is on and no module
+// is active. It says "User Mode Active" once Push has confirmed User Mode, and
+// "Entering User Mode" before that, so a Push that never answers is visible.
+func (r *Runtime) drawIdleScreen() {
+	title, hint := "User Mode Active", "Pick a module in Push Tethered App."
+	if !r.keeper.InUserMode() {
+		title, hint = "Entering User Mode", "Waiting for Push."
+	}
+	t := r.opts.Theme
+	const scale = 4
+	r.frame.Rect(0, 0, push3.VisW, push3.VisH, t.Black)
+	r.frame.TextScaled(centreX(title, scale), 90, title, t.White, scale)
+	r.frame.Text(centreX(hint, 1), 130, hint, t.Gray)
+}
+
+// centreX is the x that centres s on the screen, for the 7 px wide screen font
+// at the given scale.
+func centreX(s string, scale int) int {
+	return (push3.VisW - len(s)*7*scale) / 2
+}
+
+// drawUserModeBanner adds a status strip to the frame: "User Mode Active".
+func (r *Runtime) drawUserModeBanner() {
+	r.noticeMu.Lock()
+	active := time.Now().Before(r.noticeUntil)
+	r.noticeMu.Unlock()
+	if !active {
+		return
+	}
+	const h = 18
+	y := push3.VisH - h
+	r.frame.Rect(0, y, push3.VisW, h, r.opts.Theme.StatusBg)
+	r.frame.Text(8, y+h-5, "User Mode Active", r.opts.Theme.StatusCol)
 }
 
 // ── Control API ────────────────────────────────────────────────────────────
@@ -293,7 +470,9 @@ func (r *Runtime) Activate(id string) error {
 // Both Handle and Draw are called from this goroutine, which is what makes the
 // no-locking guarantee in the module contract true.
 func (r *Runtime) Run(ctx context.Context) error {
-	if r.Active().ID == "" {
+	// With Keep User Mode on, no module starts by itself: the screen says
+	// "User Mode Active" until a module is activated (see drawIdleScreen).
+	if r.Active().ID == "" && !r.opts.KeepUserMode {
 		if err := r.Activate(r.modules[0].Meta().ID); err != nil {
 			return err
 		}
@@ -309,6 +488,15 @@ func (r *Runtime) Run(ctx context.Context) error {
 		// The driver thread's only job: translate and enqueue.
 		if err := r.port.Listen(func(ev pmidi.Event) {
 			r.evCount.Add(1)
+			if mc, ok := ev.(pmidi.ModeChange); ok {
+				// Not a module event. Hand it to the keeper goroutine without
+				// blocking: this is the MIDI driver thread.
+				select {
+				case r.modeSeen <- mc.Mode:
+				default:
+				}
+				return
+			}
 			me := translate(ev)
 			if me == nil {
 				return
@@ -325,6 +513,10 @@ func (r *Runtime) Run(ctx context.Context) error {
 		}); err != nil {
 			return fmt.Errorf("MIDI listen: %w", err)
 		}
+	}
+
+	if r.keeper != nil {
+		go r.runKeeper(ctx)
 	}
 
 	ticker := time.NewTicker(time.Second / time.Duration(r.opts.FPS))
@@ -417,12 +609,19 @@ func (r *Runtime) drawFrame(ctx context.Context) error {
 	r.activeMu.RLock()
 	m := r.active
 	r.activeMu.RUnlock()
-	if m == nil {
-		return nil
+	if m == nil && (r.keeper == nil || !r.keeper.On()) {
+		return nil // nothing to draw
 	}
 
 	r.frame.Reset()
-	m.Draw(r.frame)
+	id := "idle"
+	if m == nil {
+		r.drawIdleScreen()
+	} else {
+		id = m.Meta().ID
+		m.Draw(r.frame)
+		r.drawUserModeBanner()
+	}
 
 	// Clear to the theme background rather than allocating a fresh image each
 	// frame: at 30fps a 960x160 NRGBA is 2.4MB/s of garbage for no reason.
@@ -431,7 +630,7 @@ func (r *Runtime) drawFrame(ctx context.Context) error {
 	if stats.Unknown > 0 || stats.Failed > 0 {
 		// Once per frame at most, and only when something is actually wrong.
 		log.Printf("module %s: %d unknown / %d failed ops",
-			m.Meta().ID, stats.Unknown, stats.Failed)
+			id, stats.Unknown, stats.Failed)
 	}
 
 	if r.opts.Recorder != nil {
@@ -537,6 +736,7 @@ func (r *Runtime) clearLEDs() {
 	r.portMu.Lock()
 	defer r.portMu.Unlock()
 	r.port.Clear()
+	r.resetLEDShadow()
 }
 
 // Shutdown closes the active module, clears the LEDs, blanks the screen and
@@ -554,6 +754,11 @@ func (r *Runtime) Shutdown() {
 		}
 	}
 	r.clearLEDs()
+	if r.keeper != nil && r.keeper.Release() {
+		// Live Mode goes back to Push. Give the message time to leave before
+		// the caller closes the port.
+		time.Sleep(100 * time.Millisecond)
+	}
 	if r.dev != nil {
 		_ = r.dev.Blank(context.Background())
 	}
@@ -623,7 +828,8 @@ func (h *moduleHost) SetPad(note, colour byte) {
 	}
 	h.rt.portMu.Lock()
 	defer h.rt.portMu.Unlock()
-	_ = h.rt.port.SetPad(note, colour)
+	_ = h.rt.leds().SetPad(note, colour)
+	h.rt.recordLED(&h.rt.padShadow, note, colour)
 }
 
 func (h *moduleHost) SetButton(cc, value byte) {
@@ -632,7 +838,8 @@ func (h *moduleHost) SetButton(cc, value byte) {
 	}
 	h.rt.portMu.Lock()
 	defer h.rt.portMu.Unlock()
-	_ = h.rt.port.SetButton(cc, value)
+	_ = h.rt.leds().SetButton(cc, value)
+	h.rt.recordLED(&h.rt.btnShadow, cc, value)
 }
 
 func (h *moduleHost) out() (*midiout.Out, error) { return h.rt.ensureMIDIOut() }

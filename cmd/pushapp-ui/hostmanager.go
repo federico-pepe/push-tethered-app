@@ -67,6 +67,14 @@ type ConnectRequest struct {
 	// paired unit turns out to be a Push 2.
 	ExtMIDIIn  bool `json:"extMidiIn"`
 	ExtMIDIOut bool `json:"extMidiOut"`
+
+	// KeepUserMode puts Push into User Mode and keeps it there while the
+	// session runs, so Live can run alongside. It needs the User Port: Open
+	// switches a Live Port to the User Port of the same unit. No module starts
+	// by itself in that case (unless ModuleID names one): the screen says "User
+	// Mode Active" until the user activates a module. See
+	// plans/2026-10-03-user-mode-switch.md.
+	KeepUserMode bool `json:"keepUserMode"`
 }
 
 // unitKey derives the stable identity for a request — the display selector
@@ -298,6 +306,7 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 	opts.Mirror = hub
 	opts.ExtMIDIInFromPushExternal = req.ExtMIDIIn
 	opts.ExtMIDIOutToPushExternal = req.ExtMIDIOut
+	opts.KeepUserMode = req.KeepUserMode
 	if opts.MIDIOutName == "" && n > 1 {
 		opts.MIDIOutName = fmt.Sprintf("%s %d", midiout.DefaultName, n)
 	}
@@ -308,7 +317,7 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 	}
 
 	moduleID := req.ModuleID
-	if moduleID == "" {
+	if moduleID == "" && !req.KeepUserMode {
 		mods := rt.List()
 		if len(mods) == 0 {
 			cleanup()
@@ -316,9 +325,13 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 		}
 		moduleID = mods[0].ID
 	}
-	if err := rt.Activate(moduleID); err != nil {
-		cleanup()
-		return "", fmt.Errorf("host: %w", err)
+	// With Keep User Mode and no module named, nothing is activated: the idle
+	// screen "User Mode Active" shows until the user picks a module.
+	if moduleID != "" {
+		if err := rt.Activate(moduleID); err != nil {
+			cleanup()
+			return "", fmt.Errorf("host: %w", err)
+		}
 	}
 
 	// Resolve what was actually claimed, not merely what was requested: an
@@ -334,7 +347,10 @@ func (m *hostManager) connect(req ConnectRequest) (string, error) {
 		}
 	}
 	midiIn := req.MIDIIn
-	if midiIn.InName == "" {
+	if midiIn.InName == "" || req.KeepUserMode {
+		// With Keep User Mode, bootstrap may have swapped the requested Live
+		// Port for the User Port. The session must record the cable it really
+		// holds, or the pairing view shows the User Port as still unpaired.
 		midiIn = rt.MIDIRef()
 	}
 	unit := unitKeyFor(displaySel, midiIn)

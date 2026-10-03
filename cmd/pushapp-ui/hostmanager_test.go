@@ -479,3 +479,72 @@ func TestConnectDoesNotBurnSessionNumberOnFailedAttempt(t *testing.T) {
 func uncancelledContext() (context.Context, context.CancelFunc) {
 	return context.WithCancel(context.Background())
 }
+
+func TestConnectKeepUserModePassesTheOptionAndActivatesNothing(t *testing.T) {
+	m := newTestManager(t)
+	m.rootCtx, _ = uncancelledContext()
+	var got bootstrap.Options
+	m.open = func(opts bootstrap.Options) (*host.Runtime, func(), error) {
+		got = opts
+		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true}, fakeModule{})
+		return rt, func() {}, err
+	}
+
+	key, err := m.connect(ConnectRequest{DisplaySel: "usb:1.1", KeepUserMode: true})
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	if !got.KeepUserMode {
+		t.Error("the option must reach bootstrap.Open")
+	}
+	rt, _ := m.session(key)
+	if id := rt.Active().ID; id != "" {
+		t.Errorf("no module may start by itself with Keep User Mode, %q is active", id)
+	}
+}
+
+func TestConnectKeepUserModeActivatesAModuleWhenOneIsNamed(t *testing.T) {
+	m := newTestManager(t)
+	m.rootCtx, _ = uncancelledContext()
+	key, err := m.connect(ConnectRequest{DisplaySel: "usb:1.1", KeepUserMode: true, ModuleID: "fake"})
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	rt, _ := m.session(key)
+	if id := rt.Active().ID; id != "fake" {
+		t.Errorf("the named module must start, got %q", id)
+	}
+}
+
+func TestConnectWithoutKeepUserModeStillActivatesTheFirstModule(t *testing.T) {
+	m := newTestManager(t)
+	m.rootCtx, _ = uncancelledContext()
+	key, err := m.connect(ConnectRequest{DisplaySel: "usb:1.1"})
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	rt, _ := m.session(key)
+	if id := rt.Active().ID; id != "fake" {
+		t.Errorf("default behaviour changed: active %q", id)
+	}
+}
+
+func TestSetKeepUserModeNeedsTheUserPort(t *testing.T) {
+	m := newTestManager(t)
+	m.rootCtx, _ = uncancelledContext()
+	key, err := m.connect(ConnectRequest{DisplaySel: "usb:1.1"})
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	s := NewPushService(m)
+	// The test runtime has no port, so it is not a User Port session.
+	if err := s.SetKeepUserMode(key, true); err == nil {
+		t.Error("turning it on without the User Port must be refused")
+	}
+	if err := s.SetKeepUserMode(key, false); err != nil {
+		t.Errorf("turning it off is always allowed: %v", err)
+	}
+	if err := s.SetKeepUserMode("nope", true); err == nil {
+		t.Error("an unknown session must be an error")
+	}
+}

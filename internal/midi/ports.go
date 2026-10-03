@@ -36,6 +36,14 @@ type PortRef struct {
 	Ambiguous bool `json:"ambiguous"`
 }
 
+// IsUser reports whether this cable is the User Port. The role is "User" when
+// the driver names the cable. WinMM has no jack strings, so there the role is
+// empty and the cable position decides: Push exposes Live, User, External in
+// that order (docs/platform/windows.md).
+func (r PortRef) IsUser() bool {
+	return r.Role == "User" || (r.Role == "" && r.Cable == 2)
+}
+
 // Unit groups every cable that belongs to one physical Push.
 type Unit struct {
 	Key    string         `json:"key"`

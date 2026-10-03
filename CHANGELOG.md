@@ -7,6 +7,36 @@ between minor versions).
 
 ## [Unreleased]
 
+## [0.2.5-alpha] - 2026-10-03
+
+### Added
+
+- **Keep Push in User Mode.** PTA can put Push into User Mode itself and keep
+  it there, so you no longer start Live, press User, quit Live, pair, and start
+  Live again. In `pushapp-ui` there is a checkbox when you pair, and on each
+  session card that holds the User Port. In `pushapp` the flag is
+  `-keep-user-mode`. While it is on:
+  - the session uses the User Port (a Live Port is swapped for the User Port of
+    the same unit);
+  - no module starts by itself. The screen says "User Mode Active" until you
+    activate a module, and shows the same words for 3 seconds each time Push
+    enters User Mode;
+  - when Live sets Live Mode (about 8 s after Live launches), PTA waits 3 s of
+    quiet and asks for User Mode once. It sends at most 3 switches in 30 s;
+  - each time User Mode is confirmed, PTA blanks all pad and button LEDs, puts
+    back the LEDs of the active module, and lights the User button white;
+  - Live Mode is given back when you switch the option off, disconnect or quit.
+    The app keeps the screen until you disconnect or quit: the screen claim is
+    separate from the mode.
+  Measured on macOS with a Push 3 (2026-10-03). Not tested on Windows or
+  Linux, or on a Push 2. Plan: `plans/2026-10-03-user-mode-switch.md`.
+- `cmd/usermodetest`: a measurement tool that sends only the mode switch (User
+  or Live) to one Push MIDI output, and logs every SysEx, User press and pad
+  press with the cable it arrives on (`-watch`, `-follow`).
+- `internal/midi`: the `ModeChange` event (Push's announcement of a mode),
+  `Port.SendModeSwitch`, `Port.ClearAllLEDs`, `PortRef.IsUser`, and SysEx
+  listening. `internal/pushmap.LEDButtons` lists the 74 LED-capable buttons.
+
 ## [0.2.4-alpha] - 2026-10-01
 
 ### Changed

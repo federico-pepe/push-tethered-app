@@ -36,6 +36,7 @@ const pairBtn = document.getElementById("pair-btn") as HTMLButtonElement;
 const autoBtn = document.getElementById("auto-btn") as HTMLButtonElement;
 const extMIDIInCheck = document.getElementById("ext-midi-in-check") as HTMLInputElement;
 const extMIDIOutCheck = document.getElementById("ext-midi-out-check") as HTMLInputElement;
+const keepUserModeCheck = document.getElementById("keep-user-mode-check") as HTMLInputElement;
 
 const sessionListEl = document.getElementById("session-list") as HTMLUListElement;
 
@@ -438,12 +439,14 @@ async function pairAndConnect(): Promise<void> {
         const req: ConnectRequest = {
             displaySel: selectedUSB, midiIn: selectedMIDI, moduleId: "",
             extMidiIn: extMIDIInCheck.checked, extMidiOut: extMIDIOutCheck.checked,
+            keepUserMode: keepUserModeCheck.checked,
         };
         await PushService.Connect(req);
         selectedUSB = null;
         selectedMIDI = null;
         extMIDIInCheck.checked = false;
         extMIDIOutCheck.checked = false;
+        keepUserModeCheck.checked = false;
     } catch (err) {
         statusEl.textContent = `Could not connect: ${err}`;
     } finally {
@@ -457,7 +460,7 @@ async function autoConnect(): Promise<void> {
     globalBusy = true;
     statusEl.textContent = "Connecting…";
     try {
-        const req: ConnectRequest = { displaySel: "", midiIn: emptyPortRef, moduleId: "", extMidiIn: false, extMidiOut: false };
+        const req: ConnectRequest = { displaySel: "", midiIn: emptyPortRef, moduleId: "", extMidiIn: false, extMidiOut: false, keepUserMode: false };
         await PushService.Connect(req);
     } catch (err) {
         statusEl.textContent = `Could not auto-connect: ${err} — pick a screen and a MIDI port instead.`;
@@ -630,6 +633,28 @@ async function renderSessionCard(session: SessionInfo): Promise<HTMLLIElement> {
         const dirs = [session.extMidiIn && "in", session.extMidiOut && "out"].filter(Boolean).join(" / ");
         extBadge.textContent = `External Port MIDI: ${dirs}`;
         li.appendChild(extBadge);
+    }
+
+    // Keep Push in User Mode: on or off while connected. Only a session that
+    // holds the User Port can do it (the Live Port carries nothing in User Mode).
+    if (session.canKeepUserMode || session.keepUserMode) {
+        const keepLabel = document.createElement("label");
+        keepLabel.className = "pairing-checkbox";
+        const keepBox = document.createElement("input");
+        keepBox.type = "checkbox";
+        keepBox.checked = session.keepUserMode;
+        keepBox.disabled = busy || !session.canKeepUserMode;
+        keepBox.addEventListener("change", async () => {
+            keepBox.disabled = true;
+            try {
+                await PushService.SetKeepUserMode(session.key, keepBox.checked);
+            } catch (err) {
+                statusEl.textContent = `Could not change User Mode: ${err}`;
+            }
+            await refresh();
+        });
+        keepLabel.append(keepBox, " Keep Push in User Mode");
+        li.appendChild(keepLabel);
     }
 
     let modules: ModuleInfo[];

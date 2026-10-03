@@ -431,6 +431,17 @@ Rationale in [docs/archive/feasibility.md](docs/archive/feasibility.md)
   bare cable open in `internal/identify.FlashLEDs`, are Live-hardcoded by
   design.
 
+  **The host can switch User Mode itself** (measured 2026-10-03, macOS,
+  Push 3): send `F0 00 21 1D 01 01 0A 01 F7` (User) or `... 0A 00 F7` (Live)
+  on the Live Port or User Port output. Push answers on every cable with the
+  same bytes. Push does not switch by itself when the user presses User: the
+  host answers. Live sets Live Mode about 8 s after it launches. **Never answer
+  that within milliseconds.** The first "keep User Mode" did, with PTA holding
+  the screen, and the Push stopped showing frames and needed a hard reset. Wait
+  for quiet (`internal/host/usermode.go`). A mode switch does not clear LEDs:
+  blank them yourself. Details: [docs/protocol/midi-input.md](docs/protocol/midi-input.md#switching-user-mode-from-the-host)
+  and [plans/2026-10-03-user-mode-switch.md](plans/2026-10-03-user-mode-switch.md).
+
   Without User Mode, co-existence mode leaves Push's MIDI interface
   bound to the OS driver, even while Live does not own the display. Both
   processes then drive the same pad LEDs, which causes visible fighting,

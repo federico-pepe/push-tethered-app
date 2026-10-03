@@ -45,10 +45,12 @@ three ports at the same time, User button = CC 59,
   own UI.
 - **Live's outbound LED SysEx (`38 0D…`/`38 18…`) never stops**, in User
   Mode or not. Live keeps sending it regardless of the device's mode.
-- **User Mode enter and exit are announced unsolicited**, on both Live
+- **User Mode enter and exit are announced**, on both Live
   Port and User Port at the same time, right at the toggle: `F0 00 21 1D
-  01 01 0A 01 F7` (enter), `F0 00 21 1D 01 01 0A 00 F7` (exit). This is
-  usable as a detection signal — see
+  01 01 0A 01 F7` (enter), `F0 00 21 1D 01 01 0A 00 F7` (exit). Measured
+  2026-10-03: this is Push's answer to a switch that the host sent, not a
+  message it sends on its own (see "Switching User Mode from the host" below).
+  This is usable as a detection signal — see
   [live-coexistence.md's C2](../../plans/2026-08-19-live-coexistence.md).
 - **Pad LED *output* is exclusively routed too, and mirrors input.**
   Confirmed 2026-08-20. `tools/ledtest.swift`'s palette sweep, sent to
@@ -185,9 +187,9 @@ Not yet measured:
 - The exact menu path on Push's own screen. A future doc update, or
   MANUAL.md, must name it precisely. "Push's settings" is what confirmed
   this, not yet the exact label or location.
-- Whether this setting is readable or settable over MIDI/SysEx from the
-  host side. If it becomes readable, a module or `pushapp` can detect or
-  adapt to the device's current mode instead of silently guessing.
+- Whether the MPE aftertouch setting is readable or settable over MIDI/SysEx
+  from the host side. (User Mode is different: it is settable. See
+  "Switching User Mode from the host".)
 - The actual numeric bounds of `bend`'s practical range. Auto-calibration
   sidesteps the need for this, but a captured number is still a useful
   protocol fact.
@@ -289,4 +291,42 @@ Full map: [hardware-reference.md](../hardware-reference.md).
 - Push 2 arrow down/right CCs (expected 46/47/44/45)
 
 See [plans/2026-08-18-open-items.md](../../plans/2026-08-18-open-items.md).
+
+## Switching User Mode from the host
+
+**Measured 2026-10-03** on macOS, Push 3. Plan:
+[2026-10-03-user-mode-switch.md](../../plans/2026-10-03-user-mode-switch.md).
+Tool: `go run ./cmd/usermodetest` (`-list`, `-watch`, `-follow`, `-out N -mode user|live`).
+
+The host can put Push into User Mode and back. Send this SysEx on the Live Port
+output or the User Port output (not the External Port):
+
+| Message | Bytes |
+|---|---|
+| Enter User Mode | `F0 00 21 1D 01 01 0A 01 F7` |
+| Enter Live Mode | `F0 00 21 1D 01 01 0A 00 F7` |
+
+- Push answers every accepted switch with the same bytes, on Live Port and User
+  Port, within 1 ms. The "announcements" above are these answers.
+- Push does not switch by itself when the user presses User. It sends CC 59 to
+  the host and waits. Live's helper then sends the switch. With no host that
+  answers, the button does nothing to the mode.
+- The cable Push uses for pad presses shows the mode: Live Port in Live Mode,
+  User Port in User Mode. Use this when nothing lights the LEDs.
+- When Live starts, it puts Push into Live Mode. This comes about 8 to 19 s after Live launches, when its Push helper finishes its handshake, not at launch. The log of a Live start shows
+  an identity reply (`F0 7E 01 06 02 00 21 1D ...`), a reply to command `0x42`,
+  a reply to command `0x3E` (`GET_HOST_MODE` in Live's helper), and then the
+  Live Mode announcement.
+- Source of the constants: `Push2/sysex` in the Push 3 helper inside Live 12
+  (`MODE_SWITCH_MESSAGE_ID = 10`, `LIVE_MODE = 0`, `USER_MODE = 1`). Do not
+  send the neighbouring commands `0x39` (power) or `0x3D` (host mode).
+- A mode switch does not clear LEDs. While Live has Live Mode it paints pads and
+  buttons, and those colors stay on after Push returns to User Mode. A host that
+  keeps User Mode must write its own LED state over them (2026-10-03).
+- Do not answer that Live Mode switch within milliseconds. A first version of
+  "keep User Mode" did, with the screen held by PTA, and the Push stopped
+  showing frames and needed a hard reset (2026-10-03). Starting Live after the
+  host sets User Mode once is harmless. See the plan, "The black screen".
+- Not measured: Push 2, Windows, Linux.
+
 </content>
