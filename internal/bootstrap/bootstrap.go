@@ -71,6 +71,13 @@ type Options struct {
 	ExtMIDIInFromPushExternal bool
 	ExtMIDIOutToPushExternal  bool
 
+	// KeepUserMode puts Push into User Mode and keeps it there while the
+	// session runs (see internal/host/usermode.go). It needs the User Port: in
+	// User Mode the Live Port carries no pad input and no pad LEDs. So Open
+	// switches a Live Port, which is what auto-detect picks, to the User Port of
+	// the same unit.
+	KeepUserMode bool
+
 	CapturePath string
 	CaptureRaw  bool
 
@@ -108,6 +115,12 @@ func Open(opts Options) (rt *host.Runtime, cleanup func(), err error) {
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("MIDI: %w", err)
+	}
+	if opts.KeepUserMode {
+		port, err = switchToUserPort(port)
+		if err != nil {
+			return nil, nil, fmt.Errorf("MIDI: keep User Mode: %w", err)
+		}
 	}
 	log.Printf("MIDI: connected to %q", port.Name())
 
@@ -197,6 +210,8 @@ func Open(opts Options) (rt *host.Runtime, cleanup func(), err error) {
 		OpenMIDIIn:  openMIDIIn,
 		Recorder:    rec,
 		Mirror:      mirrorSink,
+
+		KeepUserMode: opts.KeepUserMode,
 	}, opts.Modules...)
 	if err != nil {
 		closeHardware(dev, port)
@@ -224,6 +239,46 @@ func findExternalRef(mainRef pmidi.PortRef) (pmidi.PortRef, bool) {
 		}
 	}
 	return pmidi.PortRef{}, false
+}
+
+// pickUserRef finds the User Port cable of the same unit as main, which must
+// have an output cable: the mode switch is sent on it.
+//
+// See PortRef.IsUser for how a User Port is recognised on every system.
+func pickUserRef(refs []pmidi.PortRef, main pmidi.PortRef) (pmidi.PortRef, error) {
+	for _, ref := range refs {
+		if ref.Unit != main.Unit || ref.Ambiguous {
+			continue
+		}
+		if ref.IsUser() {
+			if ref.OutNum < 0 {
+				return pmidi.PortRef{}, fmt.Errorf("the User Port %q has no output cable", ref.InName)
+			}
+			return ref, nil
+		}
+	}
+	return pmidi.PortRef{}, fmt.Errorf("no User Port found for %q", main.Unit)
+}
+
+// switchToUserPort returns port itself when it already is a User Port, and
+// otherwise closes it and opens the User Port of the same unit.
+func switchToUserPort(port *pmidi.Port) (*pmidi.Port, error) {
+	main := port.Ref()
+	if main.IsUser() {
+		if main.OutNum < 0 {
+			port.Close()
+			return nil, fmt.Errorf("the User Port %q has no output cable", main.InName)
+		}
+		return port, nil
+	}
+	userRef, err := pickUserRef(pmidi.ListPortRefs(), main)
+	if err != nil {
+		port.Close()
+		return nil, err
+	}
+	log.Printf("MIDI: keep User Mode needs the User Port: using %q instead of %q", userRef.InName, main.InName)
+	port.Close()
+	return pmidi.OpenRef(userRef)
 }
 
 func closeHardware(dev *display.Device, port *pmidi.Port) {
