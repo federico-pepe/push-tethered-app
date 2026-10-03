@@ -177,10 +177,12 @@ Mode**.
    `docs/guides/debugging.md` the tool.
 4. **Done.** Windows: the cable names are `Ableton Push 3 MIDI` (Live),
    `MIDIOUT2` (User) and `MIDIOUT3` (External). The user reported on
-   2026-10-03 that the feature works on Windows, and on a Push 2. No problem
-   was reported with PTA and Live both using the Push. Linux is not tested:
-   Live has no Linux version, and the feature exists so that Live can run
-   alongside.
+   2026-10-03 that Windows and a Push 2 behaved exactly as the Push 3 on
+   macOS: Live and PTA worked together, and User Mode stayed on. On Windows the
+   User Port is `MIDIIN2`. PTA used that cable and Live used the first one, so
+   the worry that WinMM allows only one program per cable did not apply. The
+   user did not name the cables on the Push 2. Linux is not tested: Live has no
+   Linux version, and the feature exists so that Live can run alongside.
 
 ## Done when
 
