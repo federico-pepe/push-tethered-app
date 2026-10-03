@@ -1,6 +1,6 @@
 # Switch Push into User Mode from the host
 
-**Status:** built and tested on macOS (Push 3) with `pushapp -keep-user-mode`. The `pushapp-ui` checkbox, the manual and the docs are written, and the UI is built but not yet tried by hand. Windows not tested.
+**Status:** built and tested on macOS (Push 3) with `pushapp -keep-user-mode`. The `pushapp-ui` checkbox, the manual and the docs are written, and the UI is built but not yet tried by hand. Windows and Push 2 confirmed by the user on 2026-10-03.
 **Date:** 2026-10-03
 
 ## Goal
@@ -175,9 +175,12 @@ Mode**.
    remembered between runs (the user chooses at each pairing). MANUAL.md has the
    new start order, `docs/protocol/midi-input.md` the protocol facts,
    `docs/guides/debugging.md` the tool.
-4. Windows test: the cable names are `Ableton Push 3 MIDI` (Live), `MIDIOUT2`
-   (User) and `MIDIOUT3` (External). WinMM may not allow PTA and Live to open
-   the same Push cable. The User Port must work for both.
+4. **Done.** Windows: the cable names are `Ableton Push 3 MIDI` (Live),
+   `MIDIOUT2` (User) and `MIDIOUT3` (External). The user reported on
+   2026-10-03 that the feature works on Windows, and on a Push 2. No problem
+   was reported with PTA and Live both using the Push. Linux is not tested:
+   Live has no Linux version, and the feature exists so that Live can run
+   alongside.
 
 ## Done when
 

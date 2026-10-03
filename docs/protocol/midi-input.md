@@ -327,6 +327,8 @@ output or the User Port output (not the External Port):
   "keep User Mode" did, with the screen held by PTA, and the Push stopped
   showing frames and needed a hard reset (2026-10-03). Starting Live after the
   host sets User Mode once is harmless. See the plan, "The black screen".
-- Not measured: Push 2, Windows, Linux.
+- The measurements above are from macOS with a Push 3. The keep User Mode
+  feature built on them also worked on Windows and on a Push 2 (user report,
+  2026-10-03). Not tested on Linux: Live has no Linux version.
 
 </content>
