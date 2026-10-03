@@ -33,7 +33,15 @@ go run ./cmd/midiouttest -list
 go run ./cmd/midiouttest -port "PushApp" -listen "PushApp"  # loopback test
 go run ./cmd/mapcheck      # cross-reference capture vs button map
 go run ./cmd/pushapp -devices   # every attached Push unit + MIDI cable, claims nothing
+go run ./cmd/usermodetest -list    # Push MIDI outputs, in cable order
+go run ./cmd/usermodetest -watch   # log SysEx, User presses and pad presses per cable
 ```
+
+`usermodetest` can also send the User Mode / Live Mode switch (`-out N -mode
+user|live`) and answer User presses (`-follow`). It sends nothing else. With no
+Live and no host, nothing lights the Push, so the visible proof of the mode is
+the cable pad presses arrive on: Live Port in Live Mode, User Port in User
+Mode.
 
 ## `pushapp-ui` log file
 

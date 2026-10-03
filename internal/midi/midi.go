@@ -100,6 +100,13 @@ func (e Encoder) Name() string {
 
 func (Encoder) eventName() string { return "encoder" }
 
+// ModeChange is Push announcing that it entered Live or User mode. It is the
+// answer to a mode switch from the host (see usermode.go), on Live Port and
+// User Port at once. It is not a module event: the host consumes it.
+type ModeChange struct{ Mode Mode }
+
+func (ModeChange) eventName() string { return "mode" }
+
 // Touch is a capacitive touch sensor on channel 1. Note numbers come from
 // internal/pushmap, not core/push3, whose values are off by one (§8.8).
 type Touch struct {
@@ -145,6 +152,14 @@ func Decode(b []byte) Event { return DecodeFor(pushmap.Push3, b) }
 // naming and for which CCs count as encoders.
 func DecodeFor(d pushmap.Device, b []byte) Event {
 	if len(b) < 2 || b[0] >= 0xF8 {
+		return nil
+	}
+	// SysEx. Live's recurring vendor SysEx (docs/protocol/live-handshake.md) is
+	// not decoded and stays nil. Only the mode announcement becomes an event.
+	if b[0] == 0xF0 {
+		if m, ok := ParseModeSwitch(b); ok {
+			return ModeChange{Mode: m}
+		}
 		return nil
 	}
 	status, ch := b[0]&0xF0, int(b[0]&0x0F)+1
@@ -365,7 +380,7 @@ func (p *Port) Listen(fn func(Event)) error {
 		if ev := DecodeFor(p.dev, msg); ev != nil {
 			fn(ev)
 		}
-	})
+	}, gm.UseSysEx()) // for the mode announcement. Other SysEx decodes to nil
 	if err != nil {
 		return fmt.Errorf("listening on %q: %w", p.name, err)
 	}
@@ -394,6 +409,19 @@ func (p *Port) Clear() {
 		_ = p.SetPad(n, 0)
 	}
 	for _, cc := range pushmap.LitButtons() {
+		_ = p.SetButton(cc, 0)
+	}
+}
+
+// ClearAllLEDs turns off every pad and every LED-capable button, not only the
+// two screen rows that Clear covers. Used when Push returns to User Mode with
+// Live's colors still showing: the mode decides who may change LEDs, it does
+// not wipe the ones already lit.
+func (p *Port) ClearAllLEDs() {
+	for n := byte(push3.PadNoteMin); n <= push3.PadNoteMax; n++ {
+		_ = p.SetPad(n, 0)
+	}
+	for _, cc := range pushmap.LEDButtons() {
 		_ = p.SetButton(cc, 0)
 	}
 }
