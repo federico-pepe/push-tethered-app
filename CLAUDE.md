@@ -432,7 +432,8 @@ Rationale in [docs/archive/feasibility.md](docs/archive/feasibility.md)
   design.
 
   **The host can switch User Mode itself** (measured 2026-10-03, macOS,
-  Push 3): send `F0 00 21 1D 01 01 0A 01 F7` (User) or `... 0A 00 F7` (Live)
+  Push 3. The feature also worked on Windows and on a Push 2, reported the
+  same day. Linux is untested: Live has no Linux version): send `F0 00 21 1D 01 01 0A 01 F7` (User) or `... 0A 00 F7` (Live)
   on the Live Port or User Port output. Push answers on every cable with the
   same bytes. Push does not switch by itself when the user presses User: the
   host answers. Live sets Live Mode about 8 s after it launches. **Never answer

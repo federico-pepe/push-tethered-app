@@ -7,6 +7,13 @@ between minor versions).
 
 ## [Unreleased]
 
+### Changed
+
+- Docs: Keep Push in User Mode is confirmed on Windows and on a Push 2 (user
+  report, 2026-10-03). Linux is not tested, because Live has no Linux version.
+- Added the plan for an update check in `pushapp-ui`
+  (`plans/2026-10-01-update-check.md`). Nothing is built yet.
+
 ## [0.2.5-alpha] - 2026-10-03
 
 ### Added
