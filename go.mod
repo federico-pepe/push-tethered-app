@@ -5,7 +5,7 @@ go 1.26.3
 require github.com/google/gousb v1.1.3
 
 require (
-	github.com/federico-pepe/ableton-push-hack/core v0.2.0
+	github.com/federico-pepe/ableton-push-hack/core v0.2.1
 	gitlab.com/gomidi/midi/v2 v2.3.24
 )
 
