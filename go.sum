@@ -1,5 +1,5 @@
-github.com/federico-pepe/ableton-push-hack/core v0.2.0 h1:sgrWbm/UW85poStUQibwhTzwSM0Cnt04xYo6KNdlwPk=
-github.com/federico-pepe/ableton-push-hack/core v0.2.0/go.mod h1:jIGdPTG4YcT5Zt8gdsKsvjW+hP32nnquSWYR1ojQ03I=
+github.com/federico-pepe/ableton-push-hack/core v0.2.1 h1:QXUBQqvIHM2BkOKh9sM4WhAJlsUVjgusmtQLMMwg86w=
+github.com/federico-pepe/ableton-push-hack/core v0.2.1/go.mod h1:jIGdPTG4YcT5Zt8gdsKsvjW+hP32nnquSWYR1ojQ03I=
 github.com/google/gousb v1.1.3 h1:xt6M5TDsGSZ+rlomz5Si5Hmd/Fvbmo2YCJHN+yGaK4o=
 github.com/google/gousb v1.1.3/go.mod h1:GGWUkK0gAXDzxhwrzetW592aOmkkqSGcj5KLEgmCVUg=
 gitlab.com/gomidi/midi/v2 v2.3.24 h1:afkq5nhlzKvZaj9QK80YbK8tH3lIlKLnPPP9HxxD7Do=
