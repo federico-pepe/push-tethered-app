@@ -14,9 +14,9 @@ Pads: bottom half = full (left) and dim (right). Top-left = checkerboard of
 full and dim, like a step grid. Top-right rows, top to bottom = white,
 full, dim, green. Same protocol as hello-py; stdlib only.
 
-hardware-palette.json holds all 128 SysEx-verified entries (not the 90-entry
-palette.json that cmd/genpalette writes), because dim shades live in the
-unnamed indices. Source: ableton-push-hack docs/push3-led-colors.md.
+palette.json (from cmd/genpalette) holds the exact color of all 128 entries.
+Dim shades live in the unnamed indices, so this needs core v0.2.1 or later.
+Source: ableton-push-hack docs/push3-led-colors.md.
 """
 
 import json
@@ -29,7 +29,7 @@ SAVE_CC = 82  # Save button
 FRICTION = 2  # raw encoder delta per index step for encoders 1 and 2
 RGB_STEP = 3
 
-with open(os.path.join(HERE, "hardware-palette.json")) as _f:
+with open(os.path.join(HERE, "palette.json")) as _f:
     PALETTE = json.load(_f)["byIndex"]
 
 

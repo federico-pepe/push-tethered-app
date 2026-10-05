@@ -77,10 +77,11 @@ with open(os.path.join(os.path.dirname(__file__), "palette.json")) as f:
 # PALETTE["byIndex"][42]    -> same shape, any raw 0-127 hardware index
 ```
 
-Both lookups return the same shape. `byIndex` pre-resolves every one of the
-128 raw indices to its nearest defined entry. This gives the same
-"nearest at or below" guarantee that `push3.ColorForIndex` gives on the Go
-side, so a module never needs to reimplement that search. Rebuild
+Both lookups return the same shape. `byIndex` holds the exact color of every
+one of the 128 raw indices, the same as `push3.ColorForIndex` on the Go side
+(core v0.2.1 and later). An index with no name is called `hw_<index>`. Older
+`palette.json` files were built from the 90 named entries and have the wrong
+color for 38 indices. Run `go run ./cmd/genpalette` and copy the new file. Rebuild
 `palette.json` only when `core/push3.Palette` itself changes. This is rare,
 because `core/push3.Palette` is a fixed, SysEx-sourced hardware table.
 `palette.json` is a checked-in generated file. The build process does not

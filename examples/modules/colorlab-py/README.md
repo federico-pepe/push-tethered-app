@@ -34,11 +34,8 @@ The file loads again when the module starts, so you can continue later.
 
 ## Files
 
-- `hardware-palette.json`: all 128 SysEx-verified LED entries. It is not
-  `palette.json`. `cmd/genpalette` writes only the 90 named entries, and
-  dim shades are in the unnamed indices. Build this file again with
-  `scripts/gen_palette.py` from `pta-module-bcaseq`. This module does not use
-  a `palette.json`.
+- `palette.json`: the exact color of all 128 LED entries, from `cmd/genpalette`
+  (core v0.2.1 or later). Older files had the wrong color for 38 indices.
 - `colors.json`: your saved values. Created by Save.
 
 ```bash

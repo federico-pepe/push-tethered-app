@@ -81,9 +81,10 @@ values in module draw operations.
 
 The same file's `Palette`/`ColorForIndex` function gives the RGBA value
 that a palette index resolves to. A module can use this to preview an LED
-color on screen. `ColorForIndex` rounds a raw 0-127 index down to the
-nearest of the 90 named entries, because not all 128 raw indices have a
-name. See `modules/ui-text-demo` for a live example that drives both a
+color on screen. `ColorForIndex` returns the exact color of every raw 0-127
+index (core v0.2.1 and later). An index with no name is called `hw_<index>`.
+Before v0.2.1 it rounded down to the nearest of the 90 named entries, which
+was the wrong color for 38 indices. See `modules/ui-text-demo` for a live example that drives both a
 swatch and its name from one encoder.
 
 Common values:

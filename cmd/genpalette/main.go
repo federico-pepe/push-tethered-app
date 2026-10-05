@@ -40,9 +40,8 @@ type paletteEntry struct {
 }
 
 // paletteFile is the full generated document: byIndex covers every raw
-// 0-127 hardware value (so palette["byIndex"][id] always resolves, the same
-// "nearest defined entry at or below" guarantee push3.ColorForIndex makes,
-// pre-computed here so a consumer never has to reimplement that search);
+// 0-127 hardware value with its exact color (push3.ColorForIndex, core
+// v0.2.1 and later; an index with no name is called "hw_<index>");
 // byName covers only the ~90 actually-named entries, keyed by
 // push3.NamedColors' own names, for the common "I want 'sky'" case.
 type paletteFile struct {
