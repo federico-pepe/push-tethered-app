@@ -42,7 +42,7 @@ func newTestManager(t *testing.T) *hostManager {
 	t.Helper()
 	m := newHostManager(context.Background(), bootstrap.Options{FPS: 30}, fakeModules)
 	m.open = func(opts bootstrap.Options) (*host.Runtime, func(), error) {
-		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true}, fakeModule{})
+		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true, KeepUserMode: opts.KeepUserMode}, fakeModule{})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -269,7 +269,7 @@ func TestConnectGivesEachSessionFreshModuleInstances(t *testing.T) {
 	m := newHostManager(context.Background(), bootstrap.Options{FPS: 30}, factory)
 	m.rootCtx, _ = uncancelledContext()
 	m.open = func(opts bootstrap.Options) (*host.Runtime, func(), error) {
-		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true}, opts.Modules...)
+		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true, KeepUserMode: opts.KeepUserMode}, opts.Modules...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -300,7 +300,7 @@ func TestConnectAssignsDistinctMIDIOutNames(t *testing.T) {
 	m.rootCtx, _ = uncancelledContext()
 	m.open = func(opts bootstrap.Options) (*host.Runtime, func(), error) {
 		gotNames = append(gotNames, opts.MIDIOutName)
-		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true}, fakeModule{})
+		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true, KeepUserMode: opts.KeepUserMode}, fakeModule{})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -331,7 +331,7 @@ func TestConnectRespectsExplicitMIDIOutName(t *testing.T) {
 	m.rootCtx, _ = uncancelledContext()
 	m.open = func(opts bootstrap.Options) (*host.Runtime, func(), error) {
 		gotNames = append(gotNames, opts.MIDIOutName)
-		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true}, fakeModule{})
+		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true, KeepUserMode: opts.KeepUserMode}, fakeModule{})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -450,7 +450,7 @@ func TestConnectDoesNotBurnSessionNumberOnFailedAttempt(t *testing.T) {
 			return nil, nil, errors.New("no Push found")
 		}
 		gotNames = append(gotNames, opts.MIDIOutName)
-		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true}, fakeModule{})
+		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true, KeepUserMode: opts.KeepUserMode}, fakeModule{})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -486,7 +486,7 @@ func TestConnectKeepUserModePassesTheOptionAndActivatesNothing(t *testing.T) {
 	var got bootstrap.Options
 	m.open = func(opts bootstrap.Options) (*host.Runtime, func(), error) {
 		got = opts
-		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true}, fakeModule{})
+		rt, err := host.New(nil, nil, host.Options{FPS: opts.FPS, NoDisplay: true, KeepUserMode: opts.KeepUserMode}, fakeModule{})
 		return rt, func() {}, err
 	}
 
