@@ -252,10 +252,10 @@ control map.
 
 `core/push3.Palette`/`ColorForIndex` was added alongside the font swap,
 for the same reason: the screen and LEDs must agree. It resolves a raw
-0-127 hardware palette index to its RGBA value, rounded down to the
-nearest of the 90 named entries in `NamedColors`. This is the same
-SysEx-sourced table that `internal/midi`'s pad and button LED writes
-already use by index.
+0-127 hardware palette index to its exact RGBA value (core v0.2.1 and
+later; before that it rounded down to the nearest of the 90 named entries,
+which was wrong for 38 indices). This is the same SysEx-sourced table that
+`internal/midi`'s pad and button LED writes already use by index.
 
 A widget or module that wants to *preview* an LED color on screen, or
 that offers "cycle through the palette" as a single control instead of

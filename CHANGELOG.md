@@ -11,6 +11,10 @@ between minor versions).
 
 - `examples/modules/colorlab-py`: a tool module to compare a pad color, its dim shade and the screen RGB on a device, and save the values to `colors.json`.
 
+### Fixed
+
+- `cmd/genpalette` and the example `palette.json` files now hold the exact color of all 128 indices. They were wrong for 38 indices because `core/push3` rounded down to the 90 named entries (fixed in core v0.2.1). `colorlab-py` uses `palette.json` and no longer ships `hardware-palette.json`.
+
 ### Changed
 
 - Docs: Keep Push in User Mode is confirmed on Windows and on a Push 2 (user
