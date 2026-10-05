@@ -7,6 +7,10 @@ between minor versions).
 
 ## [Unreleased]
 
+### Added
+
+- `examples/modules/colorlab-py`: a tool module to compare a pad color, its dim shade and the screen RGB on a device, and save the values to `colors.json`.
+
 ### Changed
 
 - Docs: Keep Push in User Mode is confirmed on Windows and on a Push 2 (user

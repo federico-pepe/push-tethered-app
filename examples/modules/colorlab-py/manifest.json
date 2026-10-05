@@ -1,0 +1,9 @@
+{
+  "id": "colorlab-py",
+  "name": "Color Lab (Python example)",
+  "version": "0.1.0",
+  "description": "Compare a pad LED color with its dim shade and the screen RGB, and save the values you pick",
+  "author": "federico-pepe",
+  "needs_midi_out": false,
+  "exec": "python3 run.py"
+}
