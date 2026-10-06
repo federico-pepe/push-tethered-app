@@ -19,6 +19,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/federico-pepe/push-tethered-app/internal/archiveutil"
@@ -110,29 +111,106 @@ type githubRelease struct {
 	Assets  []githubAsset `json:"assets"`
 }
 
+// getLatestRelease fetches repo's latest release. If etag is not empty it is
+// sent as If-None-Match, and a "not modified" reply returns notModified with
+// a nil release. Per GitHub's docs, such a reply does not count against the
+// rate limit.
+func getLatestRelease(repo, etag string) (rel *githubRelease, newETag string, notModified bool, err error) {
+	url := fmt.Sprintf("%s/repos/%s/releases/latest", githubAPIBase, repo)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, "", false, err
+	}
+	if etag != "" {
+		req.Header.Set("If-None-Match", etag)
+	}
+	resp, err := apiClient.Do(req)
+	if err != nil {
+		return nil, "", false, err
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusNotModified:
+		return nil, etag, true, nil
+	case http.StatusOK:
+	default:
+		return nil, "", false, fmt.Errorf("%s: %s", url, resp.Status)
+	}
+	rel = new(githubRelease)
+	if err := json.NewDecoder(resp.Body).Decode(rel); err != nil {
+		return nil, "", false, err
+	}
+	return rel, resp.Header.Get("ETag"), false, nil
+}
+
 // ResolveAsset finds entry's latest release on GitHub and returns the
-// download URL for its named asset, plus the release's version tag.
+// download URL for its named asset, plus the release's version tag. It always
+// asks GitHub, since it needs the asset list, and saves the version it
+// finds in the cache.
 func ResolveAsset(entry Entry) (downloadURL, version string, err error) {
-	url := fmt.Sprintf("%s/repos/%s/releases/latest", githubAPIBase, entry.GithubRepo)
-	resp, err := apiClient.Get(url)
+	rel, etag, _, err := getLatestRelease(entry.GithubRepo, "")
 	if err != nil {
 		return "", "", fmt.Errorf("resolving %s: %w", entry.ID, err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("resolving %s: %s: %s", entry.ID, url, resp.Status)
-	}
-
-	var rel githubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
-		return "", "", fmt.Errorf("resolving %s: %w", entry.ID, err)
-	}
+	cachePut(entry.GithubRepo, cacheRecord{Version: rel.TagName, ETag: etag, CheckedAt: now()})
 	for _, a := range rel.Assets {
 		if a.Name == entry.AssetName {
 			return a.BrowserDownloadURL, rel.TagName, nil
 		}
 	}
 	return "", "", fmt.Errorf("resolving %s: latest release %s has no asset named %q", entry.ID, rel.TagName, entry.AssetName)
+}
+
+// LatestVersion returns entry's latest release tag. A saved answer younger
+// than cacheTTL is used with no request. An older one is checked with a
+// conditional request. If GitHub cannot be reached, the older answer is
+// returned instead of an error, so a card keeps its version while offline;
+// an error comes back only when nothing is saved.
+func LatestVersion(entry Entry) (string, error) {
+	rec, have := cacheGet(entry.GithubRepo)
+	if have && now().Sub(rec.CheckedAt) < cacheTTL {
+		return rec.Version, nil
+	}
+	etag := ""
+	if have {
+		etag = rec.ETag
+	}
+	rel, newETag, notModified, err := getLatestRelease(entry.GithubRepo, etag)
+	switch {
+	case err != nil:
+		if have {
+			return rec.Version, nil
+		}
+		return "", fmt.Errorf("checking %s: %w", entry.ID, err)
+	case notModified:
+		rec.CheckedAt = now()
+	default:
+		rec = cacheRecord{Version: rel.TagName, ETag: newETag, CheckedAt: now()}
+	}
+	cachePut(entry.GithubRepo, rec)
+	return rec.Version, nil
+}
+
+// LatestVersions looks up each entry's latest release tag, in parallel, with
+// LatestVersion. An entry whose lookup fails is left out of the result, so
+// one broken or offline repo does not hide the others.
+func LatestVersions(entries []Entry) map[string]string {
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	out := make(map[string]string, len(entries))
+	for _, e := range entries {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if v, err := LatestVersion(e); err == nil {
+				mu.Lock()
+				out[e.ID] = v
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	return out
 }
 
 // DownloadAndExtract downloads the tarball at url and extracts it, returning
@@ -190,14 +268,14 @@ func download(url string, w io.Writer) error {
 	return nil
 }
 
-// CheckUpdate resolves entry's latest release and reports whether it is
-// newer than installedVersion.
-func CheckUpdate(entry Entry, installedVersion string) (available bool, latestVersion, downloadURL string, err error) {
-	downloadURL, latestVersion, err = ResolveAsset(entry)
+// CheckUpdate reports whether entry's latest release (from LatestVersion, so
+// usually from the cache) is newer than installedVersion.
+func CheckUpdate(entry Entry, installedVersion string) (available bool, latestVersion string, err error) {
+	latestVersion, err = LatestVersion(entry)
 	if err != nil {
-		return false, "", "", err
+		return false, "", err
 	}
-	return CompareVersions(latestVersion, installedVersion) > 0, latestVersion, downloadURL, nil
+	return CompareVersions(latestVersion, installedVersion) > 0, latestVersion, nil
 }
 
 // CompareVersions compares two version strings shaped like this project's

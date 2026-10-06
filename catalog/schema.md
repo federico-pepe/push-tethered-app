@@ -47,6 +47,11 @@ schema can ship as `2` without silently misparsing on older clients.
 | `github_repo` | yes      | `owner/repo`, used to resolve `GET /repos/<github_repo>/releases/latest`.|
 | `asset_name`  | yes      | Exact filename of the `.tar.gz`/`.tgz` release asset to download.       |
 
+The catalog has no `version` field. The apps get the latest version from the
+module's GitHub releases (through `github_repo`) and save it locally for 6
+hours, so a new release needs no change to this file. The catalog page also
+builds its **GitHub** link from `github_repo`.
+
 Example:
 
 ```json

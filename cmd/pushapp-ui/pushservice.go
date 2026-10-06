@@ -20,7 +20,7 @@ import (
 // checks this once at startup (see main.ts) and asks for a reload on
 // mismatch, rather than this file carrying old and new method shims side by
 // side.
-const apiVersion = 5
+const apiVersion = 6
 
 // errNoSession is what every session-scoped method returns for an unknown or
 // no-longer-connected session key.
@@ -328,6 +328,27 @@ func (s *PushService) CatalogList() ([]catalog.Entry, error) {
 	return cat.Entries, nil
 }
 
+// CatalogVersions returns each catalog entry's latest release tag, by entry
+// id. It is a separate call from CatalogList because it makes one GitHub
+// request per entry: the page shows the cards first and fills versions in
+// when this returns. Entries whose lookup fails are missing from the map.
+func (s *PushService) CatalogVersions() (map[string]string, error) {
+	cat, err := catalog.Fetch(catalog.DefaultCatalogURL)
+	if err != nil {
+		return nil, err
+	}
+	return catalog.LatestVersions(cat.Entries), nil
+}
+
+// OpenGitHubPage opens a github.com page in the system browser. It accepts
+// only github.com URLs, so the frontend cannot open anything else through it.
+func (s *PushService) OpenGitHubPage(url string) error {
+	if !strings.HasPrefix(url, "https://github.com/") {
+		return fmt.Errorf("not a GitHub page: %q", url)
+	}
+	return application.Get().Browser.OpenURL(url)
+}
+
 // CatalogInstall resolves id's catalog entry, downloads its latest release,
 // and installs it through the given session's Runtime — the same
 // rt.Install used by InstallModulePrompt, just fed a downloaded tarball
@@ -408,7 +429,7 @@ func (s *PushService) CatalogCheckUpdates(sessionKey string) ([]UpdateInfo, erro
 		if err != nil {
 			continue // not a catalog module, or no longer listed
 		}
-		available, latest, _, err := catalog.CheckUpdate(entry, m.Version)
+		available, latest, err := catalog.CheckUpdate(entry, m.Version)
 		if err != nil || !available {
 			continue
 		}

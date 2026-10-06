@@ -12,7 +12,7 @@ import type { PortRef, Unit as MIDIUnit } from "../bindings/github.com/federico-
 // overrides), still edited by hand-editing the config file the host logs on
 // activation, same as from the CLI.
 
-const EXPECTED_API_VERSION = 5;
+const EXPECTED_API_VERSION = 6;
 
 const statusEl = document.getElementById("status") as HTMLParagraphElement;
 const installBtn = document.getElementById("install-btn") as HTMLButtonElement;
@@ -576,11 +576,23 @@ async function openCatalog(sessionKey: string): Promise<void> {
         return;
     }
     catalogListEl.replaceChildren(...entries.map(renderCatalogRow));
+
+    // Versions need one GitHub request per entry, so they fill in after the
+    // cards are on screen. A failure just leaves the version out.
+    try {
+        const versions = (await PushService.CatalogVersions()) ?? {};
+        for (const [id, v] of Object.entries(versions)) {
+            const el = catalogListEl.querySelector<HTMLElement>(`[data-version-for="${CSS.escape(id)}"]`);
+            if (el) el.textContent = v;
+        }
+    } catch {
+        // Offline or rate-limited: cards stay without a version.
+    }
 }
 
 function renderCatalogRow(entry: CatalogEntry): HTMLLIElement {
     const li = document.createElement("li");
-    li.className = "module-row";
+    li.className = "module-row catalog-card";
 
     const info = document.createElement("span");
     info.className = "module-info";
@@ -588,6 +600,32 @@ function renderCatalogRow(entry: CatalogEntry): HTMLLIElement {
     label.className = "module-name";
     label.textContent = entry.name;
     info.appendChild(label);
+
+    // "by author · version · GitHub". The version is filled in later by
+    // openCatalog, once CatalogVersions returns.
+    const meta = document.createElement("span");
+    meta.className = "catalog-meta";
+    const parts: (string | Node)[] = [];
+    if (entry.author) parts.push(`by ${entry.author}`);
+    const versionEl = document.createElement("span");
+    versionEl.dataset.versionFor = entry.id;
+    parts.push(versionEl);
+    const link = document.createElement("a");
+    link.href = "#";
+    link.textContent = "GitHub";
+    link.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        PushService.OpenGitHubPage(`https://github.com/${entry.github_repo}`).catch((err) => {
+            statusEl.textContent = `Could not open GitHub: ${err}`;
+        });
+    });
+    parts.push(link);
+    parts.forEach((part, i) => {
+        if (i > 0) meta.append(" · ");
+        meta.append(part);
+    });
+    info.appendChild(meta);
+
     if (entry.description) {
         const desc = document.createElement("span");
         desc.className = "module-description";

@@ -7,14 +7,24 @@ between minor versions).
 
 ## [Unreleased]
 
+## [0.2.6-alpha] - 2026-10-06
+
 ### Added
 
 - `examples/modules/colorlab-py`: a tool module to compare a pad color, its dim shade and the screen RGB on a device, and save the values to `colors.json`.
-
 - `pushapp-ui` update check: a banner with an "Open release page" button
   when a newer release exists on GitHub (`internal/updatecheck`). It
   compares `-alpha`, `-beta` and `-rc` suffixes by semver order, and a
   setting turns it off. See `MANUAL.md`.
+- `pushapp-ui` "Browse catalog" is now a full-window page with a 2-column
+  grid of cards. Each card shows the author, the latest version and a link
+  to the module's GitHub page. A long description is cut at 3 lines.
+- A local version cache, `catalog-cache.json`, in the app's config folder.
+  The latest version of each catalog module is saved for 6 hours, and an
+  older record is checked with a conditional request (ETag). This cuts the
+  GitHub requests from the catalog page, the update badges and
+  `-catalog-check-updates`. If GitHub is not reachable, the saved version
+  is still shown. See `docs/architecture/process-modules.md`.
 
 ### Fixed
 
@@ -26,13 +36,15 @@ between minor versions).
   catalog and GitHub API requests time out after 5 seconds. Downloads keep
   30 seconds. This also stops the app from using up GitHub's 60 requests
   per hour limit.
-
 - The `pushapp-ui` release builds now set `internal/version.Version` from the
   tag. Before, only `cmd/pushapp` did, so the UI always reported "dev".
 
 - `cmd/genpalette` and the example `palette.json` files now hold the exact color of all 128 indices. They were wrong for 38 indices because `core/push3` rounded down to the 90 named entries (fixed in core v0.2.1). `colorlab-py` uses `palette.json` and no longer ships `hardware-palette.json`.
 
 ### Changed
+
+- `catalog.CheckUpdate` no longer returns a download URL (no caller used
+  it), and uses the version cache.
 
 - Docs: Keep Push in User Mode is confirmed on Windows and on a Push 2 (user
   report, 2026-10-03). It behaved as on macOS with a Push 3: Live and the app
