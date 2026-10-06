@@ -225,6 +225,22 @@ The stream uses no extra resources when no one watches it. Encoding starts
 only when a browser tab opens the stream, and stops immediately when the
 tab closes.
 
+## Update check
+
+When `pushapp-ui` starts, it asks GitHub if a newer release exists. If one
+does, a banner shows the version. Click **Open release page** to download it
+in your browser. The app never downloads or installs anything by itself.
+
+- If you run a pre-release (`-alpha`, `-beta`, `-rc`), the check also finds
+  newer pre-releases. If you run a stable release, it finds stable releases
+  only.
+- The check sends one request to `api.github.com` and sends no personal
+  data. If you are offline, nothing shows.
+- To turn it off, clear **Check for new releases at start** in the pairing
+  settings. The setting is saved in `settings.json` in the app's config
+  folder.
+- A build you made yourself (version "dev") never checks.
+
 ## Troubleshooting
 
 **`display interface is claimed by another process (Live?)`** — Another

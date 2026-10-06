@@ -76,6 +76,40 @@ html, body {
     opacity: 0.6;
 }
 
+.update-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    border: 1px solid rgb(255, 193, 7);
+    border-radius: 6px;
+    background: rgb(255, 243, 205);
+    color: #1a1a20; /* the app theme is dark; light text would vanish on yellow */
+    font-size: 13px;
+}
+
+.update-banner .install-btn {
+    color: #1a1a20;
+    background: rgb(255, 193, 7);
+    border-color: rgb(255, 193, 7);
+}
+
+.update-banner .install-btn:hover:not(:disabled) {
+    background: rgb(255, 243, 205);
+    border-color: rgb(255, 193, 7);
+    color: #1a1a20;
+}
+
+/* display:flex above would otherwise override the hidden attribute. */
+.update-banner[hidden] {
+    display: none;
+}
+
+.update-banner span {
+    flex: 1 1 auto;
+}
+
 .subtitle {
     margin: 0;
     font-size: 13px;

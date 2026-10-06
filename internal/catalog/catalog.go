@@ -37,7 +37,13 @@ const catalogVersion = 1
 // buffer.
 const maxDownloadBytes = 50 * 1024 * 1024
 
+// httpClient is for downloads, which can legitimately take a while.
 var httpClient = &http.Client{Timeout: 30 * time.Second}
+
+// apiClient is for the small catalog and GitHub API requests. It gives up
+// fast: with Wi-Fi up but no internet, a request otherwise hangs for the full
+// download timeout, and the UI waits on it.
+var apiClient = &http.Client{Timeout: 5 * time.Second}
 
 // githubAPIBase is a seam over the GitHub API host, overridable in tests
 // (ResolveAsset otherwise always hits the real api.github.com).
@@ -62,7 +68,7 @@ type Catalog struct {
 
 // Fetch downloads and parses the catalog at url.
 func Fetch(url string) (*Catalog, error) {
-	resp, err := httpClient.Get(url)
+	resp, err := apiClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("fetching catalog: %w", err)
 	}
@@ -108,7 +114,7 @@ type githubRelease struct {
 // download URL for its named asset, plus the release's version tag.
 func ResolveAsset(entry Entry) (downloadURL, version string, err error) {
 	url := fmt.Sprintf("%s/repos/%s/releases/latest", githubAPIBase, entry.GithubRepo)
-	resp, err := httpClient.Get(url)
+	resp, err := apiClient.Get(url)
 	if err != nil {
 		return "", "", fmt.Errorf("resolving %s: %w", entry.ID, err)
 	}

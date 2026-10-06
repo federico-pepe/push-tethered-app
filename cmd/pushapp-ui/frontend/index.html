@@ -20,6 +20,12 @@
         <p class="subtitle" id="status">Loading&hellip;</p>
     </header>
 
+    <div class="update-banner" id="update-banner" hidden>
+        <span id="update-banner-text"></span>
+        <button id="update-open-btn" class="install-btn">Open release page</button>
+        <button id="update-dismiss-btn" class="install-btn">Dismiss</button>
+    </div>
+
     <section class="pairing-view" id="pairing-view" hidden>
         <p class="connect-hint">
             Pick a screen and a MIDI port that belong to the same physical
@@ -58,6 +64,13 @@
         <div class="pairing-actions">
             <button id="pair-btn" class="pair-btn" disabled>Pair and connect</button>
             <button id="auto-btn" class="retry-btn">Auto-detect and connect</button>
+        </div>
+
+        <div class="pairing-options">
+            <label class="pairing-checkbox">
+                <input type="checkbox" id="update-check-check"/>
+                Check for new releases at start
+            </label>
         </div>
     </section>
 

@@ -11,7 +11,24 @@ between minor versions).
 
 - `examples/modules/colorlab-py`: a tool module to compare a pad color, its dim shade and the screen RGB on a device, and save the values to `colors.json`.
 
+- `pushapp-ui` update check: a banner with an "Open release page" button
+  when a newer release exists on GitHub (`internal/updatecheck`). It
+  compares `-alpha`, `-beta` and `-rc` suffixes by semver order, and a
+  setting turns it off. See `MANUAL.md`.
+
 ### Fixed
+
+- `pushapp-ui` was slow when Wi-Fi was up but the internet was down. Every
+  2-second refresh waited for the catalog update check, and each request
+  could hang for 30 seconds. Module update badges are now fetched in the
+  background, cached, and checked again only after an install, uninstall or
+  update, or when the catalog opens. Only one refresh runs at a time, and
+  catalog and GitHub API requests time out after 5 seconds. Downloads keep
+  30 seconds. This also stops the app from using up GitHub's 60 requests
+  per hour limit.
+
+- The `pushapp-ui` release builds now set `internal/version.Version` from the
+  tag. Before, only `cmd/pushapp` did, so the UI always reported "dev".
 
 - `cmd/genpalette` and the example `palette.json` files now hold the exact color of all 128 indices. They were wrong for 38 indices because `core/push3` rounded down to the 90 named entries (fixed in core v0.2.1). `colorlab-py` uses `palette.json` and no longer ships `hardware-palette.json`.
 
@@ -22,7 +39,7 @@ between minor versions).
   worked together and User Mode stayed on. On Windows the User Port is
   `MIDIIN2`. Linux is not tested, because Live has no Linux version.
 - Added the plan for an update check in `pushapp-ui`
-  (`plans/2026-10-01-update-check.md`). Nothing is built yet.
+  (`plans/2026-10-01-update-check.md`). Stage 1 is built.
 
 ## [0.2.5-alpha] - 2026-10-03
 
