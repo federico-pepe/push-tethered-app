@@ -7,6 +7,10 @@ between minor versions).
 
 ## [Unreleased]
 
+### Added
+
+- Catalog entry `bcaseq` ([pta-module-bcaseq](https://github.com/federico-pepe/pta-module-bcaseq)), a multi-layout MIDI step sequencer.
+
 ## [0.2.6-alpha] - 2026-10-06
 
 ### Added
