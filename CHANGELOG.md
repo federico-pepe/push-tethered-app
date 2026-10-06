@@ -7,6 +7,16 @@ between minor versions).
 
 ## [Unreleased]
 
+### Changed
+
+- `pushapp-ui`: the module **Update** button has a yellow border, and the
+  "update available" badge uses the same yellow as the app update banner.
+
+### Fixed
+
+- `pushapp-ui` showed a module version as `VV0.2.2` in the "update
+  available" badge. It now shows `v0.2.2`.
+
 ### Added
 
 - Catalog entry `bcaseq` ([pta-module-bcaseq](https://github.com/federico-pepe/pta-module-bcaseq)), a multi-layout MIDI step sequencer.
