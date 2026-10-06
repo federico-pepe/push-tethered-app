@@ -12,7 +12,7 @@
     },
     {
       "id": "bcaseq",
-      "name": "BCA Seq",
+      "name": "BCA Sequencer",
       "description": "Multi-layout MIDI step sequencer for Push (4x4 pad quadrants per track)",
       "author": "federico-pepe",
       "homepage": "https://github.com/federico-pepe/pta-module-bcaseq",
