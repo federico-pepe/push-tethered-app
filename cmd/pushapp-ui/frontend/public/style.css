@@ -179,6 +179,16 @@ html, body {
     padding: 2px 6px;
 }
 
+.module-badge.is-update {
+    color: #1a1a20;
+    background: rgb(255, 243, 205);
+    border-color: rgb(255, 193, 7);
+}
+
+.module-badge-version {
+    text-transform: none;
+}
+
 .module-activate {
     font-size: 13px;
     padding: 6px 14px;
@@ -192,6 +202,12 @@ html, body {
 .module-activate:hover:not(:disabled) {
     border-color: var(--accent);
     color: var(--accent);
+}
+
+/* The Update button stands out: yellow border, also on hover. */
+.module-activate.is-update,
+.module-activate.is-update:hover:not(:disabled) {
+    border-color: rgb(255, 193, 7);
 }
 
 .module-activate:disabled {

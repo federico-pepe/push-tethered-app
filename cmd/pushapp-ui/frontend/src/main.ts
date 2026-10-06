@@ -672,7 +672,7 @@ async function catalogUpdate(sessionKey: string, id: string): Promise<void> {
     statusEl.textContent = `Updating ${id}…`;
     try {
         const info = await PushService.CatalogUpdate(sessionKey, id);
-        statusEl.textContent = `Updated ${info.name} to v${info.version}`;
+        statusEl.textContent = `Updated ${info.name} to ${fmtVersion(info.version)}`;
     } catch (err) {
         statusEl.textContent = `Could not update ${id}: ${err}`;
     } finally {
@@ -843,7 +843,7 @@ function renderModuleRow(sessionKey: string, m: ModuleInfo, sessionBusy: boolean
 
     const label = document.createElement("span");
     label.className = "module-name";
-    label.textContent = m.version ? `${m.name} v${m.version}` : m.name;
+    label.textContent = m.version ? `${m.name} ${fmtVersion(m.version)}` : m.name;
     if (m.needsMidiOut) {
         label.appendChild(badge("MIDI out"));
     }
@@ -851,7 +851,15 @@ function renderModuleRow(sessionKey: string, m: ModuleInfo, sessionBusy: boolean
         label.appendChild(badge("installed"));
     }
     if (update) {
-        label.appendChild(badge(`update available: v${update.latestVersion}`));
+        // The badge is upper-case by CSS; the version stays lower-case, so it
+        // reads "v0.2.2", not "V0.2.2".
+        const upd = badge("update available: ");
+        upd.classList.add("is-update");
+        const ver = document.createElement("span");
+        ver.className = "module-badge-version";
+        ver.textContent = fmtVersion(update.latestVersion);
+        upd.appendChild(ver);
+        label.appendChild(upd);
     }
     info.appendChild(label);
 
@@ -874,7 +882,7 @@ function renderModuleRow(sessionKey: string, m: ModuleInfo, sessionBusy: boolean
 
     if (update) {
         const updateBtn = document.createElement("button");
-        updateBtn.className = "module-activate";
+        updateBtn.className = "module-activate is-update";
         updateBtn.textContent = "Update";
         updateBtn.disabled = m.active || sessionBusy;
         updateBtn.title = m.active ? "Switch to another module first" : "";
@@ -894,6 +902,12 @@ function renderModuleRow(sessionKey: string, m: ModuleInfo, sessionBusy: boolean
 
     li.append(info, buttons);
     return li;
+}
+
+// fmtVersion shows a version as "v0.2.2". A tag from GitHub already starts
+// with "v", a manifest version usually does not, so strip one and add one.
+function fmtVersion(v: string): string {
+    return `v${v.replace(/^[vV]/, "")}`;
 }
 
 function badge(text: string): HTMLSpanElement {
