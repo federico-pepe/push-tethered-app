@@ -76,6 +76,40 @@ html, body {
     opacity: 0.6;
 }
 
+.update-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    border: 1px solid rgb(255, 193, 7);
+    border-radius: 6px;
+    background: rgb(255, 243, 205);
+    color: #1a1a20; /* the app theme is dark; light text would vanish on yellow */
+    font-size: 13px;
+}
+
+.update-banner .install-btn {
+    color: #1a1a20;
+    background: rgb(255, 193, 7);
+    border-color: rgb(255, 193, 7);
+}
+
+.update-banner .install-btn:hover:not(:disabled) {
+    background: rgb(255, 243, 205);
+    border-color: rgb(255, 193, 7);
+    color: #1a1a20;
+}
+
+/* display:flex above would otherwise override the hidden attribute. */
+.update-banner[hidden] {
+    display: none;
+}
+
+.update-banner span {
+    flex: 1 1 auto;
+}
+
 .subtitle {
     margin: 0;
     font-size: 13px;
@@ -610,4 +644,75 @@ html, body {
     font-size: 12px;
     color: #e57373;
     margin: 0;
+}
+
+/* Browse catalog: a full-window page, not a pop-up, with a grid of cards. */
+.catalog-overlay {
+    align-items: stretch;
+    justify-content: stretch;
+    background: var(--bg);
+}
+
+.catalog-overlay .settings-panel {
+    width: 100%;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    background: var(--bg);
+    padding: 36px 24px 20px; /* same as .container, so the title sits where the main title does */
+    gap: 16px;
+    overflow: hidden;
+}
+
+.catalog-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 12px;
+}
+
+.catalog-card {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.catalog-meta {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.catalog-meta:empty {
+    display: none;
+}
+
+.catalog-meta a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.catalog-meta a:hover {
+    text-decoration: underline;
+}
+
+.catalog-card .module-info {
+    overflow: hidden;
+}
+
+.catalog-card .module-description {
+    overflow: hidden;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+.catalog-card .module-buttons {
+    justify-content: flex-end;
+}
+
+/* The loading and error lines are not cards: span the whole row. */
+.catalog-grid > .pairing-detail {
+    grid-column: 1 / -1;
 }

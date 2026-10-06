@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/federico-pepe/push-tethered-app/internal/catalog"
 	"github.com/federico-pepe/push-tethered-app/internal/display"
 	pmidi "github.com/federico-pepe/push-tethered-app/internal/midi"
+	"github.com/federico-pepe/push-tethered-app/internal/updatecheck"
+	"github.com/federico-pepe/push-tethered-app/internal/version"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -15,7 +20,7 @@ import (
 // checks this once at startup (see main.ts) and asks for a reload on
 // mismatch, rather than this file carrying old and new method shims side by
 // side.
-const apiVersion = 4
+const apiVersion = 6
 
 // errNoSession is what every session-scoped method returns for an unknown or
 // no-longer-connected session key.
@@ -74,13 +79,47 @@ type Overview struct {
 // behaviour lives here beyond JSON-shaping and, for InstallModulePrompt, the
 // native folder picker a webview cannot provide itself.
 type PushService struct {
-	mgr *hostManager
+	mgr      *hostManager
+	settings settingsStore
 }
 
 // NewPushService wraps a hostManager, which may or may not have any sessions
 // connected yet.
 func NewPushService(mgr *hostManager) *PushService {
 	return &PushService{mgr: mgr}
+}
+
+// UpdateCheckEnabled reports whether the app looks for new releases.
+func (s *PushService) UpdateCheckEnabled() bool {
+	return !s.settings.load().NoUpdateCheck
+}
+
+// SetUpdateCheckEnabled turns the new-release check on or off, and saves it.
+func (s *PushService) SetUpdateCheckEnabled(on bool) error {
+	return s.settings.update(func(st *settings) { st.NoUpdateCheck = !on })
+}
+
+// CheckForUpdate returns the newest release if it is newer than this build,
+// or nil. It returns nil, with no network call, when the check is off or
+// this is a "dev" build. A network failure is an error the frontend ignores:
+// no banner is better than an error nobody can act on.
+func (s *PushService) CheckForUpdate() (*updatecheck.Result, error) {
+	if !s.UpdateCheckEnabled() {
+		return nil, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return updatecheck.Check(ctx, version.Version)
+}
+
+// OpenReleasePage opens a release page in the system browser. It accepts
+// only this project's own release URLs, so the frontend cannot be tricked
+// into opening anything else.
+func (s *PushService) OpenReleasePage(url string) error {
+	if !strings.HasPrefix(url, "https://github.com/"+updatecheck.Repo+"/releases") {
+		return fmt.Errorf("not a release page: %q", url)
+	}
+	return application.Get().Browser.OpenURL(url)
 }
 
 // APIVersion lets the frontend detect a stale cached build against a rebuilt
@@ -289,6 +328,27 @@ func (s *PushService) CatalogList() ([]catalog.Entry, error) {
 	return cat.Entries, nil
 }
 
+// CatalogVersions returns each catalog entry's latest release tag, by entry
+// id. It is a separate call from CatalogList because it makes one GitHub
+// request per entry: the page shows the cards first and fills versions in
+// when this returns. Entries whose lookup fails are missing from the map.
+func (s *PushService) CatalogVersions() (map[string]string, error) {
+	cat, err := catalog.Fetch(catalog.DefaultCatalogURL)
+	if err != nil {
+		return nil, err
+	}
+	return catalog.LatestVersions(cat.Entries), nil
+}
+
+// OpenGitHubPage opens a github.com page in the system browser. It accepts
+// only github.com URLs, so the frontend cannot open anything else through it.
+func (s *PushService) OpenGitHubPage(url string) error {
+	if !strings.HasPrefix(url, "https://github.com/") {
+		return fmt.Errorf("not a GitHub page: %q", url)
+	}
+	return application.Get().Browser.OpenURL(url)
+}
+
 // CatalogInstall resolves id's catalog entry, downloads its latest release,
 // and installs it through the given session's Runtime — the same
 // rt.Install used by InstallModulePrompt, just fed a downloaded tarball
@@ -369,7 +429,7 @@ func (s *PushService) CatalogCheckUpdates(sessionKey string) ([]UpdateInfo, erro
 		if err != nil {
 			continue // not a catalog module, or no longer listed
 		}
-		available, latest, _, err := catalog.CheckUpdate(entry, m.Version)
+		available, latest, err := catalog.CheckUpdate(entry, m.Version)
 		if err != nil || !available {
 			continue
 		}

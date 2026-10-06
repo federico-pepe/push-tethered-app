@@ -76,7 +76,44 @@ semver library.
 `pushapp-ui` exposes the same flow as `PushService.CatalogList`,
 `CatalogInstall`, `CatalogUpdate`, and `CatalogCheckUpdates`
 (`cmd/pushapp-ui/pushservice.go`), behind a "Browse catalog" button next
-to the existing "Add module…" one.
+to the existing "Add module…" one. The button opens a full-window page
+with a 2-column grid of cards. Each card shows the name, author, latest
+version, a GitHub link, and a description cut at 3 lines. The cards
+appear first. `PushService.CatalogVersions` then fills in the versions,
+so a slow network never blocks the page. `PushService.OpenGitHubPage`
+opens the link, and accepts only `https://github.com/` URLs.
+
+### Version cache
+
+Asking GitHub for every module's latest release on each view would use up
+the 60 requests per hour that GitHub allows without a login. So
+`internal/catalog` saves what it learns in `catalog-cache.json`, in the
+app's config folder (`os.UserConfigDir()/push-tethered-app/`). `pushapp`
+and `pushapp-ui` share this file.
+
+- One record per `github_repo`: the latest version, the ETag that GitHub
+  returned, and the time of the check.
+- `catalog.LatestVersion` is the entry point for "what is the latest
+  version?". It is used by `CheckUpdate`, `LatestVersions` and so by the
+  catalog page and the update badges. A record younger than 6 hours
+  (`cacheTTL`) is used with no request.
+- An older record is checked with `If-None-Match`. GitHub's docs say a
+  "not modified" (304) answer does not count against the rate limit. This
+  has not been measured here. A 304 renews the record.
+- If the request fails, for example offline, the older version is
+  returned and no error. An error comes back only when no record exists.
+- `catalog.ResolveAsset` (used to download) always asks GitHub, because it
+  needs the asset list. It saves the version it finds, so a module you
+  just installed or updated is already in the cache.
+- The cache only saves requests. A missing, unreadable or corrupt file
+  means a normal request. Delete the file to force fresh checks.
+- A new release may take up to 6 hours to show on a card or badge. The
+  download itself always gets the real latest release.
+- `catalog.LatestVersion` follows `releases/latest`, which skips
+  pre-releases. A module with only a `-beta` release shows no version.
+
+The tests (`internal/catalog/catalog_test.go`) set `cachePath` to a temp
+directory, so they never touch the real file.
 
 ## manifest.json
 

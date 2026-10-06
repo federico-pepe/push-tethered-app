@@ -330,7 +330,7 @@ func checkCatalogUpdates(catalogURL string) error {
 		if err != nil {
 			continue // not a catalog module, or no longer listed
 		}
-		available, latest, _, err := catalog.CheckUpdate(entry, man.Version)
+		available, latest, err := catalog.CheckUpdate(entry, man.Version)
 		if err != nil {
 			fmt.Printf("%-16s could not check for updates: %v\n", man.ID, err)
 			continue

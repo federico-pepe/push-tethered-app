@@ -58,6 +58,8 @@ internal/midiout/      Named MIDI out port for modules
 internal/mirror/       Live HTTP/MJPEG screen mirror (taps the render output,
                         same as internal/capture, but streams to browsers)
 internal/pushmap/      Push 2 map deltas + shared name tables
+internal/catalog/      Module catalog: fetch, version cache, download
+internal/updatecheck/  New-release check for pushapp-ui (GitHub releases)
 modules/               Built-in Go modules (monitor, thru, seq, remap)
 examples/modules/      Process module examples (Python, Node.js)
 tools/                 macOS Swift probes (midimon, ledtest)

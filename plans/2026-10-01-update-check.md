@@ -1,6 +1,7 @@
 # Update check for pushapp-ui
 
-Status: proposed, not started.
+Status: Stage 1 built 2026-10-06 (code and docs done, not yet tested in a
+released build). Stages 1.5 and 2 not started.
 
 ## Goal
 
@@ -22,18 +23,27 @@ What exists already:
 What to add:
 
 - A small `internal/updatecheck` package:
-  - Call `GET /repos/federico-pepe/push-tethered-app/releases` and take
-    the newest release. Do not use `/releases/latest`: it ignores
-    pre-releases, and every current tag is `-alpha`.
-  - Compare the tag with `Version`. Handle `-alpha`, `-beta`, and `-rc`
-    suffixes.
+  - Call `GET /repos/federico-pepe/push-tethered-app/releases`. Do not use
+    `/releases/latest`: it ignores pre-releases, and every current tag is
+    `-alpha` or `-beta`.
+  - Pick the release with the highest version, not the first one in the
+    list. GitHub orders the list by creation date, so a hotfix to an older
+    line could come first. Skip drafts.
+  - Write a new version comparison in `internal/updatecheck`. Do not reuse
+    `catalog.CompareVersions`: it drops the pre-release suffix, so it
+    treats `0.1.5-alpha` and `0.1.5-beta` as equal. The new comparison
+    follows semver: `alpha < beta < rc.1 < rc.2 < (no suffix)`, with
+    numeric parts compared as numbers.
+  - Pre-release policy: a user on a stable build sees only stable
+    releases. A user on a pre-release build sees all releases.
   - Return the newer version and its release page URL.
 - A `PushService` method that runs the check.
 - A banner in `cmd/pushapp-ui/frontend/src/main.ts` with an "Open release
   page" button and a dismiss button.
 - Run the check in the background with a short timeout. If the network is
   down, show nothing. Skip the check when `Version` is "dev".
-- A setting to turn the check off.
+- A setting to turn the check off. It is stored in `settings.json` in the
+  app's config directory, and a checkbox in the Settings panel changes it.
 - A short section in `MANUAL.md`: what the check does, and how to turn it
   off.
 - Unit tests for version comparison, and for the HTTP call with a mocked
@@ -41,9 +51,14 @@ What to add:
 
 Open items:
 
-- Check that the UI build really sets `Version` through `-ldflags`. If
-  not, fix that first.
-- Decide how often to check (at start only, or also on a timer).
+- **Done in Stage 1:** the UI build did not set `Version`. Only the
+  `cmd/pushapp` step in `build.yml` passed `-X ...version.Version`. The
+  `pushapp-ui` Taskfiles used `-ldflags="-w -s"`, so a release build
+  reported "dev" and the check would never run. The Taskfiles now add the
+  `-X` flag from the `APP_VERSION` environment variable, which `build.yml`
+  already sets from the tag.
+- Decided: check at start only. The banner stays until dismissed, and
+  dismiss lasts until the next start.
 - GitHub's unauthenticated API allows 60 requests per hour per IP. One
   check per start is well inside that limit.
 

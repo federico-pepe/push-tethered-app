@@ -45,16 +45,30 @@ Once a Push is connected, the main window shows **Add module…** and
 - **Add module…** opens a picker for a module folder (containing
   `manifest.json`) or a `.tar.gz`/`.tgz` archive of one — use this for a
   module you already downloaded, or one you're developing yourself.
-- **Browse catalog…** lists third-party modules from this app's online
-  catalog. Pick one and click **Install** to download and install it
-  directly — no manual download needed. This works the same way for
-  Python and Node.js modules.
+- **Browse catalog…** opens a page with the third-party modules from this
+  app's online catalog. Each card shows the author, the latest version, and
+  a **GitHub** link to the module's page. Click **Install** to download and
+  install a module directly — no manual download needed. This works the
+  same way for Python and Node.js modules. Click **Close** to go back.
 
 A module already installed from the catalog shows an **Update
 available** badge in its module list entry once a newer release exists;
 click **Update** next to it to install the new version, or use
 **Uninstall** to remove it. You cannot update or uninstall the module
 that's currently active — switch to another one first.
+
+The app saves the latest version of each catalog module for 6 hours, in
+`catalog-cache.json` in the app's config folder. This keeps the app inside
+GitHub's limit of 60 requests per hour. It has two effects:
+
+- A new release can take up to 6 hours to show on a card or an **Update
+  available** badge. **Install** and **Update** always download the real
+  latest release.
+- If you are offline, the cards still show the last version the app saw.
+  A card shows no version if the app never saw one.
+
+To check again now, close the app, delete `catalog-cache.json`, and start
+the app.
 
 The same actions are available from the command line:
 
@@ -224,6 +238,22 @@ go run ./cmd/pushapp -mirror-addr=""              # disabled
 The stream uses no extra resources when no one watches it. Encoding starts
 only when a browser tab opens the stream, and stops immediately when the
 tab closes.
+
+## Update check
+
+When `pushapp-ui` starts, it asks GitHub if a newer release exists. If one
+does, a banner shows the version. Click **Open release page** to download it
+in your browser. The app never downloads or installs anything by itself.
+
+- If you run a pre-release (`-alpha`, `-beta`, `-rc`), the check also finds
+  newer pre-releases. If you run a stable release, it finds stable releases
+  only.
+- The check sends one request to `api.github.com` and sends no personal
+  data. If you are offline, nothing shows.
+- To turn it off, clear **Check for new releases at start** in the pairing
+  settings. The setting is saved in `settings.json` in the app's config
+  folder.
+- A build you made yourself (version "dev") never checks.
 
 ## Troubleshooting
 

@@ -144,7 +144,12 @@ internal/archiveutil/  shared .tar.gz extraction (zip-slip guarded), used by
                    internal/host/procmod and internal/catalog
 internal/catalog/ fetches catalog/catalog.json, resolves a module's latest
                    GitHub release asset, downloads/extracts it — see
-                   docs/architecture/process-modules.md#catalog-install
+                   docs/architecture/process-modules.md#catalog-install;
+                   keeps a 6 h version cache (catalog-cache.json) so the UI
+                   stays inside GitHub's 60 requests/hour limit
+internal/updatecheck/  asks GitHub for a newer release of this app (semver
+                   order: alpha < beta < rc.N < stable); used by pushapp-ui's
+                   banner — see plans/2026-10-01-update-check.md
 internal/renderframe/  the Frame/Op renderer itself (RegisterOp, Render, SupportedOps),
                    split out of internal/host so gousb-free tools like cmd/screensim
                    can import it

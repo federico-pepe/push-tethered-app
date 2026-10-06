@@ -8,8 +8,34 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
+
+// TestMain keeps every test off the real catalog-cache.json in the user's
+// config directory.
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "catalog-test-")
+	if err != nil {
+		panic(err)
+	}
+	cachePath = func() (string, error) { return filepath.Join(dir, "catalog-cache.json"), nil }
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
+}
+
+// cleanCache points the cache at an empty file for one test, and restores the
+// shared one after.
+func cleanCache(t *testing.T) {
+	t.Helper()
+	prev := cachePath
+	path := filepath.Join(t.TempDir(), "catalog-cache.json")
+	cachePath = func() (string, error) { return path, nil }
+	t.Cleanup(func() { cachePath = prev })
+}
 
 func TestFetchParsesCatalog(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +120,147 @@ func TestResolveAssetMissingAsset(t *testing.T) {
 	}
 }
 
+func TestLatestVersionsSkipsFailures(t *testing.T) {
+	cleanCache(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/good/") {
+			json.NewEncoder(w).Encode(githubRelease{
+				TagName: "v2.0.0",
+				Assets:  []githubAsset{{Name: "m.tar.gz", BrowserDownloadURL: "http://example.com/m.tar.gz"}},
+			})
+			return
+		}
+		http.Error(w, "nope", http.StatusNotFound)
+	}))
+	defer srv.Close()
+	prev := githubAPIBase
+	githubAPIBase = srv.URL
+	t.Cleanup(func() { githubAPIBase = prev })
+
+	got := LatestVersions([]Entry{
+		{ID: "a", GithubRepo: "x/good/a", AssetName: "m.tar.gz"},
+		{ID: "b", GithubRepo: "x/bad/b", AssetName: "m.tar.gz"},
+	})
+	if len(got) != 1 || got["a"] != "v2.0.0" {
+		t.Errorf("got %v, want only a=v2.0.0", got)
+	}
+}
+
+// releaseServer answers /releases/latest with tag, and counts requests. It
+// honors If-None-Match the way GitHub does.
+func releaseServer(t *testing.T, tag string, hits *int, sawIfNoneMatch *string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*hits++
+		if inm := r.Header.Get("If-None-Match"); inm != "" {
+			if sawIfNoneMatch != nil {
+				*sawIfNoneMatch = inm
+			}
+			if inm == `"etag-1"` {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+		}
+		w.Header().Set("ETag", `"etag-1"`)
+		json.NewEncoder(w).Encode(githubRelease{
+			TagName: tag,
+			Assets:  []githubAsset{{Name: "m.tar.gz", BrowserDownloadURL: "http://example.com/m.tar.gz"}},
+		})
+	}))
+	t.Cleanup(srv.Close)
+	prev := githubAPIBase
+	githubAPIBase = srv.URL
+	t.Cleanup(func() { githubAPIBase = prev })
+	return srv
+}
+
+// ageCache makes the cache look d older, by moving the clock forward.
+func ageCache(t *testing.T, d time.Duration) {
+	t.Helper()
+	prev := now
+	now = func() time.Time { return prev().Add(d) }
+	t.Cleanup(func() { now = prev })
+}
+
+var cacheEntry = Entry{ID: "m", GithubRepo: "x/m", AssetName: "m.tar.gz"}
+
+func TestLatestVersionFreshCacheMakesNoRequest(t *testing.T) {
+	cleanCache(t)
+	var hits int
+	releaseServer(t, "v1.0.0", &hits, nil)
+	for i := 0; i < 3; i++ {
+		v, err := LatestVersion(cacheEntry)
+		if err != nil || v != "v1.0.0" {
+			t.Fatalf("call %d: got %q, %v", i, v, err)
+		}
+	}
+	if hits != 1 {
+		t.Errorf("hits = %d, want 1", hits)
+	}
+}
+
+func TestLatestVersionStaleUsesETag(t *testing.T) {
+	cleanCache(t)
+	var hits int
+	var inm string
+	releaseServer(t, "v1.0.0", &hits, &inm)
+	if _, err := LatestVersion(cacheEntry); err != nil {
+		t.Fatal(err)
+	}
+	ageCache(t, cacheTTL+time.Minute)
+	v, err := LatestVersion(cacheEntry)
+	if err != nil || v != "v1.0.0" {
+		t.Fatalf("got %q, %v", v, err)
+	}
+	if hits != 2 || inm != `"etag-1"` {
+		t.Errorf("hits = %d, If-None-Match = %q, want 2 and the saved ETag", hits, inm)
+	}
+	// The 304 renewed the record, so the next call is free again.
+	if _, err := LatestVersion(cacheEntry); err != nil || hits != 2 {
+		t.Errorf("hits = %d, err = %v, want no further request", hits, err)
+	}
+}
+
+func TestLatestVersionOfflineKeepsStaleVersion(t *testing.T) {
+	cleanCache(t)
+	var hits int
+	srv := releaseServer(t, "v1.0.0", &hits, nil)
+	if _, err := LatestVersion(cacheEntry); err != nil {
+		t.Fatal(err)
+	}
+	srv.Close()
+	ageCache(t, cacheTTL+time.Minute)
+	v, err := LatestVersion(cacheEntry)
+	if err != nil || v != "v1.0.0" {
+		t.Errorf("got %q, %v, want the saved version and no error", v, err)
+	}
+}
+
+func TestLatestVersionOfflineNoCacheIsError(t *testing.T) {
+	cleanCache(t)
+	srv := httptest.NewServer(http.NotFoundHandler())
+	prev := githubAPIBase
+	githubAPIBase = srv.URL
+	t.Cleanup(func() { githubAPIBase = prev })
+	srv.Close()
+	if _, err := LatestVersion(cacheEntry); err == nil {
+		t.Error("want an error when nothing is saved and GitHub is unreachable")
+	}
+}
+
+func TestResolveAssetSavesVersion(t *testing.T) {
+	cleanCache(t)
+	var hits int
+	releaseServer(t, "v3.0.0", &hits, nil)
+	if _, _, err := ResolveAsset(cacheEntry); err != nil {
+		t.Fatal(err)
+	}
+	v, err := LatestVersion(cacheEntry)
+	if err != nil || v != "v3.0.0" || hits != 1 {
+		t.Errorf("got %q, %v after %d hits, want v3.0.0 from the cache", v, err, hits)
+	}
+}
+
 func buildTarGz(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
@@ -173,6 +340,7 @@ func TestCompareVersions(t *testing.T) {
 }
 
 func TestCheckUpdate(t *testing.T) {
+	cleanCache(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(githubRelease{
 			TagName: "v1.1.0",
@@ -185,7 +353,7 @@ func TestCheckUpdate(t *testing.T) {
 	t.Cleanup(func() { githubAPIBase = prev })
 
 	entry := Entry{ID: "hello-py", GithubRepo: "someone/hello-py", AssetName: "hello-py.tar.gz"}
-	available, latest, _, err := CheckUpdate(entry, "v1.0.0")
+	available, latest, err := CheckUpdate(entry, "v1.0.0")
 	if err != nil {
 		t.Fatalf("CheckUpdate: %v", err)
 	}
@@ -193,7 +361,7 @@ func TestCheckUpdate(t *testing.T) {
 		t.Errorf("available=%v latest=%q, want true, v1.1.0", available, latest)
 	}
 
-	available, _, _, err = CheckUpdate(entry, "v1.1.0")
+	available, _, err = CheckUpdate(entry, "v1.1.0")
 	if err != nil {
 		t.Fatalf("CheckUpdate: %v", err)
 	}

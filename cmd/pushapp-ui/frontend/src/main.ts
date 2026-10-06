@@ -12,7 +12,7 @@ import type { PortRef, Unit as MIDIUnit } from "../bindings/github.com/federico-
 // overrides), still edited by hand-editing the config file the host logs on
 // activation, same as from the CLI.
 
-const EXPECTED_API_VERSION = 4;
+const EXPECTED_API_VERSION = 6;
 
 const statusEl = document.getElementById("status") as HTMLParagraphElement;
 const installBtn = document.getElementById("install-btn") as HTMLButtonElement;
@@ -151,7 +151,67 @@ async function checkAPIVersion(): Promise<boolean> {
     return true;
 }
 
+// Only one refresh runs at a time. A call that arrives during one is not
+// dropped: it sets refreshPending, and a second pass runs when the first ends,
+// so a click's own refresh still shows the state after the click.
+let refreshing = false;
+let refreshPending = false;
+
 async function refresh(): Promise<void> {
+    if (refreshing) {
+        refreshPending = true;
+        return;
+    }
+    refreshing = true;
+    try {
+        do {
+            refreshPending = false;
+            await refreshOnce();
+        } while (refreshPending);
+    } finally {
+        refreshing = false;
+    }
+}
+
+// Module update badges come from the network (catalog + GitHub), so they are
+// fetched in the background and cached by session key. Drawing a card only
+// reads the cache and never waits on the network. A session is checked once
+// when it first appears, and again after an install, uninstall or update,
+// or when the catalog is opened. An offline check is not retried on every
+// refresh.
+const updatesCache = new Map<string, UpdateInfo[]>();
+const updatesAttempted = new Set<string>();
+let updatesRunning = false;
+
+function invalidateUpdates(): void {
+    updatesAttempted.clear();
+}
+
+async function checkModuleUpdates(): Promise<void> {
+    if (updatesRunning) return;
+    updatesRunning = true;
+    try {
+        const overview = await PushService.Overview();
+        const keys = (overview.sessions ?? []).map((s) => s.key);
+        for (const key of keys) updatesAttempted.add(key);
+        let changed = false;
+        for (const key of keys) {
+            try {
+                updatesCache.set(key, (await PushService.CatalogCheckUpdates(key)) ?? []);
+                changed = true;
+            } catch {
+                // Offline or rate-limited: keep any earlier result, show nothing new.
+            }
+        }
+        if (changed) void refresh();
+    } catch {
+        // Host unreachable; the next refresh reports it.
+    } finally {
+        updatesRunning = false;
+    }
+}
+
+async function refreshOnce(): Promise<void> {
     if (!apiChecked() && !(await checkAPIVersion())) {
         return;
     }
@@ -169,6 +229,11 @@ async function refresh(): Promise<void> {
     const midiUnits = overview.midiUnits ?? [];
 
     const hasSessions = sessions.length > 0;
+
+    for (const key of updatesCache.keys()) {
+        if (!sessions.some((s) => s.key === key)) updatesCache.delete(key);
+    }
+    if (sessions.some((s) => !updatesAttempted.has(s.key))) void checkModuleUpdates();
 
     // Before any device is connected, pairing stays inline — it's the only
     // thing to show. Once at least one is connected, it moves into the
@@ -489,6 +554,8 @@ let currentCatalogSession: string | null = null;
 
 async function openCatalog(sessionKey: string): Promise<void> {
     currentCatalogSession = sessionKey;
+    invalidateUpdates();
+    void refresh();
     catalogOverlayEl.hidden = false;
     catalogListEl.replaceChildren();
     const loading = document.createElement("li");
@@ -509,11 +576,23 @@ async function openCatalog(sessionKey: string): Promise<void> {
         return;
     }
     catalogListEl.replaceChildren(...entries.map(renderCatalogRow));
+
+    // Versions need one GitHub request per entry, so they fill in after the
+    // cards are on screen. A failure just leaves the version out.
+    try {
+        const versions = (await PushService.CatalogVersions()) ?? {};
+        for (const [id, v] of Object.entries(versions)) {
+            const el = catalogListEl.querySelector<HTMLElement>(`[data-version-for="${CSS.escape(id)}"]`);
+            if (el) el.textContent = v;
+        }
+    } catch {
+        // Offline or rate-limited: cards stay without a version.
+    }
 }
 
 function renderCatalogRow(entry: CatalogEntry): HTMLLIElement {
     const li = document.createElement("li");
-    li.className = "module-row";
+    li.className = "module-row catalog-card";
 
     const info = document.createElement("span");
     info.className = "module-info";
@@ -521,6 +600,32 @@ function renderCatalogRow(entry: CatalogEntry): HTMLLIElement {
     label.className = "module-name";
     label.textContent = entry.name;
     info.appendChild(label);
+
+    // "by author · version · GitHub". The version is filled in later by
+    // openCatalog, once CatalogVersions returns.
+    const meta = document.createElement("span");
+    meta.className = "catalog-meta";
+    const parts: (string | Node)[] = [];
+    if (entry.author) parts.push(`by ${entry.author}`);
+    const versionEl = document.createElement("span");
+    versionEl.dataset.versionFor = entry.id;
+    parts.push(versionEl);
+    const link = document.createElement("a");
+    link.href = "#";
+    link.textContent = "GitHub";
+    link.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        PushService.OpenGitHubPage(`https://github.com/${entry.github_repo}`).catch((err) => {
+            statusEl.textContent = `Could not open GitHub: ${err}`;
+        });
+    });
+    parts.push(link);
+    parts.forEach((part, i) => {
+        if (i > 0) meta.append(" · ");
+        meta.append(part);
+    });
+    info.appendChild(meta);
+
     if (entry.description) {
         const desc = document.createElement("span");
         desc.className = "module-description";
@@ -556,6 +661,7 @@ async function catalogInstall(id: string, btn: HTMLButtonElement): Promise<void>
         btn.textContent = "Install";
     } finally {
         globalBusy = false;
+        invalidateUpdates();
         await refresh();
     }
 }
@@ -571,6 +677,7 @@ async function catalogUpdate(sessionKey: string, id: string): Promise<void> {
         statusEl.textContent = `Could not update ${id}: ${err}`;
     } finally {
         busySessions.delete(sessionKey);
+        invalidateUpdates();
         await refresh();
     }
 }
@@ -668,12 +775,7 @@ async function renderSessionCard(session: SessionInfo): Promise<HTMLLIElement> {
         return li;
     }
 
-    let updates: UpdateInfo[] = [];
-    try {
-        updates = (await PushService.CatalogCheckUpdates(session.key)) ?? [];
-    } catch {
-        // Catalog unreachable — modules still work, just no update badges.
-    }
+    const updates = updatesCache.get(session.key) ?? [];
     const updatesByID = new Map(updates.map((u) => [u.id, u]));
 
     const list = document.createElement("ul");
@@ -832,6 +934,7 @@ async function install(sessionKey: string): Promise<void> {
     } finally {
         globalBusy = false;
         installBtn.disabled = false;
+        invalidateUpdates();
         await refresh();
     }
 }
@@ -845,6 +948,7 @@ async function uninstall(sessionKey: string, id: string): Promise<void> {
         statusEl.textContent = `Could not uninstall: ${err}`;
     } finally {
         busySessions.delete(sessionKey);
+        invalidateUpdates();
         await refresh();
     }
 }
@@ -863,6 +967,52 @@ catalogBtn.addEventListener("click", () => {
     const firstKey = sessionListEl.querySelector<HTMLElement>(".session-card")?.dataset.key;
     void openCatalog(firstKey ?? "");
 });
+
+// New-release check. Runs once at start; any failure (offline, rate limit)
+// shows nothing. Dismiss hides the banner until the next start.
+const updateBannerEl = document.getElementById("update-banner") as HTMLElement;
+const updateBannerTextEl = document.getElementById("update-banner-text") as HTMLElement;
+const updateOpenBtn = document.getElementById("update-open-btn") as HTMLButtonElement;
+const updateDismissBtn = document.getElementById("update-dismiss-btn") as HTMLButtonElement;
+const updateCheckCheck = document.getElementById("update-check-check") as HTMLInputElement;
+let updateURL = "";
+
+async function checkForUpdate(): Promise<void> {
+    try {
+        const res = await PushService.CheckForUpdate();
+        if (!res) return;
+        updateURL = res.url;
+        updateBannerTextEl.textContent = `Version ${res.version} is available.`;
+        updateBannerEl.hidden = false;
+    } catch (err) {
+        console.warn("update check failed:", err);
+    }
+}
+
+updateOpenBtn.addEventListener("click", () => {
+    PushService.OpenReleasePage(updateURL).catch((err) => {
+        statusEl.textContent = `Could not open the release page: ${err}`;
+    });
+});
+updateDismissBtn.addEventListener("click", () => {
+    updateBannerEl.hidden = true;
+});
+updateCheckCheck.addEventListener("change", async () => {
+    try {
+        await PushService.SetUpdateCheckEnabled(updateCheckCheck.checked);
+    } catch (err) {
+        statusEl.textContent = `Could not save the setting: ${err}`;
+        return;
+    }
+    if (updateCheckCheck.checked) void checkForUpdate();
+    else updateBannerEl.hidden = true;
+});
+PushService.UpdateCheckEnabled()
+    .then((on) => {
+        updateCheckCheck.checked = on;
+    })
+    .catch(() => {});
+void checkForUpdate();
 
 // No push events from the host yet (a natural addition once something needs
 // them) — poll instead. Slow enough that it costs nothing, fast enough that a

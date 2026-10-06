@@ -20,6 +20,12 @@
         <p class="subtitle" id="status">Loading&hellip;</p>
     </header>
 
+    <div class="update-banner" id="update-banner" hidden>
+        <span id="update-banner-text"></span>
+        <button id="update-open-btn" class="install-btn">Open release page</button>
+        <button id="update-dismiss-btn" class="install-btn">Dismiss</button>
+    </div>
+
     <section class="pairing-view" id="pairing-view" hidden>
         <p class="connect-hint">
             Pick a screen and a MIDI port that belong to the same physical
@@ -59,6 +65,13 @@
             <button id="pair-btn" class="pair-btn" disabled>Pair and connect</button>
             <button id="auto-btn" class="retry-btn">Auto-detect and connect</button>
         </div>
+
+        <div class="pairing-options">
+            <label class="pairing-checkbox">
+                <input type="checkbox" id="update-check-check"/>
+                Check for new releases at start
+            </label>
+        </div>
     </section>
 
     <ul class="session-list" id="session-list" aria-label="Connected sessions" hidden></ul>
@@ -74,13 +87,15 @@
     </div>
 </div>
 
-<div class="settings-overlay" id="catalog-overlay" hidden>
+<div class="settings-overlay catalog-overlay" id="catalog-overlay" hidden>
     <div class="settings-panel">
-        <div class="settings-panel-header">
-            <span>Browse catalog</span>
-            <button id="catalog-close-btn" class="mirror-close">×</button>
-        </div>
-        <ul class="module-list" id="catalog-list" aria-label="Catalog modules"></ul>
+        <header class="brand">
+            <div class="brand-row">
+                <h1 class="title">Browse catalog</h1>
+                <button id="catalog-close-btn" class="install-btn">Close</button>
+            </div>
+        </header>
+        <ul class="module-list catalog-grid" id="catalog-list" aria-label="Catalog modules"></ul>
     </div>
 </div>
 
