@@ -327,6 +327,19 @@ output or the User Port output (not the External Port):
   "keep User Mode" did, with the screen held by PTA, and the Push stopped
   showing frames and needed a hard reset (2026-10-03). Starting Live after the
   host sets User Mode once is harmless. See the plan, "The black screen".
+- **No button chord can hand the screen back and forth with Live (2026-10-07,
+  macOS, Push 3).** Tried and dropped:
+  - Shift+User is swallowed by the firmware: Push sends Shift but not the User
+    press, then re-runs the identity handshake about 5 s later. User alone, and
+    Shift+Select, both reach the host normally.
+  - Ordinary buttons (Shift, Select, Note) arrive on the Live Port in Live Mode
+    and on the User Port in User Mode. User itself arrives on both.
+  - Releasing the screen works: Live's helper takes interface 0 at once. Taking
+    it back fails with `ErrBusy` for as long as Live runs, and only a quit of
+    Live (or killing the helper, which Live respawns in about 2.3 s) frees it.
+  - The helper draws its own picture. Live reaches it through unix sockets
+    (`live-to-push-midi-ipc-channel`, flip API) and pipes, with no pixel
+    framebuffer visible. Only a USB capture would see the frames.
 - The measurements above are from macOS with a Push 3. The keep User Mode
   feature built on them behaved the same on Windows and on a Push 2 (user
   report, 2026-10-03): Live and PTA ran together and User Mode stayed on. On
