@@ -1,12 +1,17 @@
 package display
 
 import (
+	"bytes"
 	"errors"
+	"image"
+	"image/color"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	coredisplay "github.com/federico-pepe/ableton-push-hack/core/display"
+	"github.com/federico-pepe/ableton-push-hack/core/push3"
 	"github.com/google/gousb"
 )
 
@@ -166,5 +171,54 @@ func TestNoSetAutoDetach(t *testing.T) {
 				t.Errorf("%s calls SetAutoDetach(true) — see docs/protocol/usb-and-safety.md", f)
 			}
 		}
+	}
+}
+
+// wantWire is what WriteFrame sent before it used core/display's EncodeFrame
+// and ToWire: ToBGR565, first half, XOR 0xE7 0xF3 0xE7 0xFF by byte offset.
+func wantWire(img image.Image) []byte {
+	pat := [4]byte{0xE7, 0xF3, 0xE7, 0xFF}
+	out := append([]byte(nil), coredisplay.ToBGR565(img)[:push3.FrameBytes]...)
+	for i := range out {
+		out[i] ^= pat[i&3]
+	}
+	return out
+}
+
+func TestEncodeMatchesLegacyWire(t *testing.T) {
+	nrgba := image.NewNRGBA(image.Rect(0, 0, push3.VisW, push3.VisH))
+	for i := range nrgba.Pix {
+		nrgba.Pix[i] = byte(i*131 + i/7)
+	}
+	for i := 3; i < len(nrgba.Pix); i += 4 {
+		nrgba.Pix[i] = 255 // opaque, as every module draws
+	}
+	rgba := image.NewRGBA(image.Rect(0, 0, push3.VisW, push3.VisH))
+	for y := 0; y < push3.VisH; y++ {
+		for x := 0; x < push3.VisW; x++ {
+			rgba.Set(x, y, color.RGBA{uint8(x), uint8(y), uint8(x + y), 255})
+		}
+	}
+	small := image.NewNRGBA(image.Rect(0, 0, 100, 40)) // scaled by ToBGR565
+	d := &Device{raw: make([]byte, push3.FrameBytes), buf: make([]byte, push3.FrameBytes)}
+	for name, img := range map[string]image.Image{"nrgba": nrgba, "rgba": rgba, "small": small} {
+		d.encode(img)
+		if !bytes.Equal(d.buf, wantWire(img)) {
+			t.Errorf("%s: wire bytes differ from the legacy encoding", name)
+		}
+	}
+	// a second frame must not carry state from the first (row padding)
+	d.encode(nrgba)
+	d.encode(small)
+	if !bytes.Equal(d.buf, wantWire(small)) {
+		t.Error("frame after another frame differs: stale bytes in the reused buffers")
+	}
+}
+
+func TestEncodeDoesNotAllocate(t *testing.T) {
+	img := image.NewNRGBA(image.Rect(0, 0, push3.VisW, push3.VisH))
+	d := &Device{raw: make([]byte, push3.FrameBytes), buf: make([]byte, push3.FrameBytes)}
+	if n := testing.AllocsPerRun(5, func() { d.encode(img) }); n != 0 {
+		t.Errorf("encode allocates %v times per frame, want 0", n)
 	}
 }

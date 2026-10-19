@@ -57,9 +57,6 @@ var frameHeader = []byte{
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 }
 
-// xorPattern is the line shaping applied to pixel data (0xFFE7F3E7, phase-1).
-var xorPattern = [4]byte{0xE7, 0xF3, 0xE7, 0xFF}
-
 // Device is a claimed Push display.
 type Device struct {
 	dev  *gousb.Device
@@ -68,8 +65,10 @@ type Device struct {
 	out  *gousb.OutEndpoint
 	info Info
 
-	// buf is reused across frames so the refresh loop does not allocate
-	// 320KB per frame at 30fps.
+	// raw and buf are reused across frames so the refresh loop does not
+	// allocate 320KB per frame at 30fps. raw holds the BGR565 pixels (its
+	// 64-pixel row padding stays zero); buf holds the bytes sent on the wire.
+	raw []byte
 	buf []byte
 }
 
@@ -156,6 +155,7 @@ func OpenID(sel string) (*Device, error) {
 	return &Device{
 		dev: dev, cfg: cfg, intf: intf, out: out,
 		info: info,
+		raw:  make([]byte, push3.FrameBytes),
 		buf:  make([]byte, push3.FrameBytes),
 	}, nil
 }
@@ -236,11 +236,7 @@ func isAccessError(err error) bool {
 // the standalone device's frame duplication is a quirk of Ableton's binary,
 // not a hardware requirement (docs/archive/feasibility.md §8.3).
 func (d *Device) WriteFrame(ctx context.Context, img image.Image) error {
-	full := coredisplay.ToBGR565(img)
-	copy(d.buf, full[:push3.FrameBytes])
-	for i := range d.buf {
-		d.buf[i] ^= xorPattern[i&3]
-	}
+	d.encode(img)
 
 	wctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -257,6 +253,18 @@ func (d *Device) WriteFrame(ctx context.Context, img image.Image) error {
 		return fmt.Errorf("writing pixels: %w", err)
 	}
 	return nil
+}
+
+// encode fills d.buf with the wire bytes of img: core/display's BGR565 and
+// XOR (ToWire), the same ones push_hook.c applies. A 960x160 NRGBA takes
+// EncodeFrame, which allocates nothing; any other image takes ToBGR565.
+func (d *Device) encode(img image.Image) {
+	if n, ok := img.(*image.NRGBA); ok && n.Rect == image.Rect(0, 0, coredisplay.VisW, coredisplay.VisH) {
+		coredisplay.EncodeFrame(n, d.raw)
+	} else {
+		copy(d.raw, coredisplay.ToBGR565(img)[:push3.FrameBytes])
+	}
+	coredisplay.ToWire(d.buf, d.raw)
 }
 
 // isDisconnectError reports whether err is libusb reporting the device is
