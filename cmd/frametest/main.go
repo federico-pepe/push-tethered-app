@@ -50,10 +50,6 @@ var frameHeader = []byte{
 	0x00, 0x00, 0x00, 0x00,
 }
 
-// xorPattern is the line shaping applied to pixel data — 0xFFE7F3E7 seen
-// phase-shifted by one byte (push_hook.c:194).
-var xorPattern = [4]byte{0xE7, 0xF3, 0xE7, 0xFF}
-
 func main() {
 	var (
 		double  = flag.Bool("double", false, "send the frame twice (655360B) as the standalone device does; default sends one frame")
@@ -118,7 +114,7 @@ func main() {
 			payload = full
 		}
 		if !*noXOR {
-			applyXOR(payload)
+			coredisplay.ToWire(payload, payload) // core/display: the XOR push_hook.c applies
 		}
 
 		wctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -173,13 +169,6 @@ func main() {
 	fmt.Println("  held steady, marker moving -> protocol fully confirmed at speed")
 	fmt.Println("  flickering/fighting         -> device UI still redrawing; try -fps 60")
 	fmt.Println("  colours wrong               -> channel order differs from the standalone path")
-}
-
-// applyXOR applies the line-shaping pattern to px in place.
-func applyXOR(px []byte) {
-	for i := range px {
-		px[i] ^= xorPattern[i&3]
-	}
 }
 
 // renderTestImage draws the probe pattern using only core/ widgets, so a

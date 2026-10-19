@@ -153,7 +153,7 @@ internal/updatecheck/  asks GitHub for a newer release of this app (semver
 internal/renderframe/  the Frame/Op renderer itself (RegisterOp, Render, SupportedOps),
                    split out of internal/host so gousb-free tools like cmd/screensim
                    can import it
-internal/display/ USB transport: claim interface 0, frame header, XOR, refresh
+internal/display/ USB transport: claim interface 0, frame header, refresh (pixels and XOR come from core/display: EncodeFrame, ToWire)
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
 internal/midiout/ owns a named MIDI out port for modules (create or attach)
 internal/midiin/  owns a named MIDI in port for modules (create or attach) — raw bytes only, no decoding

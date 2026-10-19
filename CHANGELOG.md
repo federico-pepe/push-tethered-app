@@ -9,6 +9,7 @@ between minor versions).
 
 ### Changed
 
+- The display code uses `core/display` for the whole frame. A 960x160 frame is encoded with `EncodeFrame`, which does not allocate memory. The XOR step is `ToWire`. This removes PTA's own copy of the XOR pattern and a 640 KB allocation on every frame. The output on the wire is the same as before. Tested on a tethered Push 3.
 - `pushapp-ui`: the module **Update** button has a yellow border, and the
   "update available" badge uses the same yellow as the app update banner.
 
