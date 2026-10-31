@@ -157,7 +157,7 @@ internal/display/ USB transport: claim interface 0, frame header, refresh (pixel
 internal/midi/    OS MIDI in/out, event decoding, LED helpers
 internal/midiout/ owns a named MIDI out port for modules (create or attach)
 internal/midiin/  owns a named MIDI in port for modules (create or attach) — raw bytes only, no decoding
-internal/mirror/  live HTTP/MJPEG screen mirror — taps the same render output as
+internal/mirror/  live HTTP screen mirror (viewer page, 2x PNG long-poll) — taps the same render output as
                    internal/capture (no extra USB traffic) but fans out to any
                    number of browser clients instead of writing a file; a Hub
                    costs nothing when no client is connected
@@ -259,7 +259,7 @@ go build ./... && go vet ./... && go test ./...
   pairing form. See
   [docs/architecture/module-host.md](docs/architecture/module-host.md#routing-through-push-3s-external-port-instead).
 - `-capture`, `-capture-raw`.
-- `-mirror-addr <addr>` — serves a live MJPEG mirror of the screen at
+- `-mirror-addr <addr>` — serves a live mirror page of the screen at
   `http://<addr>/screen`. This is on by default at `localhost:3000`. Pass
   `-mirror-addr=""` to disable it. Avoid `:7000` and `:5000`; macOS's
   AirPlay Receiver uses both by default. See `internal/mirror`.

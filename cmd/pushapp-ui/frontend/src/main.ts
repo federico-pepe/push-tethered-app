@@ -72,8 +72,8 @@ const mirrorAddr = "localhost:3000";
 // openMirrors holds the live-screen overlay for each session currently
 // showing one, keyed by session key. Deliberately appended to document.body
 // rather than into a session card: session cards are rebuilt wholesale every
-// 2s poll (see renderSessions), and recreating the <img> each time would
-// restart its MJPEG connection every 2s instead of streaming continuously.
+// 2s poll (see renderSessions), and recreating the <iframe> each time
+// would reload the mirror page every 2s instead of keeping it running.
 const openMirrors = new Map<string, HTMLDivElement>();
 
 function openMirror(session: SessionInfo): void {
@@ -95,13 +95,17 @@ function openMirror(session: SessionInfo): void {
     closeBtn.addEventListener("click", () => closeMirror(session.key));
     header.append(title, closeBtn);
 
-    const img = document.createElement("img");
-    img.className = "mirror-image";
-    img.width = 960;
-    img.height = 160;
-    img.src = `http://${mirrorAddr}/screen/${session.key}`;
+    // The mirror URL serves a viewer page (canvas fed by PNG long-polls),
+    // not an image stream, so it needs a frame rather than an <img>.
+    const view = document.createElement("iframe");
+    view.className = "mirror-image";
+    view.width = "960";
+    view.height = "160";
+    view.style.border = "0";
+    view.style.display = "block";
+    view.src = `http://${mirrorAddr}/screen/${session.key}`;
 
-    panel.append(header, img);
+    panel.append(header, view);
     overlay.appendChild(panel);
     overlay.addEventListener("click", (ev) => {
         if (ev.target === overlay) closeMirror(session.key);
