@@ -7,6 +7,8 @@ between minor versions).
 
 ## [Unreleased]
 
+## [0.2.7-alpha] - 2026-10-31
+
 ### Changed
 
 - The live screen mirror serves a viewer page with lossless 2x PNG frames, instead of an MJPEG stream. It follows the Push Hack mirror: Chrome showed MJPEG frames one change late, and JPEG blurred coloured text. A frame is only encoded when the picture changes, and only while a browser is watching. It runs at the full 30 fps. The URLs are the same. Embedding `/screen` as a plain `<img>` no longer works.
