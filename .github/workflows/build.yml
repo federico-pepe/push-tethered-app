@@ -39,8 +39,13 @@ jobs:
       # runner.os) is the CLI-tools build/vet/test/upload block further down,
       # gated to just this entry — that coverage otherwise has no other job to
       # live in now that build-pi is gone.
+      #
+      # The x86_64 Linux entry is pinned to ubuntu-24.04, not ubuntu-latest:
+      # ubuntu-latest moved to 26.04 on 2026-10, where linuxdeploy's gtk
+      # plugin fails the AppImage step ("cp: cannot stat 'gtk-4.0'"). This
+      # also matches the arm entry, so both Linux builds use one distro.
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest, ubuntu-24.04-arm]
+        os: [macos-latest, ubuntu-24.04, windows-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7

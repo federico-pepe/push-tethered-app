@@ -19,6 +19,7 @@ between minor versions).
 
 ### Fixed
 
+- CI: the x86_64 Linux build runs on `ubuntu-24.04`. `ubuntu-latest` is now 26.04, where the AppImage step failed.
 - `pushapp-ui` showed a module version as `VV0.2.2` in the "update
   available" badge. It now shows `v0.2.2`.
 
