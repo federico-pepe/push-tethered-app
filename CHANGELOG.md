@@ -9,6 +9,8 @@ between minor versions).
 
 ### Changed
 
+- The live screen mirror serves a viewer page with lossless 2x PNG frames, instead of an MJPEG stream. It follows the Push Hack mirror: Chrome showed MJPEG frames one change late, and JPEG blurred coloured text. A frame is only encoded when the picture changes, and only while a browser is watching. It runs at the full 30 fps. The URLs are the same. Embedding `/screen` as a plain `<img>` no longer works.
+- Core bumped to v0.5.2.
 - The display code uses `core/display` for the whole frame. A 960x160 frame is encoded with `EncodeFrame`, which does not allocate memory. The XOR step is `ToWire`. This removes PTA's own copy of the XOR pattern and a 640 KB allocation on every frame. The output on the wire is the same as before. Tested on a tethered Push 3.
 - `pushapp-ui`: the module **Update** button has a yellow border, and the
   "update available" badge uses the same yellow as the app update banner.
@@ -58,6 +60,8 @@ between minor versions).
 
 ### Changed
 
+- The live screen mirror serves a viewer page with lossless 2x PNG frames, instead of an MJPEG stream. It follows the Push Hack mirror: Chrome showed MJPEG frames one change late, and JPEG blurred coloured text. A frame is only encoded when the picture changes, and only while a browser is watching. It runs at the full 30 fps. The URLs are the same. Embedding `/screen` as a plain `<img>` no longer works.
+- Core bumped to v0.5.2.
 - `catalog.CheckUpdate` no longer returns a download URL (no caller used
   it), and uses the version cache.
 
@@ -102,6 +106,8 @@ between minor versions).
 
 ### Changed
 
+- The live screen mirror serves a viewer page with lossless 2x PNG frames, instead of an MJPEG stream. It follows the Push Hack mirror: Chrome showed MJPEG frames one change late, and JPEG blurred coloured text. A frame is only encoded when the picture changes, and only while a browser is watching. It runs at the full 30 fps. The URLs are the same. Embedding `/screen` as a plain `<img>` no longer works.
+- Core bumped to v0.5.2.
 - New app icon for `pushapp-ui` on macOS, Windows, and Linux: a pink
   gradient with the pixel text "PUSH TETHERED APP". The Icon Composer
   source (`build/appicon.icon`), `appicon.png`, `Assets.car`, and the
@@ -151,6 +157,8 @@ between minor versions).
 
 ### Changed
 
+- The live screen mirror serves a viewer page with lossless 2x PNG frames, instead of an MJPEG stream. It follows the Push Hack mirror: Chrome showed MJPEG frames one change late, and JPEG blurred coloured text. A frame is only encoded when the picture changes, and only while a browser is watching. It runs at the full 30 fps. The URLs are the same. Embedding `/screen` as a plain `<img>` no longer works.
+- Core bumped to v0.5.2.
 - CI now packages `pushapp-ui` into a normal, self-contained app per OS,
   instead of a bare executable: a `.dmg` on macOS, an NSIS installer on
   Windows, and an AppImage on Linux. Each one bundles libusb, so a
@@ -165,6 +173,8 @@ between minor versions).
 
 ### Changed
 
+- The live screen mirror serves a viewer page with lossless 2x PNG frames, instead of an MJPEG stream. It follows the Push Hack mirror: Chrome showed MJPEG frames one change late, and JPEG blurred coloured text. A frame is only encoded when the picture changes, and only while a browser is watching. It runs at the full 30 fps. The URLs are the same. Embedding `/screen` as a plain `<img>` no longer works.
+- Core bumped to v0.5.2.
 - `examples/modules/knobs-js` is no longer bundled in-tree — it's the
   catalog's first real entry, published at
   [federico-pepe/pta-module-knobs](https://github.com/federico-pepe/pta-module-knobs)
@@ -200,6 +210,8 @@ between minor versions).
 
 ### Changed
 
+- The live screen mirror serves a viewer page with lossless 2x PNG frames, instead of an MJPEG stream. It follows the Push Hack mirror: Chrome showed MJPEG frames one change late, and JPEG blurred coloured text. A frame is only encoded when the picture changes, and only while a browser is watching. It runs at the full 30 fps. The URLs are the same. Embedding `/screen` as a plain `<img>` no longer works.
+- Core bumped to v0.5.2.
 - CI: `build.yml`'s standalone `build-pi` job is folded into the main
   `build` matrix as an `ubuntu-24.04-arm` entry, and now also builds
   `cmd/pushapp-ui` for that target (uploaded as `pushapp-ui-ubuntu-24.04-arm`),
@@ -325,6 +337,8 @@ between minor versions).
 
 ### Changed
 
+- The live screen mirror serves a viewer page with lossless 2x PNG frames, instead of an MJPEG stream. It follows the Push Hack mirror: Chrome showed MJPEG frames one change late, and JPEG blurred coloured text. A frame is only encoded when the picture changes, and only while a browser is watching. It runs at the full 30 fps. The URLs are the same. Embedding `/screen` as a plain `<img>` no longer works.
+- Core bumped to v0.5.2.
 - `pushapp`'s default mirror port moves to 3000 (7000/5000 collide with
   macOS's AirPlay Receiver); the mirror is now on by default rather than
   opt-in.
@@ -385,6 +399,8 @@ between minor versions).
 
 ### Changed
 
+- The live screen mirror serves a viewer page with lossless 2x PNG frames, instead of an MJPEG stream. It follows the Push Hack mirror: Chrome showed MJPEG frames one change late, and JPEG blurred coloured text. A frame is only encoded when the picture changes, and only while a browser is watching. It runs at the full 30 fps. The URLs are the same. Embedding `/screen` as a plain `<img>` no longer works.
+- Core bumped to v0.5.2.
 - Design system visual polish: `widgets.Default`/`widgets.groupColors`
   (in `ableton-push-hack`'s `core/gfx/widgets`) now resolve every color
   through `push3.Palette`/`ColorForIndex` instead of raw RGB literals; a

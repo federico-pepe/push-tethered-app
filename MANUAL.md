@@ -209,7 +209,7 @@ disconnect and reconnect with the box checked or unchecked as you want.
 
 ## Live screen mirror
 
-Both `pushapp` and `pushapp-ui` can stream a live copy of the Push screen to
+Both `pushapp` and `pushapp-ui` can show a live copy of the Push screen to
 a browser. Use this feature to demo the app without the physical device in
 view, or to debug the drawing of a module without looking at the hardware.
 
@@ -218,7 +218,7 @@ button.
 
 1. Click **Live screen** to open a live view in the app window.
 2. Click **Hide live screen**, or the × on the overlay, to close the view.
-3. Click **Open in browser** to open the same stream in your default
+3. Click **Open in browser** to open the same view in your default
    browser. Use this option to share only the Push display during a demo.
 
 Each connected Push has its own stream, at
@@ -236,7 +236,7 @@ go run ./cmd/pushapp -mirror-addr=""              # disabled
 ```
 
 The stream uses no extra resources when no one watches it. Encoding starts
-only when a browser tab opens the stream, and stops immediately when the
+only when a browser tab opens the mirror, and stops a few seconds after the
 tab closes.
 
 ## Update check

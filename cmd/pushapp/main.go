@@ -78,7 +78,7 @@ func main() {
 	extPortOut := flag.Bool("ext-port-out", false, "Push 3 only: route NeedsMIDIOut modules through Push's own External Port (the physical MIDI DIN output) instead of the virtual loopback port")
 	capturePath := flag.String("capture", "", "record the screen to a file (.mp4, .mov or .gif)")
 	captureRaw := flag.Bool("capture-raw", false, "record the source image instead of panel-accurate BGR565 colour")
-	mirrorAddr := flag.String("mirror-addr", "localhost:3000", "serve a live MJPEG mirror of the screen at http://<addr>/screen; pass -mirror-addr=\"\" to disable it. Avoid :7000/:5000 — macOS's AirPlay Receiver squats both by default.")
+	mirrorAddr := flag.String("mirror-addr", "localhost:3000", "serve a live mirror page of the screen at http://<addr>/screen; pass -mirror-addr=\"\" to disable it. Avoid :7000/:5000 — macOS's AirPlay Receiver squats both by default.")
 	installDir := flag.String("install", "", "install the module directory or .tar.gz/.tgz archive at this path (manifest.json + executable), then exit")
 	uninstallID := flag.String("uninstall", "", "uninstall the process-loaded module with this id, then exit")
 	catalogURL := flag.String("catalog-url", catalog.DefaultCatalogURL, "catalog.json URL to use for -catalog-list/-catalog-install/-catalog-check-updates/-catalog-update")
