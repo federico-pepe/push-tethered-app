@@ -7,6 +7,10 @@ between minor versions).
 
 ## [Unreleased]
 
+### Changed
+
+- Core bumped to v0.5.4 (root and `cmd/pushapp-ui`). The new core code is for standalone Push 3 (`audiobus`, `harmony`, `alsaseq` Live Port follow, `alsapcm.ReadHWParams`, `display.Mirror`, `pmclient.Push`) and does not change PTA. `widgets.DrawTouchHeader`, `DimImage` and `DrawOnOffBox` are new and available to Go code.
+
 ## [0.2.7-alpha] - 2026-10-31
 
 ### Changed
