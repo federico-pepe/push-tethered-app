@@ -7,6 +7,8 @@ between minor versions).
 
 ## [Unreleased]
 
+## [0.2.8-alpha] - 2026-11-04
+
 ### Added
 
 - `Frame.TouchHeader` and the `touchheader` draw op: the touch overlay of Push's own UI (`core/gfx/widgets.DrawTouchHeader`). It dims the frame, then shows per column the button function (with an On/Off box), the knob name and its value. A module calls it last, for example while a knob is touched. Works for process modules too. New `screensim` scene: `touchheader`.
