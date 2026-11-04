@@ -85,6 +85,7 @@ See [writing-a-process-module.md](../guides/writing-a-process-module.md).
 | `RenderListH` | `HList` | `hlist` | Horizontal scrolling list (columns, not rows) |
 | `DrawKVRows` | `KVRows` | `kvrows` | Label:value rows |
 | `DrawBotStrip` | `BotStrip` | `botstrip` | The 8 under-screen soft-buttons + a hint |
+| `DrawTouchHeader` | `TouchHeader` | `touchheader` | Touch overlay: dims the frame, then per column the button function (On/Off box), knob name and value. Call it last |
 | `DrawMeter` / `DrawMeterV` | `Meter` / `MeterV` | `meter` / `meterv` | Horizontal / vertical level bar |
 | `DrawArc` | `Arc` | `arc` | Raw circular arc primitive, anti-aliased |
 | `DrawKnob` | `Knob` | `knob` | Radial-progress knob (arc sweep + value + label), 2px anti-aliased stroke |

@@ -7,6 +7,10 @@ between minor versions).
 
 ## [Unreleased]
 
+### Added
+
+- `Frame.TouchHeader` and the `touchheader` draw op: the touch overlay of Push's own UI (`core/gfx/widgets.DrawTouchHeader`). It dims the frame, then shows per column the button function (with an On/Off box), the knob name and its value. A module calls it last, for example while a knob is touched. Works for process modules too. New `screensim` scene: `touchheader`.
+
 ### Changed
 
 - Core bumped to v0.5.4 (root and `cmd/pushapp-ui`). The new core code is for standalone Push 3 (`audiobus`, `harmony`, `alsaseq` Live Port follow, `alsapcm.ReadHWParams`, `display.Mirror`, `pmclient.Push`) and does not change PTA. `widgets.DrawTouchHeader`, `DimImage` and `DrawOnOffBox` are new and available to Go code.

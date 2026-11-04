@@ -213,6 +213,13 @@ Not full JSON-RPC — no batching, no version field. Two peers, fixed method set
 These ops use the same JSON shapes as the Go `internal/module` types.
 Colour: `{"R":255,"G":255,"B":255,"A":255}` (Go `color.NRGBA` encoding).
 
+The `touchheader` op is the touch overlay of Push's own UI. Send it last in
+`ops`: it dims everything before it. Params:
+`{"cols": [{"Col": 0, "Label": "Loop", "Toggle": true, "On": true, "Name": "Loop Start", "Value": "97.1.1"}]}`.
+`Col` is 0 to 7. `Label` is the button function above the column. `Toggle`
+adds an On/Off box. `Name` and `Value` are the knob name and its value.
+`ValueColor` (optional) sets the value color. Show it while a knob is touched.
+
 **The image op is not available** over IPC. Raw pixels need an in-tree Go
 module.
 

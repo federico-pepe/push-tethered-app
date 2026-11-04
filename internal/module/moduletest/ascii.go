@@ -68,6 +68,15 @@ func NonASCIIStrings(f *module.Frame) []string {
 					check(b.Label)
 				}
 			}
+		case "touchheader":
+			var v module.TouchHeaderParams
+			if json.Unmarshal(op.Params, &v) == nil {
+				for _, c := range v.Cols {
+					check(c.Label)
+					check(c.Name)
+					check(c.Value)
+				}
+			}
 		case "breadcrumb":
 			var v module.BreadcrumbParams
 			if json.Unmarshal(op.Params, &v) == nil {

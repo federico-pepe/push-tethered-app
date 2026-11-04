@@ -390,6 +390,20 @@ func init() {
 		return nil
 	})
 
+	RegisterOp("touchheader", func(dst *image.NRGBA, t module.Theme, _ *module.Frame, p json.RawMessage) error {
+		var v module.TouchHeaderParams
+		if err := json.Unmarshal(p, &v); err != nil {
+			return err
+		}
+		for i := range v.Cols {
+			v.Cols[i].Label = asciiOnly(v.Cols[i].Label)
+			v.Cols[i].Name = asciiOnly(v.Cols[i].Name)
+			v.Cols[i].Value = asciiOnly(v.Cols[i].Value)
+		}
+		widgets.DrawTouchHeader(dst, t, v.Cols)
+		return nil
+	})
+
 	RegisterOp("image", func(dst *image.NRGBA, _ module.Theme, f *module.Frame, p json.RawMessage) error {
 		var v module.ImageParams
 		if err := json.Unmarshal(p, &v); err != nil {
