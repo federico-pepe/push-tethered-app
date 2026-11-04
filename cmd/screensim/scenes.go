@@ -18,6 +18,7 @@ import (
 var frameScenes = map[string]func(*module.Frame){
 	"kitchen-sink":  sceneKitchenSink,
 	"botstrip":      sceneBotStrip,
+	"touchheader":   sceneTouchHeader,
 	"list":          sceneList,
 	"breadcrumb":    sceneBreadcrumb,
 	"hlist":         sceneHList,
@@ -50,6 +51,18 @@ func sceneKitchenSink(f *module.Frame) {
 		{Label: "STOP", State: widgets.SoftOff},
 		{Label: "DEL", State: widgets.SoftConfirm},
 	}, "hint")
+}
+
+// sceneTouchHeader: a finished frame (list + soft buttons) with the touch
+// overlay on top. TouchHeader goes last because it dims what is below.
+func sceneTouchHeader(f *module.Frame) {
+	sceneBotStrip(f)
+	f.TouchHeader([]module.HeaderCol{
+		{Col: 0, Label: "Loop", Toggle: true, On: true, Name: "Loop Start", Value: "97.1.1"},
+		{Col: 1, Label: "Mute", Toggle: true, Name: "Gain", Value: "-6.0 dB"},
+		{Col: 2, Name: "Cutoff", Value: "1.20 kHz"},
+		{Col: 7, Label: "Next", Name: "Tempo", Value: "120.0"},
+	})
 }
 
 func sceneBotStrip(f *module.Frame) {

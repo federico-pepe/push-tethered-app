@@ -221,6 +221,12 @@ type BotStripParams struct {
 	Hint    string        `json:"hint"`
 }
 
+// TouchHeaderParams: the columns of the touch overlay. Each HeaderCol has
+// a Col index (0-7), so a module sends only the columns it wants.
+type TouchHeaderParams struct {
+	Cols []HeaderCol `json:"cols"`
+}
+
 // PadGridParams carries the whole cell-color matrix rather than a callback:
 // Op payloads must survive a JSON boundary for out-of-process modules, and
 // a Go func cannot. Colors[row][col], matching widgets.DrawPadGrid's row-0-
@@ -376,6 +382,15 @@ func (f *Frame) HList(v HListView, y, w, h, colW, maxX int) {
 // BotStrip draws the eight soft buttons under the screen plus a hint.
 func (f *Frame) BotStrip(y, w, colW, h int, buttons [8]SoftButton, hint string) {
 	f.add("botstrip", BotStripParams{Y: y, W: w, ColW: colW, H: h, Buttons: buttons, Hint: hint})
+}
+
+// TouchHeader dims everything drawn so far and puts the touch overlay on top:
+// per column, the button function (with an On/Off box for a switch), the knob
+// name and its value. It is what Push's own UI shows while you touch a knob.
+// Call it LAST in Draw: it dims what is already in the frame. The module
+// decides when to show it (for example while a knob is touched).
+func (f *Frame) TouchHeader(cols []HeaderCol) {
+	f.add("touchheader", TouchHeaderParams{Cols: cols})
 }
 
 // PadGrid draws a cols x rows grid of cells, cell pixels apart, row 0 at

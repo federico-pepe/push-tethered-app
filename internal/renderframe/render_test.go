@@ -349,3 +349,26 @@ func injectRaw(t *testing.T, f *module.Frame, kind, params string) {
 	}
 	f.AppendRaw(kind, json.RawMessage(params))
 }
+
+// TestTouchHeaderDimsAndDraws checks the touchheader op dims what is below it
+// and that a non-ASCII column text is sanitised like every other op.
+func TestTouchHeaderDimsAndDraws(t *testing.T) {
+	white := color.NRGBA{255, 255, 255, 255}
+	build := func(name string) *image.NRGBA {
+		dst := newDst()
+		f := module.NewFrame(960, 160)
+		f.Rect(0, 100, 960, 60, white)
+		f.TouchHeader([]module.HeaderCol{{Col: 0, Label: "Loop", Toggle: true, On: true, Name: name, Value: "1"}})
+		if st := Render(f, dst, widgets.Default); st.Unknown != 0 || st.Failed != 0 {
+			t.Fatalf("touchheader op failed to render: %+v", st)
+		}
+		return dst
+	}
+	a := build("Start")
+	if got := a.NRGBAAt(500, 130).R; got >= 255 || got == 0 {
+		t.Errorf("pixel below the overlay = %d, want dimmed (0 < v < 255)", got)
+	}
+	if !bytes.Equal(build("St—rt").Pix, build("St?rt").Pix) {
+		t.Error("non-ASCII column text was not sanitised")
+	}
+}

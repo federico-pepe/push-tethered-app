@@ -47,6 +47,7 @@ type (
 	KVRow           = widgets.KVRow
 	SoftButton      = widgets.SoftButton
 	SoftButtonState = widgets.SoftButtonState
+	HeaderCol       = widgets.HeaderCol
 	Knob            = widgets.Knob
 	Weight          = text.Weight
 )
